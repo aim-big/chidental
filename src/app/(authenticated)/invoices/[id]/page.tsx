@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { ArrowLeft, Printer, CreditCard, CheckCircle, Ban, ChevronRight, Pencil } from 'lucide-react'
-import type { Invoice, InvoiceItem, InvoiceItemStatusHistory, Payment, Customer, WorkStatus, ServiceStatus } from '@/lib/database.types'
+import type { Invoice, InvoiceItem, InvoiceItemStatusHistory, Payment, Customer, WorkStatus, ServiceStatus, Product } from '@/lib/database.types'
 import { COMPANY, BANK } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { WORK_STATUSES, WORK_STATUS_LABELS, WORK_STATUS_COLORS } from '@/lib/work-status'
@@ -78,6 +78,7 @@ export default function InvoiceDetailPage() {
   const [serviceStatuses, setServiceStatuses] = useState<ServiceStatus[]>([])
   const [serviceStatusId, setServiceStatusId] = useState<string | null>(null)
   const [items, setItems] = useState<InvoiceItem[]>([])
+  const [products, setProducts] = useState<Product[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [history, setHistory] = useState<InvoiceItemStatusHistory[]>([])
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -111,12 +112,14 @@ export default function InvoiceDetailPage() {
 
   const load = async () => {
     if (!id) return
-    const [invRes, itemsRes, paymentsRes, ssRes] = await Promise.all([
+    const [invRes, itemsRes, paymentsRes, ssRes, prodRes] = await Promise.all([
       supabase.from('invoices').select('*, customers(*), service_statuses(*)').eq('id', id).single(),
       supabase.from('invoice_items').select('*').eq('invoice_id', id).order('created_at'),
       supabase.from('payments').select('*').eq('invoice_id', id).order('payment_date'),
       fetchActiveServiceStatuses(),
+      supabase.from('products').select('*').eq('active', true).order('created_at'),
     ])
+    setProducts(prodRes.data ?? [])
     if (invRes.data) {
       const inv = invRes.data as Invoice
       setInvoice(inv)
@@ -456,7 +459,7 @@ export default function InvoiceDetailPage() {
         <table className="w-full text-sm mb-6">
           <thead>
             <tr className="border-b-2 border-gray-200">
-              <th className="text-left py-2 text-gray-500 font-medium w-1/2">Description</th>
+              <th className="text-left py-2 text-gray-500 font-medium w-1/2">Item</th>
               <th className="text-right py-2 text-gray-500 font-medium">Qty</th>
               {!isDelivery && (
                 <>
@@ -469,9 +472,17 @@ export default function InvoiceDetailPage() {
           <tbody>
             {items.map(item => {
               const r = itemResolve(item)
+              const productDescription = item.product_id
+                ? products.find(p => p.id === item.product_id)?.description
+                : null
               return (
                 <tr key={item.id} className="border-b border-gray-100">
-                  <td className="py-2.5">{r.description}</td>
+                  <td className="py-2.5">
+                    <div>{r.description}</div>
+                    {productDescription && (
+                      <div className="text-xs text-gray-400 mt-0.5">{productDescription}</div>
+                    )}
+                  </td>
                   <td className="py-2.5 text-right text-gray-600">{r.quantity}</td>
                   {!isDelivery && (
                     <>
@@ -551,7 +562,7 @@ export default function InvoiceDetailPage() {
   return (
     <div className="max-w-4xl space-y-6">
       {/* Actions bar — hidden on print */}
-      <div className="flex items-center justify-between print:hidden">
+      <div className="space-y-4 print:hidden">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => router.back()}>
             <ArrowLeft className="h-4 w-4" />
@@ -566,7 +577,7 @@ export default function InvoiceDetailPage() {
             </Link>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {invoice.status === 'draft' && (
             <Button variant="outline" size="sm" onClick={markAsSent}>Mark as Sent</Button>
           )}
@@ -579,6 +590,13 @@ export default function InvoiceDetailPage() {
                 <CheckCircle className="h-4 w-4 mr-2" />Mark Paid
               </Button>
             </>
+          )}
+          {invoice.status !== 'void' && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/invoices/${invoice.id}/edit`}>
+                <Pencil className="h-4 w-4 mr-2" />Edit
+              </Link>
+            </Button>
           )}
           <Button variant="outline" size="sm" onClick={() => openPrintDialog('invoice')}>
             <Printer className="h-4 w-4 mr-2" />Print Invoice
