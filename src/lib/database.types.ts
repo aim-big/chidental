@@ -1,4 +1,4 @@
-export type InvoiceStatus = 'draft' | 'sent' | 'partial' | 'paid' | 'overdue' | 'void'
+export type InvoiceStatus = 'draft' | 'sent' | 'partial' | 'paid' | 'overdue'
 export type WorkStatus = 'received' | 'in_progress' | 'qc' | 'ready' | 'delivered' | 'on_hold'
 export type ProfileRole = 'admin' | 'staff'
 
@@ -54,6 +54,9 @@ export interface Invoice {
   invoice_date: string
   due_date: string
   status: InvoiceStatus
+  voided_at: string | null
+  voided_by: string | null
+  void_reason: string | null
   notes: string | null
   patient: string | null
   doctor: string | null
@@ -111,8 +114,8 @@ export interface Payment {
 
 type CustomerInsert = Omit<Customer, 'id' | 'created_at'>
 type ProductInsert = Omit<Product, 'id' | 'created_at'>
-type InvoiceInsert = Omit<Invoice, 'id' | 'created_at' | 'invoice_number' | 'customers' | 'invoice_items' | 'payments' | 'service_statuses'> &
-  Partial<Pick<Invoice, 'invoice_number'>>
+type InvoiceInsert = Omit<Invoice, 'id' | 'created_at' | 'invoice_number' | 'voided_at' | 'voided_by' | 'void_reason' | 'customers' | 'invoice_items' | 'payments' | 'service_statuses'> &
+  Partial<Pick<Invoice, 'invoice_number' | 'voided_at' | 'voided_by' | 'void_reason'>>
 type InvoiceItemInsert = Omit<InvoiceItem, 'id' | 'created_at' | 'work_status' | 'work_status_updated_at' | 'work_note'> &
   Partial<Pick<InvoiceItem, 'work_status' | 'work_note'>>
 type PaymentInsert = Omit<Payment, 'id' | 'created_at'>
