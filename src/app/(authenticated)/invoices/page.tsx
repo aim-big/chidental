@@ -21,9 +21,10 @@ import {
 import { WorkStatusBadge } from '@/components/work-status-badge'
 import { DEFAULT_COLOR } from '@/lib/service-status'
 import { cn } from '@/lib/utils'
+import { isVoided } from '@/lib/invoice-status'
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'info'> = {
-  draft: 'secondary', sent: 'info', partial: 'warning', paid: 'success', overdue: 'destructive', void: 'secondary',
+  draft: 'secondary', sent: 'info', partial: 'warning', paid: 'success', overdue: 'destructive',
 }
 
 type InvoiceWithItems = Invoice & {
@@ -59,7 +60,10 @@ export default function InvoicesPage() {
         const matchSearch =
           inv.invoice_number.toLowerCase().includes(q) ||
           ((inv.customers as { clinic_name: string })?.clinic_name ?? '').toLowerCase().includes(q)
-        const matchStatus = statusFilter === 'all' || inv.status === statusFilter
+        const matchStatus =
+          statusFilter === 'all' ? true :
+          statusFilter === 'void' ? isVoided(inv) :
+          (!isVoided(inv) && inv.status === statusFilter)
         const matchWork =
           workFilter === 'all' ||
           (inv.invoice_items ?? []).some(it => it.work_status === workFilter)
@@ -96,7 +100,7 @@ export default function InvoicesPage() {
             <SelectItem value="partial">Partial</SelectItem>
             <SelectItem value="paid">Paid</SelectItem>
             <SelectItem value="overdue">Overdue</SelectItem>
-            <SelectItem value="void">Void</SelectItem>
+            <SelectItem value="void">Voided</SelectItem>
           </SelectContent>
         </Select>
         <Select value={workFilter} onValueChange={v => setWorkFilter(v as 'all' | WorkStatus)}>
@@ -143,7 +147,9 @@ export default function InvoicesPage() {
                     <TableCell className="text-gray-500 text-sm">{formatDate(inv.due_date)}</TableCell>
                     <TableCell className="font-medium">{formatCurrency(inv.total)}</TableCell>
                     <TableCell>
-                      <Badge variant={STATUS_VARIANT[inv.status] ?? 'secondary'} className="capitalize">{inv.status}</Badge>
+                      {isVoided(inv)
+                        ? <Badge variant="destructive" className="uppercase">Voided</Badge>
+                        : <Badge variant={STATUS_VARIANT[inv.status] ?? 'secondary'} className="capitalize">{inv.status}</Badge>}
                     </TableCell>
                     <TableCell>
                       {dominant ? (
