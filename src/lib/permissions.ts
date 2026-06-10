@@ -1,25 +1,16 @@
 // Fixed catalogue of capabilities shipped with the app. Users assign these to
-// roles; they cannot invent new ones. Adding a flag later = add a constant here
-// plus a row to PERMISSION_GROUPS, then wire the gate where it applies.
+// roles; they cannot invent new ones. Viewing screens is open to anyone logged
+// in — these flags only gate changes (and report access). "edit" folds in
+// create/edit/delete; invoices split edit (drafts) from manage (void + sent).
 export const PERMISSIONS = {
-  createInvoice: 'createInvoice',
-  editInvoice: 'editInvoice',
-  deleteInvoice: 'deleteInvoice',
-  voidInvoice: 'voidInvoice',
-  editFinalizedInvoice: 'editFinalizedInvoice',
-  applyDiscount: 'applyDiscount',
-  createCustomer: 'createCustomer',
-  editCustomer: 'editCustomer',
-  deleteCustomer: 'deleteCustomer',
-  createProduct: 'createProduct',
-  editProduct: 'editProduct',
-  deleteProduct: 'deleteProduct',
-  createService: 'createService',
-  editService: 'editService',
-  deleteService: 'deleteService',
-  viewReports: 'viewReports',
-  manageEmployees: 'manageEmployees',
-  manageSettings: 'manageSettings',
+  'invoices.edit': 'invoices.edit',
+  'invoices.manage': 'invoices.manage',
+  'customers.edit': 'customers.edit',
+  'products.edit': 'products.edit',
+  'services.edit': 'services.edit',
+  'reports.view': 'reports.view',
+  'staff.manage': 'staff.manage',
+  'settings.manage': 'settings.manage',
 } as const
 
 export type Permission = keyof typeof PERMISSIONS
@@ -29,41 +20,26 @@ export const PERMISSION_GROUPS: { label: string; permissions: { key: Permission;
   {
     label: 'Invoices',
     permissions: [
-      { key: 'createInvoice', label: 'Create invoices' },
-      { key: 'editInvoice', label: 'Edit draft invoices' },
-      { key: 'deleteInvoice', label: 'Delete invoices' },
-      { key: 'voidInvoice', label: 'Void & restore invoices' },
-      { key: 'editFinalizedInvoice', label: 'Edit sent/paid invoices' },
-      { key: 'applyDiscount', label: 'Apply discounts / override prices' },
+      { key: 'invoices.edit', label: 'Create & edit draft invoices' },
+      { key: 'invoices.manage', label: 'Void, restore & edit sent invoices' },
     ],
   },
   {
-    label: 'Customers',
+    label: 'Records',
     permissions: [
-      { key: 'createCustomer', label: 'Create customers' },
-      { key: 'editCustomer', label: 'Edit customers' },
-      { key: 'deleteCustomer', label: 'Delete customers' },
+      { key: 'customers.edit', label: 'Add & edit customers' },
+      { key: 'products.edit', label: 'Add & edit products' },
+      { key: 'services.edit', label: 'Add & edit service statuses' },
     ],
   },
   {
-    label: 'Products',
+    label: 'Administration',
     permissions: [
-      { key: 'createProduct', label: 'Create products' },
-      { key: 'editProduct', label: 'Edit products' },
-      { key: 'deleteProduct', label: 'Delete products' },
+      { key: 'reports.view', label: 'View reports' },
+      { key: 'staff.manage', label: 'Manage employees' },
+      { key: 'settings.manage', label: 'Manage settings' },
     ],
   },
-  {
-    label: 'Services',
-    permissions: [
-      { key: 'createService', label: 'Create service statuses' },
-      { key: 'editService', label: 'Edit service statuses' },
-      { key: 'deleteService', label: 'Delete service statuses' },
-    ],
-  },
-  { label: 'Reports', permissions: [{ key: 'viewReports', label: 'View reports' }] },
-  { label: 'Staff', permissions: [{ key: 'manageEmployees', label: 'Manage employees' }] },
-  { label: 'Settings', permissions: [{ key: 'manageSettings', label: 'Manage settings' }] },
 ]
 
 // Pure grant check. A system role (Super Admin) implicitly holds every permission.

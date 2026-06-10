@@ -651,7 +651,7 @@ export default function InvoiceDetailPage() {
           <Button variant="outline" size="sm" onClick={() => openPrintDialog('delivery')}>
             <Printer className="h-4 w-4 mr-2" />Print Delivery
           </Button>
-          {hasPermission('voidInvoice') && !voided && (
+          {hasPermission('invoices.manage') && !voided && (
             <Button
               variant="outline"
               size="sm"
@@ -661,7 +661,7 @@ export default function InvoiceDetailPage() {
               <Ban className="h-4 w-4 mr-2" />Void
             </Button>
           )}
-          {hasPermission('voidInvoice') && voided && (
+          {hasPermission('invoices.manage') && voided && (
             <Button variant="outline" size="sm" onClick={restore} disabled={restoring}>
               {restoring ? 'Restoring…' : 'Restore'}
             </Button>

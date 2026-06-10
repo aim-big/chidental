@@ -24,7 +24,7 @@ const navItems = [
 ]
 
 const permissionNavItems = [
-  { href: '/settings/employees', icon: UserCog, label: 'Employees', permission: 'manageEmployees' as const },
+  { href: '/settings/employees', icon: UserCog, label: 'Employees', permission: 'staff.manage' as const },
 ]
 
 export default function AppShell({ children }: { children: React.ReactNode }) {

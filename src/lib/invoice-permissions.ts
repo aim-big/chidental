@@ -7,8 +7,8 @@ import { isVoided } from '@/lib/invoice-status'
  *
  * Rules:
  * - Voided (soft-deleted) is terminal — locked for everyone.
- * - `draft` requires the `editInvoice` permission.
- * - Once sent (`sent`/`partial`/`paid`/`overdue`) requires `editFinalizedInvoice`.
+ * - `draft` requires the `invoices.edit` permission.
+ * - Once sent (`sent`/`partial`/`paid`/`overdue`) requires `invoices.manage`.
  *
  * `has` is the caller's capability predicate (from AuthContext on the client).
  * UI gating only; the server action is the real boundary.
@@ -18,5 +18,5 @@ export function canEditInvoice(
   has: (permission: Permission) => boolean,
 ): boolean {
   if (isVoided(inv)) return false
-  return inv.status === 'draft' ? has('editInvoice') : has('editFinalizedInvoice')
+  return inv.status === 'draft' ? has('invoices.edit') : has('invoices.manage')
 }

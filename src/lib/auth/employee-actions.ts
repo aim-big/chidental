@@ -34,7 +34,7 @@ export async function createEmployee(input: {
   fullName: string
   roleId: string
 }): Promise<ActionResult> {
-  const gate = await requirePermission('manageEmployees')
+  const gate = await requirePermission('staff.manage')
   if (!gate.ok) return gate
 
   const username = input.username.trim()
@@ -78,7 +78,7 @@ export async function createEmployee(input: {
 }
 
 export async function resetPin(input: { id: string; pin: string }): Promise<ActionResult> {
-  const gate = await requirePermission('manageEmployees')
+  const gate = await requirePermission('staff.manage')
   if (!gate.ok) return gate
 
   if (!PIN_PATTERN.test(input.pin)) return { ok: false, error: 'PIN must be exactly 6 digits.' }
@@ -96,7 +96,7 @@ export async function updateEmployee(input: {
   fullName: string
   roleId: string
 }): Promise<ActionResult> {
-  const gate = await requirePermission('manageEmployees')
+  const gate = await requirePermission('staff.manage')
   if (!gate.ok) return gate
 
   const fullName = input.fullName.trim()
@@ -129,7 +129,7 @@ export async function updateEmployee(input: {
 }
 
 export async function deleteEmployee(input: { id: string }): Promise<ActionResult> {
-  const gate = await requirePermission('manageEmployees')
+  const gate = await requirePermission('staff.manage')
   if (!gate.ok) return gate
 
   // Don't let an admin delete themselves and risk locking everyone out.
@@ -158,7 +158,7 @@ export async function deleteEmployee(input: { id: string }): Promise<ActionResul
 }
 
 export async function setActive(input: { id: string; active: boolean }): Promise<ActionResult> {
-  const gate = await requirePermission('manageEmployees')
+  const gate = await requirePermission('staff.manage')
   if (!gate.ok) return gate
 
   // Don't let an admin deactivate themselves.

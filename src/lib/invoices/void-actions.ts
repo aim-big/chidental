@@ -7,7 +7,7 @@ import { requirePermission } from '@/lib/auth/require-permission'
 export type ActionResult = { ok: true } | { ok: false; error: string }
 
 export async function voidInvoice(input: { id: string; reason?: string }): Promise<ActionResult> {
-  const gate = await requirePermission('voidInvoice')
+  const gate = await requirePermission('invoices.manage')
   if (!gate.ok) return gate
 
   const admin = createAdminClient()
@@ -27,7 +27,7 @@ export async function voidInvoice(input: { id: string; reason?: string }): Promi
 }
 
 export async function restoreInvoice(input: { id: string }): Promise<ActionResult> {
-  const gate = await requirePermission('voidInvoice')
+  const gate = await requirePermission('invoices.manage')
   if (!gate.ok) return gate
 
   const admin = createAdminClient()

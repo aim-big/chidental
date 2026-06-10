@@ -3,13 +3,13 @@ import { permissionGranted, wouldRemoveLastSuperadmin, PERMISSIONS, PERMISSION_G
 
 describe('permissionGranted', () => {
   it('grants everything to a system (superadmin) role', () => {
-    expect(permissionGranted({ is_system: true, permissions: [] }, 'voidInvoice')).toBe(true)
+    expect(permissionGranted({ is_system: true, permissions: [] }, 'invoices.manage')).toBe(true)
   })
   it('grants a permission the role holds', () => {
-    expect(permissionGranted({ is_system: false, permissions: ['voidInvoice'] }, 'voidInvoice')).toBe(true)
+    expect(permissionGranted({ is_system: false, permissions: ['invoices.manage'] }, 'invoices.manage')).toBe(true)
   })
   it('denies a permission the role lacks', () => {
-    expect(permissionGranted({ is_system: false, permissions: ['editInvoice'] }, 'voidInvoice')).toBe(false)
+    expect(permissionGranted({ is_system: false, permissions: ['invoices.edit'] }, 'invoices.manage')).toBe(false)
   })
 })
 
@@ -29,10 +29,10 @@ describe('wouldRemoveLastSuperadmin', () => {
 })
 
 describe('permission catalogue', () => {
-  it('has 18 permissions across the groups', () => {
+  it('has 8 permissions across the groups', () => {
     const all = PERMISSION_GROUPS.flatMap(g => g.permissions.map(p => p.key))
-    expect(all.length).toBe(18)
-    expect(new Set(all).size).toBe(18)
-    expect(Object.values(PERMISSIONS).length).toBe(18)
+    expect(all.length).toBe(8)
+    expect(new Set(all).size).toBe(8)
+    expect(Object.values(PERMISSIONS).length).toBe(8)
   })
 })

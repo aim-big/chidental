@@ -19,7 +19,7 @@ export default function SettingsPage() {
 
   const visibleSections = [
     ...sections,
-    ...(hasPermission('manageEmployees')
+    ...(hasPermission('staff.manage')
       ? [{ href: '/settings/employees', icon: UserCog, title: 'Employees', description: 'Add staff logins, reset PINs, assign roles, and manage access.' }]
       : []),
     ...(isSuperadmin
