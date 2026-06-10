@@ -1,12 +1,17 @@
 // Fixed catalogue of capabilities shipped with the app. Users assign these to
-// roles; they cannot invent new ones. Viewing screens is open to anyone logged
-// in — these flags only gate changes (and report access). "edit" folds in
-// create/edit/delete; invoices split edit (drafts) from manage (void + sent).
+// roles; they cannot invent new ones. Each data module has a `view` (can open
+// the section at all) and `edit` (create/edit/delete). Invoices add `manage`
+// for the powerful actions (void/restore + editing already-sent invoices).
+// Staff & Settings are single manage toggles; Reports is view-only.
 export const PERMISSIONS = {
+  'invoices.view': 'invoices.view',
   'invoices.edit': 'invoices.edit',
   'invoices.manage': 'invoices.manage',
+  'customers.view': 'customers.view',
   'customers.edit': 'customers.edit',
+  'products.view': 'products.view',
   'products.edit': 'products.edit',
+  'services.view': 'services.view',
   'services.edit': 'services.edit',
   'reports.view': 'reports.view',
   'staff.manage': 'staff.manage',
@@ -20,15 +25,29 @@ export const PERMISSION_GROUPS: { label: string; permissions: { key: Permission;
   {
     label: 'Invoices',
     permissions: [
+      { key: 'invoices.view', label: 'View invoices' },
       { key: 'invoices.edit', label: 'Create & edit draft invoices' },
       { key: 'invoices.manage', label: 'Void, restore & edit sent invoices' },
     ],
   },
   {
-    label: 'Records',
+    label: 'Customers',
     permissions: [
+      { key: 'customers.view', label: 'View customers' },
       { key: 'customers.edit', label: 'Add & edit customers' },
+    ],
+  },
+  {
+    label: 'Products',
+    permissions: [
+      { key: 'products.view', label: 'View products' },
       { key: 'products.edit', label: 'Add & edit products' },
+    ],
+  },
+  {
+    label: 'Services',
+    permissions: [
+      { key: 'services.view', label: 'View service statuses' },
       { key: 'services.edit', label: 'Add & edit service statuses' },
     ],
   },

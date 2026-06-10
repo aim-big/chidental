@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
@@ -10,30 +10,51 @@ import {
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/contexts/AuthContext'
+import type { Permission } from '@/lib/permissions'
 import { COMPANY } from '@/lib/config'
 import { cn } from '@/lib/utils'
 
-const navItems = [
+type NavItem = { href: string; icon: typeof LayoutDashboard; label: string; permission?: Permission }
+
+// `permission` undefined → always visible. Dashboard and Settings stay open
+// (Settings only lists sub-sections the role can reach).
+const navItems: NavItem[] = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/customers', icon: Users, label: 'Customers' },
-  { href: '/invoices', icon: FileText, label: 'Invoices' },
-  { href: '/work', icon: Wrench, label: 'Work' },
-  { href: '/products', icon: Package, label: 'Products' },
-  { href: '/reports', icon: BarChart3, label: 'Reports' },
+  { href: '/customers', icon: Users, label: 'Customers', permission: 'customers.view' },
+  { href: '/invoices', icon: FileText, label: 'Invoices', permission: 'invoices.view' },
+  { href: '/work', icon: Wrench, label: 'Work', permission: 'invoices.view' },
+  { href: '/products', icon: Package, label: 'Products', permission: 'products.view' },
+  { href: '/reports', icon: BarChart3, label: 'Reports', permission: 'reports.view' },
   { href: '/settings', icon: Settings, label: 'Settings' },
+  { href: '/settings/employees', icon: UserCog, label: 'Employees', permission: 'staff.manage' },
 ]
 
-const permissionNavItems = [
-  { href: '/settings/employees', icon: UserCog, label: 'Employees', permission: 'staff.manage' as const },
+// Deep-link guard: opening one of these paths without the matching view
+// permission bounces back to the dashboard. Longest prefix wins so
+// /settings/service-statuses is checked before /settings.
+const viewGuards: { prefix: string; permission: Permission }[] = [
+  { prefix: '/settings/service-statuses', permission: 'services.view' },
+  { prefix: '/customers', permission: 'customers.view' },
+  { prefix: '/invoices', permission: 'invoices.view' },
+  { prefix: '/work', permission: 'invoices.view' },
+  { prefix: '/products', permission: 'products.view' },
+  { prefix: '/reports', permission: 'reports.view' },
 ]
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
-  const { username, roleName, hasPermission, signOut } = useAuth()
+  const { username, roleName, hasPermission, loading, signOut } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  const items = [...navItems, ...permissionNavItems.filter(i => hasPermission(i.permission))]
+  // Redirect away from a section the role can't view (deep links, stale tabs).
+  useEffect(() => {
+    if (loading) return
+    const guard = viewGuards.find(g => pathname === g.prefix || pathname.startsWith(`${g.prefix}/`))
+    if (guard && !hasPermission(guard.permission)) router.replace('/dashboard')
+  }, [loading, pathname, hasPermission, router])
+
+  const items = navItems.filter(i => !i.permission || hasPermission(i.permission))
 
   // Only the most specific matching item is active, so /settings/employees
   // highlights Employees alone — not Settings as well via its /settings prefix.

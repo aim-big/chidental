@@ -29,10 +29,10 @@ describe('wouldRemoveLastSuperadmin', () => {
 })
 
 describe('permission catalogue', () => {
-  it('has 8 permissions across the groups', () => {
+  it('has 12 permissions across the groups', () => {
     const all = PERMISSION_GROUPS.flatMap(g => g.permissions.map(p => p.key))
-    expect(all.length).toBe(8)
-    expect(new Set(all).size).toBe(8)
-    expect(Object.values(PERMISSIONS).length).toBe(8)
+    expect(all.length).toBe(12)
+    expect(new Set(all).size).toBe(12)
+    expect(Object.values(PERMISSIONS).length).toBe(12)
   })
 })
