@@ -11,10 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
-import { ArrowLeft, Plus, Pencil, KeyRound, UserCheck, UserX } from 'lucide-react'
+import { ArrowLeft, Plus, Pencil, KeyRound, UserCheck, UserX, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { Profile, ProfileRole } from '@/lib/database.types'
-import { createEmployee, updateEmployee, resetPin, setActive } from '@/lib/auth/employee-actions'
+import type { Profile, Role } from '@/lib/database.types'
+import { createEmployee, updateEmployee, resetPin, setActive, deleteEmployee } from '@/lib/auth/employee-actions'
 
 type DialogState =
   | { mode: 'closed' }
@@ -28,18 +28,22 @@ export default function EmployeesManager({ currentUserId }: { currentUserId: str
   const [dialog, setDialog] = useState<DialogState>({ mode: 'closed' })
   const [busyId, setBusyId] = useState<string | null>(null)
   const [, startTransition] = useTransition()
+  const [roles, setRoles] = useState<Role[]>([])
 
   const load = () =>
     supabase
       .from('profiles')
-      .select('*')
+      .select('*, roles(id, name, is_system)')
       .order('full_name')
       .then(({ data }) => {
-        setRows(data ?? [])
+        setRows((data as Profile[]) ?? [])
         setLoading(false)
       })
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    supabase.from('roles').select('*').order('name').then(({ data }) => setRoles((data as Role[]) ?? []))
+  }, [])
 
   const toggleActive = (p: Profile) => {
     if (p.id === currentUserId) return
@@ -48,6 +52,18 @@ export default function EmployeesManager({ currentUserId }: { currentUserId: str
     startTransition(async () => {
       await setActive({ id: p.id, active: !p.active })
       await load()
+      setBusyId(null)
+    })
+  }
+
+  const remove = (p: Profile) => {
+    if (p.id === currentUserId) return
+    if (!confirm(`Permanently delete ${p.full_name}? This removes their login and cannot be undone.`)) return
+    setBusyId(p.id)
+    startTransition(async () => {
+      const res = await deleteEmployee({ id: p.id })
+      if (res.ok) await load()
+      else alert(res.error)
       setBusyId(null)
     })
   }
@@ -82,7 +98,7 @@ export default function EmployeesManager({ currentUserId }: { currentUserId: str
                 <TableHead>User ID</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="w-28 text-right">Actions</TableHead>
+                <TableHead className="w-36 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -97,10 +113,10 @@ export default function EmployeesManager({ currentUserId }: { currentUserId: str
                   <TableCell className="text-gray-600">{p.username}</TableCell>
                   <TableCell>
                     <span className={cn(
-                      'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize',
-                      p.role === 'admin' ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-600',
+                      'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+                      p.roles?.is_system ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-600',
                     )}>
-                      {p.role}
+                      {p.roles?.name ?? '—'}
                     </span>
                   </TableCell>
                   <TableCell>
@@ -131,6 +147,16 @@ export default function EmployeesManager({ currentUserId }: { currentUserId: str
                           ? <UserX className="h-4 w-4 text-red-500" />
                           : <UserCheck className="h-4 w-4 text-green-600" />}
                       </TipButton>
+                      <TipButton
+                        label={p.id === currentUserId ? 'You cannot delete yourself' : 'Delete permanently'}
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        disabled={p.id === currentUserId || busyId === p.id}
+                        onClick={() => remove(p)}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </TipButton>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -144,6 +170,7 @@ export default function EmployeesManager({ currentUserId }: { currentUserId: str
         <EmployeeDialog
           key={dialog.mode === 'create' ? 'create' : `${dialog.mode}:${dialog.employee.id}`}
           state={dialog}
+          roles={roles}
           onClose={() => setDialog({ mode: 'closed' })}
           onSaved={async () => { setDialog({ mode: 'closed' }); await load() }}
         />
@@ -174,10 +201,12 @@ function TipButton({
 
 function EmployeeDialog({
   state,
+  roles,
   onClose,
   onSaved,
 }: {
   state: Exclude<DialogState, { mode: 'closed' }>
+  roles: Role[]
   onClose: () => void
   onSaved: () => void | Promise<void>
 }) {
@@ -185,7 +214,7 @@ function EmployeeDialog({
   const [username, setUsername] = useState(employee?.username ?? '')
   const [fullName, setFullName] = useState(employee?.full_name ?? '')
   const [pin, setPin] = useState('')
-  const [role, setRole] = useState<ProfileRole>(employee?.role ?? 'staff')
+  const [roleId, setRoleId] = useState<string>(employee?.role_id ?? roles[0]?.id ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -199,9 +228,9 @@ function EmployeeDialog({
 
     let res
     if (state.mode === 'create') {
-      res = await createEmployee({ username, pin, fullName, role })
+      res = await createEmployee({ username, pin, fullName, roleId })
     } else if (state.mode === 'edit') {
-      res = await updateEmployee({ id: state.employee.id, fullName, role })
+      res = await updateEmployee({ id: state.employee.id, fullName, roleId })
     } else {
       res = await resetPin({ id: state.employee.id, pin })
     }
@@ -257,14 +286,15 @@ function EmployeeDialog({
               </div>
               <div className="space-y-2">
                 <Label>Role *</Label>
-                <Select value={role} onValueChange={v => setRole(v as ProfileRole)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select value={roleId} onValueChange={setRoleId}>
+                  <SelectTrigger><SelectValue placeholder="Choose a role" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="staff">Staff</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
+                    {roles.map(r => (
+                      <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-400">Admins can manage employees. Staff cannot.</p>
+                <p className="text-xs text-gray-400">Each role grants a set of permissions. Manage roles in Settings → Roles.</p>
               </div>
             </>
           )}
