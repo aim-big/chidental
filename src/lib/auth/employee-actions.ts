@@ -128,6 +128,35 @@ export async function updateEmployee(input: {
   return { ok: true }
 }
 
+export async function deleteEmployee(input: { id: string }): Promise<ActionResult> {
+  const gate = await requirePermission('manageEmployees')
+  if (!gate.ok) return gate
+
+  // Don't let an admin delete themselves and risk locking everyone out.
+  if (input.id === gate.userId) {
+    return { ok: false, error: 'You cannot delete your own account.' }
+  }
+
+  const admin = createAdminClient()
+
+  // Lockout guard: deleting the last active Super Admin would lock out role management.
+  const supers = await activeSuperadminIds(admin)
+  if (wouldRemoveLastSuperadmin(supers, input.id, false)) {
+    return { ok: false, error: 'You cannot delete the last Super Admin.' }
+  }
+
+  // Remove the login first: a partial failure must never leave a sign-in-capable
+  // user with no profile (the orphan case createEmployee also guards against).
+  const { error: authErr } = await admin.auth.admin.deleteUser(input.id)
+  if (authErr) return { ok: false, error: authErr.message }
+
+  const { error: profileErr } = await admin.from('profiles').delete().eq('id', input.id)
+  if (profileErr) return { ok: false, error: profileErr.message }
+
+  revalidatePath('/settings/employees')
+  return { ok: true }
+}
+
 export async function setActive(input: { id: string; active: boolean }): Promise<ActionResult> {
   const gate = await requirePermission('manageEmployees')
   if (!gate.ok) return gate
