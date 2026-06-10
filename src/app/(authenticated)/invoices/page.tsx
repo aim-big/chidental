@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, todayISODate } from '@/lib/utils'
 import { Plus, Search } from 'lucide-react'
 import type { Invoice, WorkStatus, ServiceStatus } from '@/lib/database.types'
 import {
@@ -21,7 +21,7 @@ import {
 import { WorkStatusBadge } from '@/components/work-status-badge'
 import { DEFAULT_COLOR } from '@/lib/service-status'
 import { cn } from '@/lib/utils'
-import { isVoided } from '@/lib/invoice-status'
+import { isVoided, isOverdue } from '@/lib/invoice-status'
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'info'> = {
   draft: 'secondary', sent: 'info', partial: 'warning', paid: 'success', overdue: 'destructive',
@@ -40,6 +40,7 @@ export default function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [workFilter, setWorkFilter] = useState<'all' | WorkStatus>('all')
   const [loading, setLoading] = useState(true)
+  const today = todayISODate()
 
   useEffect(() => {
     supabase
@@ -63,6 +64,7 @@ export default function InvoicesPage() {
         const matchStatus =
           statusFilter === 'all' ? true :
           statusFilter === 'void' ? isVoided(inv) :
+          statusFilter === 'overdue' ? isOverdue(inv, today) :
           (!isVoided(inv) && inv.status === statusFilter)
         const matchWork =
           workFilter === 'all' ||
@@ -70,7 +72,7 @@ export default function InvoicesPage() {
         return matchSearch && matchStatus && matchWork
       })
     )
-  }, [search, statusFilter, workFilter, invoices])
+  }, [search, statusFilter, workFilter, invoices, today])
 
   return (
     <div className="space-y-6">
@@ -123,7 +125,6 @@ export default function InvoicesPage() {
               <TableRow>
                 <TableHead>Invoice #</TableHead>
                 <TableHead>Customer</TableHead>
-                <TableHead>Clinic</TableHead>
                 <TableHead>Patient</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Due Date</TableHead>
@@ -134,15 +135,15 @@ export default function InvoicesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading && <TableRow><TableCell colSpan={10} className="text-center py-8 text-gray-400">Loading…</TableCell></TableRow>}
-              {!loading && filtered.length === 0 && <TableRow><TableCell colSpan={10} className="text-center py-8 text-gray-400">No invoices found</TableCell></TableRow>}
+              {loading && <TableRow><TableCell colSpan={9} className="text-center py-8 text-gray-400">Loading…</TableCell></TableRow>}
+              {!loading && filtered.length === 0 && <TableRow><TableCell colSpan={9} className="text-center py-8 text-gray-400">No invoices found</TableCell></TableRow>}
               {filtered.map(inv => {
                 const dominant = dominantWorkStatus((inv.invoice_items ?? []).map(it => it.work_status))
                 const service = inv.service_statuses
+                const overdue = isOverdue(inv, today)
                 return (
                   <TableRow key={inv.id} className="cursor-pointer" onClick={() => router.push(`/invoices/${inv.id}`)}>
                     <TableCell className="font-medium text-primary">{inv.invoice_number}</TableCell>
-                    <TableCell className="text-gray-700">{(inv.customers as { clinic_name: string })?.clinic_name ?? '—'}</TableCell>
                     <TableCell className="text-gray-700">{(inv.customers as { clinic_name: string })?.clinic_name ?? '—'}</TableCell>
                     <TableCell className="text-gray-700">{inv.patient ?? '—'}</TableCell>
                     <TableCell className="text-gray-500 text-sm">{formatDate(inv.invoice_date)}</TableCell>
@@ -151,7 +152,9 @@ export default function InvoicesPage() {
                     <TableCell>
                       {isVoided(inv)
                         ? <Badge variant="destructive" className="uppercase">Voided</Badge>
-                        : <Badge variant={STATUS_VARIANT[inv.status] ?? 'secondary'} className="capitalize">{inv.status}</Badge>}
+                        : overdue
+                          ? <Badge variant="destructive" className="capitalize">Overdue</Badge>
+                          : <Badge variant={STATUS_VARIANT[inv.status] ?? 'secondary'} className="capitalize">{inv.status}</Badge>}
                     </TableCell>
                     <TableCell>
                       {dominant ? (

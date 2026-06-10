@@ -22,3 +22,15 @@ export function formatDate(date: string | Date): string {
     year: 'numeric',
   }).format(new Date(date))
 }
+
+/**
+ * Today's date as a local `yyyy-MM-dd` string. Unlike
+ * `new Date().toISOString().split('T')[0]` this uses the local calendar day,
+ * so it doesn't roll to "yesterday/tomorrow" near midnight in UTC+8 (MYT).
+ */
+export function todayISODate(): string {
+  const d = new Date()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${month}-${day}`
+}
