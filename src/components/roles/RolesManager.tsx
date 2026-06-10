@@ -1,0 +1,188 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ArrowLeft, Plus, Pencil, Trash2, ShieldCheck } from 'lucide-react'
+import { PERMISSION_GROUPS, type Permission } from '@/lib/permissions'
+import { createRole, updateRole, deleteRole } from '@/lib/auth/role-actions'
+import type { Role } from '@/lib/database.types'
+
+type RoleRow = Role & { perms: Set<string>; userCount: number }
+type DialogState = { mode: 'closed' } | { mode: 'create' } | { mode: 'edit'; role: RoleRow }
+
+export default function RolesManager() {
+  const [rows, setRows] = useState<RoleRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [dialog, setDialog] = useState<DialogState>({ mode: 'closed' })
+
+  const load = async () => {
+    const { data: roles } = await supabase
+      .from('roles')
+      .select('*, role_permissions(permission)')
+      .order('is_system', { ascending: false })
+      .order('name')
+    const { data: profiles } = await supabase.from('profiles').select('role_id')
+    const counts = new Map<string, number>()
+    for (const p of profiles ?? []) {
+      if (p.role_id) counts.set(p.role_id, (counts.get(p.role_id) ?? 0) + 1)
+    }
+    const mapped: RoleRow[] = ((roles as (Role & { role_permissions: { permission: string }[] })[]) ?? []).map(r => ({
+      ...r,
+      perms: new Set(r.role_permissions.map(rp => rp.permission)),
+      userCount: counts.get(r.id) ?? 0,
+    }))
+    setRows(mapped)
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [])
+
+  const remove = async (role: RoleRow) => {
+    if (!confirm(`Delete the “${role.name}” role?`)) return
+    const res = await deleteRole({ id: role.id })
+    if (!res.ok) { alert(res.error); return }
+    await load()
+  }
+
+  return (
+    <div className="max-w-3xl space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Link href="/settings"><Button variant="ghost" size="icon"><ArrowLeft className="h-4 w-4" /></Button></Link>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Roles &amp; Permissions</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Create roles and choose what each one can do.</p>
+          </div>
+        </div>
+        <Button onClick={() => setDialog({ mode: 'create' })}><Plus className="h-4 w-4 mr-2" />New role</Button>
+      </div>
+
+      <Card>
+        <CardContent className="p-0 divide-y">
+          {loading && <p className="text-center py-8 text-gray-400">Loading…</p>}
+          {!loading && rows.map(role => (
+            <div key={role.id} className="flex items-center gap-4 px-5 py-4">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-900">{role.name}</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {role.is_system ? 'All permissions' : `${role.perms.size} permission${role.perms.size === 1 ? '' : 's'}`}
+                  {' · '}{role.userCount} {role.userCount === 1 ? 'person' : 'people'}
+                </p>
+              </div>
+              {!role.is_system && (
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDialog({ mode: 'edit', role })}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" disabled={role.userCount > 0} onClick={() => remove(role)}>
+                    <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {dialog.mode !== 'closed' && (
+        <RoleDialog
+          key={dialog.mode === 'create' ? 'create' : dialog.role.id}
+          state={dialog}
+          onClose={() => setDialog({ mode: 'closed' })}
+          onSaved={async () => { setDialog({ mode: 'closed' }); await load() }}
+        />
+      )}
+    </div>
+  )
+}
+
+function RoleDialog({
+  state,
+  onClose,
+  onSaved,
+}: {
+  state: Exclude<DialogState, { mode: 'closed' }>
+  onClose: () => void
+  onSaved: () => void | Promise<void>
+}) {
+  const role = state.mode === 'edit' ? state.role : null
+  const [name, setName] = useState(role?.name ?? '')
+  const [description, setDescription] = useState(role?.description ?? '')
+  const [perms, setPerms] = useState<Set<string>>(new Set(role?.perms ?? []))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const toggle = (key: Permission) => {
+    setPerms(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    setError(null)
+    const permissions = [...perms]
+    const res = state.mode === 'create'
+      ? await createRole({ name, description, permissions })
+      : await updateRole({ id: state.role.id, name, description, permissions })
+    setSaving(false)
+    if (res.ok) await onSaved()
+    else setError(res.error)
+  }
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose() }}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{state.mode === 'create' ? 'New role' : 'Edit role'}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-2">
+            <Label>Role name *</Label>
+            <Input placeholder="e.g. Operations" value={name} onChange={e => setName(e.target.value)} autoFocus />
+          </div>
+          <div className="space-y-2">
+            <Label>Description</Label>
+            <Input placeholder="Optional" value={description} onChange={e => setDescription(e.target.value)} />
+          </div>
+
+          <div className="space-y-4">
+            {PERMISSION_GROUPS.map(group => (
+              <div key={group.label}>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">{group.label}</p>
+                <div className="space-y-2">
+                  {group.permissions.map(p => (
+                    <label key={p.key} className="flex items-center gap-2.5 text-sm text-gray-700 cursor-pointer">
+                      <Checkbox checked={perms.has(p.key)} onCheckedChange={() => toggle(p.key)} />
+                      {p.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save role'}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
