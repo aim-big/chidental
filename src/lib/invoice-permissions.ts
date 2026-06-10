@@ -1,4 +1,4 @@
-import type { Invoice } from '@/lib/database.types'
+import type { Invoice, Permission } from '@/lib/database.types'
 import { isVoided } from '@/lib/invoice-status'
 
 /**
@@ -7,13 +7,16 @@ import { isVoided } from '@/lib/invoice-status'
  *
  * Rules:
  * - Voided (soft-deleted) is terminal — locked for everyone.
- * - `draft` is editable by anyone (staff or admin).
- * - Once sent (`sent`/`partial`/`paid`/`overdue`) only an admin may edit.
+ * - `draft` requires the `editInvoice` permission.
+ * - Once sent (`sent`/`partial`/`paid`/`overdue`) requires `editFinalizedInvoice`.
  *
- * UI gating only for now; not a security boundary. A future employee module
- * will move roles into the database and add RLS enforcement.
+ * `has` is the caller's capability predicate (from AuthContext on the client).
+ * UI gating only; the server action is the real boundary.
  */
-export function canEditInvoice(inv: Pick<Invoice, 'status' | 'voided_at'>, role: string): boolean {
+export function canEditInvoice(
+  inv: Pick<Invoice, 'status' | 'voided_at'>,
+  has: (permission: Permission) => boolean,
+): boolean {
   if (isVoided(inv)) return false
-  return inv.status === 'draft' || role === 'admin'
+  return inv.status === 'draft' ? has('editInvoice') : has('editFinalizedInvoice')
 }

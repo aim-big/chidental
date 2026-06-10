@@ -1,0 +1,23 @@
+import { describe, it, expect } from 'vitest'
+import { canEditInvoice } from './invoice-permissions'
+
+const inv = (status: string, voided_at: string | null = null) => ({ status, voided_at } as any)
+const allow = () => true
+const deny = () => false
+const only = (...perms: string[]) => (p: string) => perms.includes(p)
+
+describe('canEditInvoice', () => {
+  it('locks a voided invoice for everyone', () => {
+    expect(canEditInvoice(inv('draft', '2026-06-03T00:00:00Z'), allow)).toBe(false)
+  })
+  it('lets a holder of editInvoice edit a draft', () => {
+    expect(canEditInvoice(inv('draft'), only('editInvoice'))).toBe(true)
+  })
+  it('blocks a draft edit without editInvoice', () => {
+    expect(canEditInvoice(inv('draft'), deny)).toBe(false)
+  })
+  it('requires editFinalizedInvoice for a sent invoice', () => {
+    expect(canEditInvoice(inv('sent'), only('editFinalizedInvoice'))).toBe(true)
+    expect(canEditInvoice(inv('sent'), only('editInvoice'))).toBe(false)
+  })
+})

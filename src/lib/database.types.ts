@@ -1,6 +1,7 @@
 export type InvoiceStatus = 'draft' | 'sent' | 'partial' | 'paid' | 'overdue'
 export type WorkStatus = 'received' | 'in_progress' | 'qc' | 'ready' | 'delivered' | 'on_hold'
 export type ProfileRole = 'admin' | 'staff'
+export type { Permission } from '@/lib/permissions'
 
 export interface Customer {
   id: string
