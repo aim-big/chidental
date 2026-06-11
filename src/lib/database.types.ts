@@ -1,5 +1,5 @@
 export type InvoiceStatus = 'draft' | 'sent' | 'partial' | 'paid' | 'overdue'
-export type WorkStatus = 'received' | 'in_progress' | 'qc' | 'ready' | 'delivered' | 'on_hold'
+export type WorkStatus = 'received' | 'in_progress' | 'ready' | 'delivered' | 'on_hold'
 export type { Permission } from '@/lib/permissions'
 
 export interface Customer {
@@ -28,6 +28,15 @@ export interface Product {
 }
 
 export interface ServiceStatus {
+  id: string
+  label: string
+  color: string | null
+  sort_order: number
+  is_active: boolean
+  created_at: string
+}
+
+export interface WorkStage {
   id: string
   label: string
   color: string | null
@@ -103,6 +112,7 @@ export interface InvoiceItem {
   work_status: WorkStatus
   work_status_updated_at: string
   work_note: string | null
+  stage_id: string | null
   created_at: string
 }
 
@@ -113,6 +123,7 @@ export interface InvoiceItemStatusHistory {
   note: string | null
   changed_by: string | null
   changed_by_name: string | null
+  stage_id: string | null
   changed_at: string
 }
 
@@ -131,11 +142,13 @@ type CustomerInsert = Omit<Customer, 'id' | 'created_at'>
 type ProductInsert = Omit<Product, 'id' | 'created_at'>
 type InvoiceInsert = Omit<Invoice, 'id' | 'created_at' | 'invoice_number' | 'voided_at' | 'voided_by' | 'void_reason' | 'customers' | 'invoice_items' | 'payments' | 'service_statuses'> &
   Partial<Pick<Invoice, 'invoice_number' | 'voided_at' | 'voided_by' | 'void_reason'>>
-type InvoiceItemInsert = Omit<InvoiceItem, 'id' | 'created_at' | 'work_status' | 'work_status_updated_at' | 'work_note'> &
-  Partial<Pick<InvoiceItem, 'work_status' | 'work_note'>>
+type InvoiceItemInsert = Omit<InvoiceItem, 'id' | 'created_at' | 'work_status' | 'work_status_updated_at' | 'work_note' | 'stage_id'> &
+  Partial<Pick<InvoiceItem, 'work_status' | 'work_note' | 'stage_id'>>
 type PaymentInsert = Omit<Payment, 'id' | 'created_at'>
-type StatusHistoryInsert = Omit<InvoiceItemStatusHistory, 'id' | 'changed_at'>
+type StatusHistoryInsert = Omit<InvoiceItemStatusHistory, 'id' | 'changed_at' | 'stage_id'> &
+  Partial<Pick<InvoiceItemStatusHistory, 'stage_id'>>
 type ServiceStatusInsert = Omit<ServiceStatus, 'id' | 'created_at'>
+type WorkStageInsert = Omit<WorkStage, 'id' | 'created_at'>
 type ProfileInsert = Omit<Profile, 'created_at' | 'updated_at' | 'full_name' | 'active' | 'roles'> &
   Partial<Pick<Profile, 'full_name' | 'active'>>
 
@@ -149,6 +162,7 @@ export type Database = {
       invoice_item_status_history:  { Row: InvoiceItemStatusHistory;   Insert: StatusHistoryInsert;  Update: Partial<StatusHistoryInsert>;  Relationships: [] }
       payments:                     { Row: Payment;                    Insert: PaymentInsert;        Update: Partial<PaymentInsert>;        Relationships: [] }
       service_statuses:             { Row: ServiceStatus;              Insert: ServiceStatusInsert;  Update: Partial<ServiceStatusInsert>;  Relationships: [] }
+      work_stages:                  { Row: WorkStage;                  Insert: WorkStageInsert;      Update: Partial<WorkStageInsert>;      Relationships: [] }
       profiles:                     { Row: Profile;                    Insert: ProfileInsert;        Update: Partial<ProfileInsert>;        Relationships: [] }
       roles:                        { Row: Role;                       Insert: Omit<Role, 'id' | 'created_at' | 'updated_at'> & Partial<Pick<Role, 'id'>>; Update: Partial<Omit<Role, 'id' | 'created_at'>>; Relationships: [] }
       role_permissions:             { Row: RolePermission;             Insert: RolePermission;       Update: Partial<RolePermission>;       Relationships: [] }
