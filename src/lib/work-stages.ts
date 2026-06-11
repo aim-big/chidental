@@ -19,18 +19,6 @@ export async function fetchWorkStages(): Promise<WorkStage[]> {
   return data ?? []
 }
 
-// Active stages only — used by the manage screen and as dropdown options.
-export async function fetchActiveWorkStages(): Promise<WorkStage[]> {
-  const { supabase } = await import('./supabase')
-  const { data } = await supabase
-    .from('work_stages')
-    .select('*')
-    .eq('is_active', true)
-    .order('sort_order')
-    .order('label')
-  return data ?? []
-}
-
 // ---- Pure helpers (unit-tested) -------------------------------------------
 
 export type WorkOption = { value: string; label: string; color: string }
