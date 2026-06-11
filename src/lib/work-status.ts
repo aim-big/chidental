@@ -3,7 +3,6 @@ import type { WorkStatus } from './database.types'
 export const WORK_STATUSES: WorkStatus[] = [
   'received',
   'in_progress',
-  'qc',
   'ready',
   'delivered',
   'on_hold',
@@ -12,7 +11,6 @@ export const WORK_STATUSES: WorkStatus[] = [
 export const WORK_STATUS_LABELS: Record<WorkStatus, string> = {
   received: 'Received',
   in_progress: 'In Progress',
-  qc: 'QC',
   ready: 'Ready',
   delivered: 'Delivered',
   on_hold: 'On Hold',
@@ -24,7 +22,6 @@ export const WORK_STATUS_LABELS: Record<WorkStatus, string> = {
 export const WORK_STATUS_COLORS: Record<WorkStatus, string> = {
   received:    'bg-gray-100 text-gray-700',
   in_progress: 'bg-blue-100 text-blue-700',
-  qc:          'bg-purple-100 text-purple-700',
   ready:       'bg-green-100 text-green-700',
   delivered:   'bg-gray-50 text-gray-500 ring-1 ring-inset ring-gray-200',
   on_hold:     'bg-orange-100 text-orange-700',
@@ -36,7 +33,6 @@ export const WORK_STATUS_COLORS: Record<WorkStatus, string> = {
 export const WORK_STATUS_FILLED: Record<WorkStatus, string> = {
   received:    'bg-gray-600 text-white border border-gray-600',
   in_progress: 'bg-blue-600 text-white border border-blue-600',
-  qc:          'bg-purple-600 text-white border border-purple-600',
   ready:       'bg-green-600 text-white border border-green-600',
   delivered:   'bg-gray-500 text-white border border-gray-500',
   on_hold:     'bg-orange-600 text-white border border-orange-600',
@@ -48,7 +44,6 @@ export const WORK_STATUS_FILLED: Record<WorkStatus, string> = {
 export const WORK_STATUS_OUTLINED: Record<WorkStatus, string> = {
   received:    'bg-white border border-gray-400 text-gray-700',
   in_progress: 'bg-white border border-blue-500 text-blue-700',
-  qc:          'bg-white border border-purple-500 text-purple-700',
   ready:       'bg-white border border-green-600 text-green-700',
   delivered:   'bg-white border border-gray-300 text-gray-500',
   on_hold:     'bg-white border border-orange-500 text-orange-700',
@@ -62,7 +57,6 @@ const DOMINANT_PRIORITY: WorkStatus[] = [
   'on_hold',
   'received',
   'in_progress',
-  'qc',
   'ready',
   'delivered',
 ]
@@ -76,7 +70,7 @@ export function dominantWorkStatus(statuses: WorkStatus[]): WorkStatus | null {
   return null
 }
 
-const LINEAR_FLOW: WorkStatus[] = ['received', 'in_progress', 'qc', 'ready', 'delivered']
+const LINEAR_FLOW: WorkStatus[] = ['received', 'in_progress', 'ready', 'delivered']
 
 export function nextWorkStatus(current: WorkStatus): WorkStatus | null {
   const idx = LINEAR_FLOW.indexOf(current)
