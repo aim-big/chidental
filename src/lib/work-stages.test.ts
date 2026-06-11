@@ -99,4 +99,14 @@ describe('orderedGroupKeys', () => {
     const present = ['received', 'stage:old', 'in_progress', 'ready']
     expect(orderedGroupKeys(active, present)).toEqual(['received', 'stage:old', 'in_progress', 'ready'])
   })
+  it('de-dupes repeated present keys', () => {
+    const present = ['received', 'received', 'stage:s1', 'stage:s1']
+    expect(orderedGroupKeys(active, present)).toEqual(['received', 'stage:s1'])
+  })
+  it('still emits an extra group when no Ready items are present', () => {
+    // Guards the subtle "flush extras at the canonical Ready position" logic: a
+    // refactor that gated the flush on `ready` being present would drop this group.
+    const present = ['received', 'stage:old']
+    expect(orderedGroupKeys(active, present)).toEqual(['received', 'stage:old'])
+  })
 })

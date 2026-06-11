@@ -7,6 +7,9 @@ export const STAGE_DEFAULT_COLOR = 'bg-gray-100 text-gray-700'
 // All stages (active + inactive), ordered. The dropdown only OFFERS active stages,
 // but inactive ones are still needed to LABEL items left sitting on a retired stage.
 export async function fetchWorkStages(): Promise<WorkStage[]> {
+  // Lazy import: `./supabase` constructs its client at module load, which throws in
+  // the vitest node env. Importing it dynamically here keeps the pure helpers below
+  // importable by tests without a client. Do NOT hoist this to a top-level import.
   const { supabase } = await import('./supabase')
   const { data } = await supabase
     .from('work_stages')
