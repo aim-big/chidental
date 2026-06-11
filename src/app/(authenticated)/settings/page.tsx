@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
-import { ChevronRight, ClipboardList, UserCog, ShieldCheck } from 'lucide-react'
+import { ChevronRight, ClipboardList, ListChecks, UserCog, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 
 const sections = [
@@ -11,6 +11,12 @@ const sections = [
     icon: ClipboardList,
     title: 'Service Statuses',
     description: 'Delivery-note instructions to the doctor (Try in, Redo, Final…).',
+  },
+  {
+    href: '/settings/work-stages',
+    icon: ListChecks,
+    title: 'Work Stages',
+    description: 'Bench steps a job moves through while In Progress (Custom Tray, Try-in…).',
   },
 ]
 
