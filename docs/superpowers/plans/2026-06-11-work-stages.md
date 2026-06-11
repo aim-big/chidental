@@ -22,6 +22,7 @@
 - History rows are written **by the DB trigger**, not by app code. App code must therefore **never** insert history manually — it only updates `invoice_items`, and the trigger logs.
 - `service_statuses` columns to clone: `id uuid PK default gen_random_uuid()`, `label text NOT NULL`, `color text NULL`, `sort_order int NOT NULL default 0`, `is_active bool NOT NULL default true`, `created_at timestamptz NOT NULL default now()`. RLS **enabled**, single policy `authenticated_all` = `FOR ALL TO authenticated USING (true) WITH CHECK (true)`.
 - `database.types.ts` is **hand-maintained** (not auto-generated in this repo) — edit it by hand.
+- **`npx tsc --noEmit` is NOT a valid gate for this repo.** `next.config` sets `typescript: { ignoreBuildErrors: true }` on purpose — the hand-rolled types fail Supabase's `GenericSchema` constraint, so every `supabase.from()` table op resolves to `never` and `tsc` reports ~50 baseline errors that are not real bugs. Use **`npm run lint`** (catches unused imports / real lint issues), **`npm run build`** (compiles routes; type errors ignored), and **`npm test`** (vitest, transpile-only) as the gates. Do not block on `tsc` output.
 
 ## File map
 
@@ -976,13 +977,13 @@ const sections = [
 ]
 ```
 
-- [ ] **Step 3: Typecheck, lint, build**
-
-Run: `npx tsc --noEmit`
-Expected: PASS.
+- [ ] **Step 3: Lint + build** (NOT `tsc` — see Background facts; ~50 baseline `tsc` errors are expected and not real)
 
 Run: `npm run lint`
-Expected: no new errors in the two files.
+Expected: no new errors in the two files you touched.
+
+Run: `npm run build`
+Expected: build succeeds.
 
 - [ ] **Step 4: Manual smoke test**
 
@@ -1342,13 +1343,10 @@ export default function WorkPage() {
 }
 ```
 
-- [ ] **Step 2: Typecheck, lint, build**
-
-Run: `npx tsc --noEmit`
-Expected: PASS.
+- [ ] **Step 2: Lint + build** (NOT `tsc` — see Background facts; ~50 baseline `tsc` errors are expected and not real)
 
 Run: `npm run lint`
-Expected: no new errors.
+Expected: no new errors. (Pay attention to unused-import warnings — this rewrite drops `WORK_STATUS_COLORS` and `WorkStatusBadge`; make sure no dead imports remain.)
 
 Run: `npm run build`
 Expected: build succeeds (the `/work` route compiles).
@@ -1537,13 +1535,10 @@ Replace with:
                               </TableCell>
 ```
 
-- [ ] **Step 8: Typecheck, lint, build**
-
-Run: `npx tsc --noEmit`
-Expected: PASS. (Imports were already corrected in Step 1, so there should be no unused-import errors. If lint/tsc still flags an unused symbol from `@/lib/work-status`, delete it — the page resolves all labels/colors through the `work-stages` helpers now.)
+- [ ] **Step 8: Lint + build** (NOT `tsc` — see Background facts; ~50 baseline `tsc` errors are expected and not real)
 
 Run: `npm run lint`
-Expected: no new errors.
+Expected: no new errors. Imports were corrected in Step 1, so there should be no unused-import warnings. If lint flags an unused symbol from `@/lib/work-status`, delete it — the page resolves all labels/colors through the `work-stages` helpers now.
 
 Run: `npm run build`
 Expected: build succeeds.
@@ -1570,10 +1565,10 @@ git commit -m "feat(work-stages): invoice detail stage dropdown + stage in work 
 Run: `npm test`
 Expected: all tests pass, including `work-stages.test.ts` and `work-status.test.ts`.
 
-- [ ] **Step 2: Typecheck + lint + build**
+- [ ] **Step 2: Lint + build** (NOT `tsc` — see Background facts; ~50 baseline `tsc` errors are expected and not real)
 
-Run: `npx tsc --noEmit && npm run lint && npm run build`
-Expected: all pass.
+Run: `npm run lint && npm run build`
+Expected: both pass.
 
 - [ ] **Step 3: Grep for stragglers**
 
