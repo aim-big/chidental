@@ -50,9 +50,14 @@ export default function EmployeesManager({ currentUserId }: { currentUserId: str
     if (p.active && !confirm(`Deactivate ${p.full_name}? They will no longer be able to sign in.`)) return
     setBusyId(p.id)
     startTransition(async () => {
-      await setActive({ id: p.id, active: !p.active })
-      await load()
-      setBusyId(null)
+      try {
+        await setActive({ id: p.id, active: !p.active })
+        await load()
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Could not update the employee. Please try again.')
+      } finally {
+        setBusyId(null)
+      }
     })
   }
 
@@ -61,10 +66,15 @@ export default function EmployeesManager({ currentUserId }: { currentUserId: str
     if (!confirm(`Permanently delete ${p.full_name}? This removes their login and cannot be undone.`)) return
     setBusyId(p.id)
     startTransition(async () => {
-      const res = await deleteEmployee({ id: p.id })
-      await load()
-      if (!res.ok && 'error' in res) alert(res.error)
-      setBusyId(null)
+      try {
+        const res = await deleteEmployee({ id: p.id })
+        await load()
+        if (!res.ok && 'error' in res) alert(res.error)
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Could not delete the employee. Please try again.')
+      } finally {
+        setBusyId(null)
+      }
     })
   }
 
@@ -226,20 +236,27 @@ function EmployeeDialog({
     setSaving(true)
     setError(null)
 
-    let res
-    if (state.mode === 'create') {
-      res = await createEmployee({ username, pin, fullName, roleId })
-    } else if (state.mode === 'edit') {
-      res = await updateEmployee({ id: state.employee.id, fullName, roleId })
-    } else {
-      res = await resetPin({ id: state.employee.id, pin })
-    }
+    try {
+      let res
+      if (state.mode === 'create') {
+        res = await createEmployee({ username, pin, fullName, roleId })
+      } else if (state.mode === 'edit') {
+        res = await updateEmployee({ id: state.employee.id, fullName, roleId })
+      } else {
+        res = await resetPin({ id: state.employee.id, pin })
+      }
 
-    setSaving(false)
-    if (res.ok) {
-      await onSaved()
-    } else {
-      setError(res.error)
+      if (res.ok) {
+        await onSaved()
+      } else {
+        setError(res.error)
+      }
+    } catch (err) {
+      // A thrown server action would otherwise leave the button stuck on
+      // "Saving…" with no explanation. Surface it instead.
+      setError(err instanceof Error ? err.message : 'Could not save. Please try again.')
+    } finally {
+      setSaving(false)
     }
   }
 

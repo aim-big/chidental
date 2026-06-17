@@ -240,22 +240,34 @@ export default function InvoiceDetailPage() {
     if (!invoice) return
     setVoiding(true)
     setActionError('')
-    const res = await voidInvoiceAction({ id: invoice.id, reason: voidReason })
-    setVoiding(false)
-    if (!res.ok) { setActionError(res.error); return }
-    setVoidOpen(false)
-    setVoidReason('')
-    load()
+    try {
+      const res = await voidInvoiceAction({ id: invoice.id, reason: voidReason })
+      if (!res.ok) { setActionError(res.error); return }
+      setVoidOpen(false)
+      setVoidReason('')
+      load()
+    } catch (err) {
+      // A thrown server action would otherwise leave the button stuck on
+      // "Voiding…" with no explanation. Surface it instead.
+      setActionError(err instanceof Error ? err.message : 'Could not void the invoice. Please try again.')
+    } finally {
+      setVoiding(false)
+    }
   }
 
   const restore = async () => {
     if (!invoice) return
     setRestoring(true)
     setActionError('')
-    const res = await restoreInvoice({ id: invoice.id })
-    setRestoring(false)
-    if (!res.ok) { setActionError(res.error); return }
-    load()
+    try {
+      const res = await restoreInvoice({ id: invoice.id })
+      if (!res.ok) { setActionError(res.error); return }
+      load()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Could not restore the invoice. Please try again.')
+    } finally {
+      setRestoring(false)
+    }
   }
 
   const openRecipientDialog = () => {

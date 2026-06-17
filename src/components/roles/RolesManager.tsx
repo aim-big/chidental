@@ -135,12 +135,19 @@ function RoleDialog({
     setSaving(true)
     setError(null)
     const permissions = [...perms]
-    const res = state.mode === 'create'
-      ? await createRole({ name, description, permissions })
-      : await updateRole({ id: state.role.id, name, description, permissions })
-    setSaving(false)
-    if (res.ok) await onSaved()
-    else setError(res.error)
+    try {
+      const res = state.mode === 'create'
+        ? await createRole({ name, description, permissions })
+        : await updateRole({ id: state.role.id, name, description, permissions })
+      if (res.ok) await onSaved()
+      else setError(res.error)
+    } catch (err) {
+      // A thrown server action (env/auth/network failure) would otherwise leave
+      // the button stuck on "Saving…" with no explanation. Surface it instead.
+      setError(err instanceof Error ? err.message : 'Could not save the role. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
