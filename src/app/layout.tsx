@@ -3,7 +3,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Chi Dental Lab',
-  description: 'Point of Sale System',
+  description: 'Lab Management System',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

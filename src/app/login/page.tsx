@@ -47,7 +47,7 @@ export default function LoginPage() {
             χ
           </div>
           <h1 className="text-2xl font-bold text-gray-900">{COMPANY.name}</h1>
-          <p className="text-sm text-gray-500 mt-1">Point of Sale System</p>
+          <p className="text-sm text-gray-500 mt-1">Lab Management System</p>
         </div>
 
         <Card>

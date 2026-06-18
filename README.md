@@ -1,6 +1,6 @@
-# BigPOS
+# chidental
 
-Point of Sale system for Chi Dental Lab. Built with Next.js, Supabase, Tailwind CSS, and shadcn/ui.
+Lab management system (work orders, invoicing, and billing) for Chi Dental Lab. Built with Next.js, Supabase, Tailwind CSS, and shadcn/ui.
 
 ## Stack
 
