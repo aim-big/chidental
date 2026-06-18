@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 
 const schema = z.object({
   clinic_name: z.string().min(1, 'Clinic name is required'),
@@ -27,6 +28,8 @@ type FormData = z.infer<typeof schema>
 
 export default function CustomerForm({ customerId }: { customerId?: string }) {
   const router = useRouter()
+  const { hasPermission, loading } = useAuth()
+  const canEdit = hasPermission('customers.edit')
   const isEdit = Boolean(customerId)
   const [saving, setSaving] = useState(false)
   const [serverError, setServerError] = useState('')
@@ -34,6 +37,12 @@ export default function CustomerForm({ customerId }: { customerId?: string }) {
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
+
+  // Deep-link guard: reaching /customers/new or /customers/[id]/edit without
+  // the edit permission bounces back to the list once the role has loaded.
+  useEffect(() => {
+    if (!loading && !canEdit) router.replace('/customers')
+  }, [loading, canEdit, router])
 
   useEffect(() => {
     if (isEdit && customerId) {
@@ -44,6 +53,7 @@ export default function CustomerForm({ customerId }: { customerId?: string }) {
   }, [customerId, isEdit, reset])
 
   const onSubmit = async (data: FormData) => {
+    if (!canEdit) return
     setSaving(true)
     setServerError('')
     const payload = {
@@ -143,7 +153,7 @@ export default function CustomerForm({ customerId }: { customerId?: string }) {
             {serverError && <p className="text-sm text-destructive">{serverError}</p>}
 
             <div className="flex gap-3 pt-2">
-              <Button type="submit" disabled={saving}>
+              <Button type="submit" disabled={saving || !canEdit}>
                 {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Customer'}
               </Button>
               <Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button>

@@ -5,26 +5,16 @@ import { Card, CardContent } from '@/components/ui/card'
 import { ChevronRight, ClipboardList, ListChecks, UserCog, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 
-const sections = [
-  {
-    href: '/settings/service-statuses',
-    icon: ClipboardList,
-    title: 'Service Statuses',
-    description: 'Delivery-note instructions to the doctor (Try in, Redo, Final…).',
-  },
-  {
-    href: '/settings/work-stages',
-    icon: ListChecks,
-    title: 'Work Stages',
-    description: 'Bench steps a job moves through while In Progress (Custom Tray, Try-in…).',
-  },
-]
-
 export default function SettingsPage() {
   const { hasPermission, isSuperadmin } = useAuth()
 
   const visibleSections = [
-    ...sections,
+    ...(hasPermission('services.view')
+      ? [{ href: '/settings/service-statuses', icon: ClipboardList, title: 'Service Statuses', description: 'Delivery-note instructions to the doctor (Try in, Redo, Final…).' }]
+      : []),
+    ...(hasPermission('settings.manage')
+      ? [{ href: '/settings/work-stages', icon: ListChecks, title: 'Work Stages', description: 'Bench steps a job moves through while In Progress (Custom Tray, Try-in…).' }]
+      : []),
     ...(hasPermission('staff.manage')
       ? [{ href: '/settings/employees', icon: UserCog, title: 'Employees', description: 'Add staff logins, reset PINs, assign roles, and manage access.' }]
       : []),

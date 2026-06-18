@@ -11,9 +11,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { formatDate } from '@/lib/utils'
 import { Plus, Search } from 'lucide-react'
 import type { Customer } from '@/lib/database.types'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function CustomersPage() {
   const router = useRouter()
+  const { hasPermission } = useAuth()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [filtered, setFiltered] = useState<Customer[]>([])
   const [search, setSearch] = useState('')
@@ -49,9 +51,11 @@ export default function CustomersPage() {
           <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
           <p className="text-sm text-gray-500 mt-0.5">{customers.length} registered</p>
         </div>
-        <Button asChild>
-          <Link href="/customers/new"><Plus className="h-4 w-4 mr-2" />New Customer</Link>
-        </Button>
+        {hasPermission('customers.edit') && (
+          <Button asChild>
+            <Link href="/customers/new"><Plus className="h-4 w-4 mr-2" />New Customer</Link>
+          </Button>
+        )}
       </div>
 
       <div className="relative max-w-sm">

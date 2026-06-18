@@ -13,6 +13,7 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { ArrowLeft, Edit, Plus, Phone, Mail, MapPin, Truck } from 'lucide-react'
 import type { Customer, Invoice } from '@/lib/database.types'
 import { isOutstanding, isVoided } from '@/lib/invoice-status'
+import { useAuth } from '@/contexts/AuthContext'
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'info'> = {
   draft: 'secondary', sent: 'info', partial: 'warning', paid: 'success', overdue: 'destructive',
@@ -21,6 +22,7 @@ const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'warn
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const { hasPermission } = useAuth()
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
@@ -58,9 +60,11 @@ export default function CustomerDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/customers/${id}/edit`}><Edit className="h-4 w-4 mr-2" />Edit</Link>
-          </Button>
+          {hasPermission('customers.edit') && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/customers/${id}/edit`}><Edit className="h-4 w-4 mr-2" />Edit</Link>
+            </Button>
+          )}
           <Button size="sm" asChild>
             <Link href={`/invoices/new?customer=${id}`}><Plus className="h-4 w-4 mr-2" />New Invoice</Link>
           </Button>

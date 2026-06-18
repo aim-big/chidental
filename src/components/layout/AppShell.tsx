@@ -34,6 +34,7 @@ const navItems: NavItem[] = [
 // /settings/service-statuses is checked before /settings.
 const viewGuards: { prefix: string; permission: Permission }[] = [
   { prefix: '/settings/service-statuses', permission: 'services.view' },
+  { prefix: '/settings/work-stages', permission: 'settings.manage' },
   { prefix: '/customers', permission: 'customers.view' },
   { prefix: '/invoices', permission: 'invoices.view' },
   { prefix: '/work', permission: 'invoices.view' },

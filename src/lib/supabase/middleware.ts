@@ -27,13 +27,20 @@ export async function updateSession(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const pathname = request.nextUrl.pathname
 
-  if (!user && pathname !== '/login') {
+  // Only bounce *navigations* (GET). A mutating request — a Server Action POST —
+  // carries its own server-side gate (requirePermission/requireSuperadmin), so
+  // it must not be 307-redirected to /login on a momentary auth hiccup: that
+  // turns into a broken action response the client can't parse (it just hangs
+  // on "Saving…"). Let it through and let the action return a clean error.
+  const isNavigation = request.method === 'GET'
+
+  if (isNavigation && !user && pathname !== '/login') {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  if (user && pathname === '/login') {
+  if (isNavigation && user && pathname === '/login') {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)

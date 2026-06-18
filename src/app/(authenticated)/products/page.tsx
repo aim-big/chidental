@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { formatCurrency } from '@/lib/utils'
 import { Plus, Pencil, ToggleLeft, ToggleRight } from 'lucide-react'
 import type { Product } from '@/lib/database.types'
+import { useAuth } from '@/contexts/AuthContext'
 
 const optionalPrice = z.preprocess(
   v => (v === '' || v === null || v === undefined ? undefined : v),
@@ -54,6 +55,8 @@ const schema = z
 type FormData = z.infer<typeof schema>
 
 export default function ProductsPage() {
+  const { hasPermission } = useAuth()
+  const canEdit = hasPermission('products.edit')
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
@@ -104,6 +107,7 @@ export default function ProductsPage() {
   }
 
   const onSubmit = async (data: FormData) => {
+    if (!canEdit) return
     setSaving(true)
     const rangeMode = data.use_price_range
     const payload = {
@@ -136,7 +140,7 @@ export default function ProductsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Products & Services</h1>
           <p className="text-sm text-gray-500 mt-0.5">Price catalog for invoicing</p>
         </div>
-        <Button onClick={openNew}><Plus className="h-4 w-4 mr-2" />Add Product</Button>
+        {canEdit && <Button onClick={openNew}><Plus className="h-4 w-4 mr-2" />Add Product</Button>}
       </div>
 
       <Card>
@@ -169,14 +173,16 @@ export default function ProductsPage() {
                     <Badge variant={p.active ? 'success' : 'secondary'}>{p.active ? 'Active' : 'Inactive'}</Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(p)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleActive(p)}>
-                        {p.active ? <ToggleRight className="h-4 w-4 text-green-600" /> : <ToggleLeft className="h-4 w-4 text-gray-400" />}
-                      </Button>
-                    </div>
+                    {canEdit && (
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(p)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleActive(p)}>
+                          {p.active ? <ToggleRight className="h-4 w-4 text-green-600" /> : <ToggleLeft className="h-4 w-4 text-gray-400" />}
+                        </Button>
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

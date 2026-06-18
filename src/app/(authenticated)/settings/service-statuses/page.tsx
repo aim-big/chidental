@@ -16,6 +16,7 @@ import { ArrowLeft, Plus, Pencil, ToggleLeft, ToggleRight, ArrowUp, ArrowDown } 
 import { cn } from '@/lib/utils'
 import type { ServiceStatus } from '@/lib/database.types'
 import { COLOR_PRESETS, DEFAULT_COLOR } from '@/lib/service-status'
+import { useAuth } from '@/contexts/AuthContext'
 
 const schema = z.object({
   label: z.string().min(1, 'Label is required').max(40, 'Keep it short'),
@@ -24,6 +25,8 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>
 
 export default function ServiceStatusesPage() {
+  const { hasPermission } = useAuth()
+  const canEdit = hasPermission('services.edit')
   const [rows, setRows] = useState<ServiceStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
@@ -66,6 +69,7 @@ export default function ServiceStatusesPage() {
   }
 
   const onSubmit = async (data: FormData) => {
+    if (!canEdit) return
     setSaving(true)
     setError(null)
     if (editing) {
@@ -119,7 +123,7 @@ export default function ServiceStatusesPage() {
             <p className="text-sm text-gray-500 mt-0.5">Lab-to-doctor instruction printed on delivery notes.</p>
           </div>
         </div>
-        <Button onClick={openNew}><Plus className="h-4 w-4 mr-2" />Add Status</Button>
+        {canEdit && <Button onClick={openNew}><Plus className="h-4 w-4 mr-2" />Add Status</Button>}
       </div>
 
       <Card>
@@ -139,14 +143,16 @@ export default function ServiceStatusesPage() {
               {rows.map((s, i) => (
                 <TableRow key={s.id} className={s.is_active ? '' : 'opacity-50'}>
                   <TableCell>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" disabled={i === 0} onClick={() => move(i, -1)}>
-                        <ArrowUp className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" disabled={i === rows.length - 1} onClick={() => move(i, 1)}>
-                        <ArrowDown className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
+                    {canEdit && (
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" disabled={i === 0} onClick={() => move(i, -1)}>
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" disabled={i === rows.length - 1} onClick={() => move(i, 1)}>
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell>
                     <span className={cn('inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium', s.color ?? DEFAULT_COLOR)}>
@@ -155,14 +161,16 @@ export default function ServiceStatusesPage() {
                   </TableCell>
                   <TableCell className="text-sm text-gray-500">{s.is_active ? 'Active' : 'Inactive'}</TableCell>
                   <TableCell>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(s)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleActive(s)}>
-                        {s.is_active ? <ToggleRight className="h-4 w-4 text-green-600" /> : <ToggleLeft className="h-4 w-4 text-gray-400" />}
-                      </Button>
-                    </div>
+                    {canEdit && (
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(s)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleActive(s)}>
+                          {s.is_active ? <ToggleRight className="h-4 w-4 text-green-600" /> : <ToggleLeft className="h-4 w-4 text-gray-400" />}
+                        </Button>
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
