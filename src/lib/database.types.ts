@@ -1,180 +1,52 @@
-export type InvoiceStatus = 'draft' | 'sent' | 'partial' | 'paid' | 'overdue'
-export type WorkStatus = 'received' | 'in_progress' | 'ready' | 'delivered' | 'on_hold'
+// Convenience layer over the schema-driven types in `database-generated.types.ts`.
+//
+// `database-generated.types.ts` is produced verbatim by the Supabase CLI:
+//   supabase gen types typescript --project-id xjwkmlmkwpbxjziyngmb > src/lib/database-generated.types.ts
+// Regenerate it (never hand-edit) whenever the database schema changes.
+//
+// This file re-exports the generated `Database` type — which `@supabase/supabase-js`
+// requires to satisfy its GenericSchema constraint — and derives the named row
+// aliases the app imports (`Customer`, `Invoice`, …) from it, so the app types
+// stay in lockstep with the real schema instead of being hand-maintained.
+
+import type { Database, Tables } from './database-generated.types'
+
+export type { Database, Json, Tables, TablesInsert, TablesUpdate } from './database-generated.types'
 export type { Permission } from '@/lib/permissions'
 
-export interface Customer {
-  id: string
-  clinic_name: string
-  ssm_no: string | null
-  contact_person: string | null
-  phone: string | null
-  email: string | null
-  billing_address: string | null
-  delivery_address: string | null
-  notes: string | null
-  created_at: string
-}
+// --- Domain status types ---------------------------------------------------
 
-export interface Product {
-  id: string
-  name: string
-  description: string | null
-  unit_price: number
-  min_unit_price: number | null
-  max_unit_price: number | null
-  unit: string
-  active: boolean
-  created_at: string
-}
+// `work_status` is a real Postgres enum, so derive the union from the schema.
+export type WorkStatus = Database['public']['Enums']['work_status']
 
-export interface ServiceStatus {
-  id: string
-  label: string
-  color: string | null
-  sort_order: number
-  is_active: boolean
-  created_at: string
-}
+// `invoices.status` is a plain text column (no DB enum), so the schema types it
+// as `string` and `Invoice.status` keeps that. This union is the app's domain
+// vocabulary for those values — use it where a value is known to be one of them
+// (e.g. form state). See `invoice-status.ts` for the state machine.
+export type InvoiceStatus = 'draft' | 'sent' | 'partial' | 'paid' | 'overdue'
 
-export interface WorkStage {
-  id: string
-  label: string
-  color: string | null
-  sort_order: number
-  is_active: boolean
-  created_at: string
-}
+// --- Table row aliases (schema-driven) -------------------------------------
 
-export interface Role {
-  id: string
-  name: string
-  description: string | null
-  is_system: boolean
-  created_at: string
-  updated_at: string
-}
+export type Customer = Tables<'customers'>
+export type Product = Tables<'products'>
+export type ServiceStatus = Tables<'service_statuses'>
+export type WorkStage = Tables<'work_stages'>
+export type Role = Tables<'roles'>
+export type RolePermission = Tables<'role_permissions'>
+export type Payment = Tables<'payments'>
+export type InvoiceItem = Tables<'invoice_items'>
+export type InvoiceItemStatusHistory = Tables<'invoice_item_status_history'>
 
-export interface RolePermission {
-  role_id: string
-  permission: string
-}
-
-export interface Profile {
-  id: string
-  username: string
-  full_name: string
-  role_id: string | null
-  active: boolean
-  created_at: string
-  updated_at: string
-  roles?: Role | null
-}
-
-export interface Invoice {
-  id: string
-  invoice_number: string
-  customer_id: string
-  created_by: string
-  invoice_date: string
-  due_date: string
-  status: InvoiceStatus
-  voided_at: string | null
-  voided_by: string | null
-  void_reason: string | null
-  notes: string | null
-  patient: string | null
-  doctor: string | null
-  service_status_id: string | null
-  bill_to_name: string | null
-  bill_to_contact: string | null
-  bill_to_phone: string | null
-  billing_address: string | null
-  ship_to_name: string | null
-  ship_to_contact: string | null
-  delivery_address: string | null
-  subtotal: number
-  total: number
-  created_at: string
+// Invoice carries the nested relations that
+// `select('*, customers(*), invoice_items(*), payments(*))` queries return.
+export type Invoice = Tables<'invoices'> & {
   customers?: Customer
   invoice_items?: InvoiceItem[]
   payments?: Payment[]
   service_statuses?: ServiceStatus | null
 }
 
-export interface InvoiceItem {
-  id: string
-  invoice_id: string
-  product_id: string | null
-  description: string
-  quantity: number
-  unit_price: number
-  amount: number
-  work_status: WorkStatus
-  work_status_updated_at: string
-  work_note: string | null
-  stage_id: string | null
-  created_at: string
-}
-
-export interface InvoiceItemStatusHistory {
-  id: string
-  invoice_item_id: string
-  status: WorkStatus
-  note: string | null
-  changed_by: string | null
-  changed_by_name: string | null
-  stage_id: string | null
-  changed_at: string
-}
-
-export interface Payment {
-  id: string
-  invoice_id: string
-  amount: number
-  payment_date: string
-  reference_number: string | null
-  notes: string | null
-  created_by: string
-  created_at: string
-}
-
-type CustomerInsert = Omit<Customer, 'id' | 'created_at'>
-type ProductInsert = Omit<Product, 'id' | 'created_at'>
-type InvoiceInsert = Omit<Invoice, 'id' | 'created_at' | 'invoice_number' | 'voided_at' | 'voided_by' | 'void_reason' | 'customers' | 'invoice_items' | 'payments' | 'service_statuses'> &
-  Partial<Pick<Invoice, 'invoice_number' | 'voided_at' | 'voided_by' | 'void_reason'>>
-type InvoiceItemInsert = Omit<InvoiceItem, 'id' | 'created_at' | 'work_status' | 'work_status_updated_at' | 'work_note' | 'stage_id'> &
-  Partial<Pick<InvoiceItem, 'work_status' | 'work_note' | 'stage_id'>>
-type PaymentInsert = Omit<Payment, 'id' | 'created_at'>
-type StatusHistoryInsert = Omit<InvoiceItemStatusHistory, 'id' | 'changed_at' | 'stage_id'> &
-  Partial<Pick<InvoiceItemStatusHistory, 'stage_id'>>
-type ServiceStatusInsert = Omit<ServiceStatus, 'id' | 'created_at'>
-type WorkStageInsert = Omit<WorkStage, 'id' | 'created_at'>
-type ProfileInsert = Omit<Profile, 'created_at' | 'updated_at' | 'full_name' | 'active' | 'roles'> &
-  Partial<Pick<Profile, 'full_name' | 'active'>>
-
-export type Database = {
-  public: {
-    Tables: {
-      customers:                    { Row: Customer;                   Insert: CustomerInsert;       Update: Partial<CustomerInsert>;       Relationships: [] }
-      products:                     { Row: Product;                    Insert: ProductInsert;        Update: Partial<ProductInsert>;        Relationships: [] }
-      invoices:                     { Row: Invoice;                    Insert: InvoiceInsert;        Update: Partial<InvoiceInsert>;        Relationships: [] }
-      invoice_items:                { Row: InvoiceItem;                Insert: InvoiceItemInsert;    Update: Partial<InvoiceItemInsert>;    Relationships: [] }
-      invoice_item_status_history:  { Row: InvoiceItemStatusHistory;   Insert: StatusHistoryInsert;  Update: Partial<StatusHistoryInsert>;  Relationships: [] }
-      payments:                     { Row: Payment;                    Insert: PaymentInsert;        Update: Partial<PaymentInsert>;        Relationships: [] }
-      service_statuses:             { Row: ServiceStatus;              Insert: ServiceStatusInsert;  Update: Partial<ServiceStatusInsert>;  Relationships: [] }
-      work_stages:                  { Row: WorkStage;                  Insert: WorkStageInsert;      Update: Partial<WorkStageInsert>;      Relationships: [] }
-      profiles:                     { Row: Profile;                    Insert: ProfileInsert;        Update: Partial<ProfileInsert>;        Relationships: [] }
-      roles:                        { Row: Role;                       Insert: Omit<Role, 'id' | 'created_at' | 'updated_at'> & Partial<Pick<Role, 'id'>>; Update: Partial<Omit<Role, 'id' | 'created_at'>>; Relationships: [] }
-      role_permissions:             { Row: RolePermission;             Insert: RolePermission;       Update: Partial<RolePermission>;       Relationships: [] }
-    }
-    Views: Record<string, never>
-    Functions: {
-      generate_invoice_number: { Args: Record<string, never>; Returns: string }
-      is_admin: { Args: Record<string, never>; Returns: boolean }
-    }
-    Enums: {
-      work_status: WorkStatus
-    }
-    CompositeTypes: Record<string, never>
-  }
+// Profile carries the joined `roles` relation used across auth/permission code.
+export type Profile = Tables<'profiles'> & {
+  roles?: Role | null
 }
