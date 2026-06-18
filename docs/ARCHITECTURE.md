@@ -234,3 +234,16 @@ Files: `invoices/page.tsx` (list), `invoices/[id]/page.tsx` (detail, ~1290 lines
 ---
 
 *Generated as the baseline for the module + database replan.*
+
+---
+
+## Module docs
+
+Detailed references for the four core subsystems. These are the canonical homes — the sections above summarise; the pages below expand.
+
+| Module | File | What it covers |
+|---|---|---|
+| Billing lifecycle | [`docs/modules/billing-lifecycle.md`](./modules/billing-lifecycle.md) | `BillingStatus` states, `TRANSITIONS` table, `overdue` derivation, `void` overlay, Mark-Paid write sequence |
+| Work status | [`docs/modules/work-status.md`](./modules/work-status.md) | `WorkStatus` enum, `LINEAR_FLOW`, stage subdivision, `encodeWork`/`decodeWork`, `on_hold` round-trip, aggregation |
+| Data model | [`docs/modules/data-model.md`](./modules/data-model.md) | All 11 tables with columns + FKs, `work_status` enum, DB functions/triggers, RLS summary |
+| Permissions | [`docs/modules/permissions.md`](./modules/permissions.md) | The 12 permission keys, `is_system` Super Admin semantics, `permissionGranted`, server-side enforcement seam |
