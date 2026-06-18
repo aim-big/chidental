@@ -3,13 +3,14 @@
 // dominantWorkStatus and summarizeWorkStatuses are intentionally omitted —
 // they live in the aggregation module (Task 7).
 
-import type { WorkStage } from '@/lib/database.types'
+import type { WorkStage, WorkStatus } from '@/lib/database.types'
 
 // ---------------------------------------------------------------------------
-// WorkStatus type (mirrors the DB enum)
+// WorkStatus — derived from the DB enum (single source of truth); re-exported
+// so the domain layer stays the one import point for consumers.
 // ---------------------------------------------------------------------------
 
-export type WorkStatus = 'received' | 'in_progress' | 'ready' | 'delivered' | 'on_hold'
+export type { WorkStatus }
 
 export const WORK_STATUSES: WorkStatus[] = [
   'received',
