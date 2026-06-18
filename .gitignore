@@ -20,6 +20,11 @@ build
 *.local
 *.tsbuildinfo
 
+# Env files (keep .env.example tracked)
+.env
+.env.*
+!.env.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

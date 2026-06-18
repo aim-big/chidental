@@ -21,12 +21,16 @@ The app runs at <http://localhost:3000>.
 
 ## Environment
 
-Copy `.env.local` and set:
+Copy `.env.example` to `.env.local` and fill in the values (or, on a machine
+linked to Vercel, run `vercel env pull .env.local`):
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+NEXT_PUBLIC_SUPABASE_URL=...        # public
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...   # public
+SUPABASE_SERVICE_ROLE_KEY=...       # secret — server-only, never expose
 ```
+
+`.env.local` is gitignored; never commit real keys.
 
 ## Scripts
 
