@@ -235,14 +235,24 @@ These are captured in the baseline migration (`supabase/migrations/0000000000000
 
 ## Row-Level Security
 
-RLS is **enabled on all 11 tables**.
+RLS is **enabled on all 11 tables**. As of **Spec 5** (migration `20260619000000_rls_permission_enforcement`), writes are enforced at the database — not just the UI.
 
-| Tables | Policy | Effect |
+**`auth_has_permission(perm)`** (SECURITY DEFINER, mirrors `src/domain/permissions.ts permissionGranted`) returns true for an active profile whose role is super-admin **or** holds the permission. Policies use it so a direct PostgREST call respects the same permissions the UI does.
+
+| Tables | Read | Write |
 |---|---|---|
-| 9 business tables (invoices, items, payments, customers, products, service_statuses, work_stages, invoice_item_status_history, profiles) | `authenticated_all` (`USING true / WITH CHECK true`) | Any logged-in user has full read+write; `anon` is denied |
-| `roles`, `role_permissions` | Authenticated SELECT only | Writes go via service-role (server actions) |
+| `customers` | authenticated | `auth_has_permission('customers.edit')` |
+| `products` | authenticated | `auth_has_permission('products.edit')` |
+| `service_statuses` | authenticated | `auth_has_permission('services.edit')` |
+| `work_stages` | authenticated | `auth_has_permission('settings.manage')` |
+| `invoice_items` | authenticated | **UPDATE only**, `auth_has_permission('invoices.view')`, + column grant limiting authenticated UPDATE to `work_status`/`stage_id`/`resume_status` (work-status path). INSERT/DELETE only via service-role RPCs. |
+| `invoices`, `payments`, `invoice_item_status_history` | authenticated | **none** — all writes go through the service-role client (server actions, RLS-bypassing + code-gated) or SECURITY DEFINER triggers |
+| `profiles` | authenticated SELECT | `is_admin()` for INSERT/UPDATE/DELETE |
+| `roles`, `role_permissions` | authenticated SELECT | service-role only (server actions) |
 
-This means authorization for business data is currently **UI-only** — `hasPermission()` hides controls but any authenticated user can write directly to the API. Deferring real enforcement to Spec 5 (security) is an accepted risk for the current small trusted-staff deployment.
+Reads stay broad for authenticated (read-gating intentionally deferred — trusted-staff deployment). Server actions use the service-role client, which **bypasses RLS** and remains gated by `requirePermission()` in code. SECURITY DEFINER / RPC EXECUTE was also hardened (anon revoked; trigger functions + invoice RPCs revoked from all API roles; `is_admin`/`auth_has_permission` stay authenticated-executable because the policies call them).
+
+**Still manual:** enable leaked-password protection (HaveIBeenPwned) in the Supabase dashboard — Authentication settings; it is not configurable via SQL.
 
 ---
 
