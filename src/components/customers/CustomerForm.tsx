@@ -4,8 +4,6 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,70 +11,59 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useToast } from '@/components/feedback/toast'
+import { customerInputSchema, type CustomerInput } from '@/domain/schemas'
+import { createCustomerAction, updateCustomerAction } from '@/data/customer-actions'
+import type { Customer } from '@/lib/database.types'
 
-const schema = z.object({
-  clinic_name: z.string().min(1, 'Clinic name is required'),
-  ssm_no: z.string().optional(),
-  contact_person: z.string().optional(),
-  phone: z.string().optional(),
-  email: z.string().email('Invalid email').optional().or(z.literal('')),
-  billing_address: z.string().optional(),
-  delivery_address: z.string().optional(),
-  notes: z.string().optional(),
-})
-type FormData = z.infer<typeof schema>
-
-export default function CustomerForm({ customerId }: { customerId?: string }) {
+// Create/edit form for a customer. Edit-mode prefill arrives as `initialData`
+// from the Server Component (`getCustomerForEdit`) — no browser-singleton read.
+// Submits go through the permission-gated Server Actions; success/failure surface
+// via the global toast.
+export default function CustomerForm({ initialData }: { initialData?: Customer }) {
   const router = useRouter()
   const { hasPermission, loading } = useAuth()
+  const { show } = useToast()
   const canEdit = hasPermission('customers.edit')
-  const isEdit = Boolean(customerId)
+  const isEdit = Boolean(initialData)
   const [saving, setSaving] = useState(false)
-  const [serverError, setServerError] = useState('')
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(schema),
+  const { register, handleSubmit, formState: { errors } } = useForm<CustomerInput>({
+    resolver: zodResolver(customerInputSchema),
+    defaultValues: {
+      clinic_name: initialData?.clinic_name ?? '',
+      ssm_no: initialData?.ssm_no ?? '',
+      contact_person: initialData?.contact_person ?? '',
+      phone: initialData?.phone ?? '',
+      email: initialData?.email ?? '',
+      billing_address: initialData?.billing_address ?? '',
+      delivery_address: initialData?.delivery_address ?? '',
+      notes: initialData?.notes ?? '',
+    },
   })
 
-  // Deep-link guard: reaching /customers/new or /customers/[id]/edit without
-  // the edit permission bounces back to the list once the role has loaded.
+  // Deep-link guard: reaching /customers/new or /customers/[id]/edit without the
+  // edit permission bounces back to the list once the role has loaded. The real
+  // gate is each Server Action's `requirePermission('customers.edit')`.
   useEffect(() => {
     if (!loading && !canEdit) router.replace('/customers')
   }, [loading, canEdit, router])
 
-  useEffect(() => {
-    if (isEdit && customerId) {
-      supabase.from('customers').select('*').eq('id', customerId).single().then(({ data }) => {
-        if (data) reset(data)
-      })
-    }
-  }, [customerId, isEdit, reset])
-
-  const onSubmit = async (data: FormData) => {
+  const onSubmit = async (data: CustomerInput) => {
     if (!canEdit) return
     setSaving(true)
-    setServerError('')
-    const payload = {
-      clinic_name: data.clinic_name,
-      ssm_no: data.ssm_no || null,
-      contact_person: data.contact_person || null,
-      phone: data.phone || null,
-      email: data.email || null,
-      billing_address: data.billing_address || null,
-      delivery_address: data.delivery_address || null,
-      notes: data.notes || null,
-    }
 
-    const { error } = isEdit
-      ? await supabase.from('customers').update(payload).eq('id', customerId!)
-      : await supabase.from('customers').insert(payload)
+    const result = isEdit
+      ? await updateCustomerAction(initialData!.id, data)
+      : await createCustomerAction(data)
 
-    if (error) {
-      setServerError(error.message)
+    if (result.ok === false) {
+      show({ variant: 'error', title: result.error })
       setSaving(false)
-    } else {
-      router.push('/customers')
+      return
     }
+    show({ variant: 'success', title: isEdit ? 'Customer updated' : 'Customer created' })
+    router.push('/customers')
   }
 
   return (
@@ -149,8 +136,6 @@ export default function CustomerForm({ customerId }: { customerId?: string }) {
               <Label htmlFor="notes">Notes</Label>
               <Textarea id="notes" placeholder="Any additional notes…" rows={2} {...register('notes')} />
             </div>
-
-            {serverError && <p className="text-sm text-destructive">{serverError}</p>}
 
             <div className="flex gap-3 pt-2">
               <Button type="submit" disabled={saving || !canEdit}>

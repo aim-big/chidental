@@ -20,21 +20,30 @@ export const paymentInputSchema = z.object({
   notes: z.string().optional(),
 })
 export const customerInputSchema = z.object({
-  clinic_name: z.string().min(1),
+  clinic_name: z.string().min(1, 'Clinic name is required'),
+  ssm_no: z.string().optional(),
   contact_person: z.string().optional(),
   phone: z.string().optional(),
-  email: z.email().optional().or(z.literal('')),
+  email: z.email('Invalid email').optional().or(z.literal('')),
+  billing_address: z.string().optional(),
+  delivery_address: z.string().optional(),
+  notes: z.string().optional(),
 })
 export const productInputSchema = z
   .object({
-    name: z.string().min(1),
+    name: z.string().min(1, 'Name is required'),
+    description: z.string().nullable(),
     unit_price: z.number().min(0),
+    unit: z.string().min(1, 'Unit is required'),
     min_unit_price: z.number().min(0).nullable(),
     max_unit_price: z.number().min(0).nullable(),
   })
   .refine((p) => p.min_unit_price == null || p.max_unit_price == null || p.min_unit_price <= p.max_unit_price, {
     message: 'min must be <= max',
+    path: ['max_unit_price'],
   })
 
 export type InvoiceInput = z.infer<typeof invoiceInputSchema>
 export type PaymentInput = z.infer<typeof paymentInputSchema>
+export type CustomerInput = z.infer<typeof customerInputSchema>
+export type ProductInput = z.infer<typeof productInputSchema>

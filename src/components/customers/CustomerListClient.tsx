@@ -1,0 +1,91 @@
+'use client'
+
+import { useMemo, useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { formatDate } from '@/lib/utils'
+import { Plus, Search } from 'lucide-react'
+import type { Customer } from '@/lib/database.types'
+import { useAuth } from '@/contexts/AuthContext'
+
+// Client island for the customers list. The Server Component (`customers/page.tsx`)
+// fetches the rows; this component owns the client-side search filter and the
+// permission-gated New button — behaviour-identical to the pre-migration page.
+export function CustomerListClient({ customers }: { customers: Customer[] }) {
+  const router = useRouter()
+  const { hasPermission } = useAuth()
+  const [search, setSearch] = useState('')
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase()
+    return customers.filter(c =>
+      c.clinic_name.toLowerCase().includes(q) ||
+      (c.contact_person ?? '').toLowerCase().includes(q) ||
+      (c.phone ?? '').includes(q)
+    )
+  }, [search, customers])
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{customers.length} registered</p>
+        </div>
+        {hasPermission('customers.edit') && (
+          <Button asChild>
+            <Link href="/customers/new"><Plus className="h-4 w-4 mr-2" />New Customer</Link>
+          </Button>
+        )}
+      </div>
+
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <Input
+          placeholder="Search clinic, contact or phone…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Clinic / Name</TableHead>
+                <TableHead>Contact Person</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Registered</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.length === 0 && (
+                <TableRow><TableCell colSpan={5} className="text-center py-8 text-gray-400">No customers found</TableCell></TableRow>
+              )}
+              {filtered.map(c => (
+                <TableRow
+                  key={c.id}
+                  className="cursor-pointer"
+                  onClick={() => router.push(`/customers/${c.id}`)}
+                >
+                  <TableCell className="font-medium text-gray-900">{c.clinic_name}</TableCell>
+                  <TableCell className="text-gray-600">{c.contact_person ?? '—'}</TableCell>
+                  <TableCell className="text-gray-600">{c.phone ?? '—'}</TableCell>
+                  <TableCell className="text-gray-600">{c.email ?? '—'}</TableCell>
+                  <TableCell className="text-gray-400 text-sm">{formatDate(c.created_at)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

@@ -39,3 +39,17 @@ export const nextStatusAfterPayment = (
  */
 export const isOverdue = (inv: DueFields, today: string): boolean =>
   isOutstanding(inv) && inv.due_date != null && inv.due_date !== '' && inv.due_date < today
+
+type SummaryFields = Pick<Invoice, 'voided_at' | 'status' | 'total'>
+
+/**
+ * Customer billing rollup. `totalBilled` sums every non-voided invoice total;
+ * `totalOutstanding` sums totals on outstanding (sent/partial/overdue, non-voided)
+ * invoices. Mirrors the derivation `customers/[id]/page.tsx` did in-render.
+ */
+export const summarizeCustomerInvoices = (
+  invoices: SummaryFields[],
+): { totalBilled: number; totalOutstanding: number } => ({
+  totalBilled: invoices.filter((i) => !isVoided(i)).reduce((s, i) => s + Number(i.total), 0),
+  totalOutstanding: invoices.filter((i) => isOutstanding(i)).reduce((s, i) => s + Number(i.total), 0),
+})
