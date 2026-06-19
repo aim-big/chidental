@@ -1,9 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import type { Invoice } from './database.types'
-import { isVoided, countsAsRevenue, isOutstanding, isOverdue, nextStatusAfterPayment } from './invoice-status'
+import { isVoided, countsAsRevenue, isOutstanding, isOverdue, nextStatusAfterPayment, summarizeCustomerInvoices } from './invoice-status'
 
 const inv = (status: string, voided_at: string | null = null): Pick<Invoice, 'status' | 'voided_at'> =>
   ({ status, voided_at })
+
+const sumInv = (status: string, total: number, voided_at: string | null = null): Pick<Invoice, 'status' | 'total' | 'voided_at'> =>
+  ({ status, total, voided_at })
 
 const dueInv = (status: string, due_date: string | null, voided_at: string | null = null): Pick<Invoice, 'status' | 'due_date' | 'voided_at'> =>
   ({ status, due_date, voided_at })
@@ -80,5 +83,24 @@ describe('isOverdue', () => {
   it('is false when no due date is set', () => {
     expect(isOverdue(dueInv('sent', null), TODAY)).toBe(false)
     expect(isOverdue(dueInv('sent', ''), TODAY)).toBe(false)
+  })
+})
+
+describe('summarizeCustomerInvoices', () => {
+  it('sums billed across all non-voided invoices', () => {
+    const r = summarizeCustomerInvoices([sumInv('draft', 100), sumInv('paid', 50), sumInv('sent', 25)])
+    expect(r.totalBilled).toBe(175)
+  })
+  it('counts only outstanding invoices toward outstanding', () => {
+    const r = summarizeCustomerInvoices([sumInv('sent', 100), sumInv('partial', 40), sumInv('paid', 999), sumInv('draft', 10)])
+    expect(r.totalOutstanding).toBe(140)
+  })
+  it('excludes voided invoices from both totals', () => {
+    const r = summarizeCustomerInvoices([sumInv('paid', 100), sumInv('sent', 50, '2026-06-05T00:00:00Z')])
+    expect(r.totalBilled).toBe(100)
+    expect(r.totalOutstanding).toBe(0)
+  })
+  it('returns zeros for no invoices', () => {
+    expect(summarizeCustomerInvoices([])).toEqual({ totalBilled: 0, totalOutstanding: 0 })
   })
 })

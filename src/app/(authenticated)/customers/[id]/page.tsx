@@ -1,75 +1,29 @@
-'use client'
+// Customer detail — server-first. This Server Component fetches the customer +
+// its invoices via `getCustomerDetail`, derives the billing totals, and renders
+// the static contact/summary cards server-side. The interactive header (back +
+// gated Edit/New) and the clickable invoice history are client islands.
 
-import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { notFound } from 'next/navigation'
+import { getCustomerDetail } from '@/data/customers'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Separator } from '@/components/ui/separator'
-import { formatCurrency, formatDate } from '@/lib/utils'
-import { ArrowLeft, Edit, Plus, Phone, Mail, MapPin, Truck } from 'lucide-react'
-import type { Customer, Invoice } from '@/lib/database.types'
-import { isOutstanding, isVoided } from '@/lib/invoice-status'
-import { useAuth } from '@/contexts/AuthContext'
+import { formatCurrency } from '@/lib/utils'
+import { summarizeCustomerInvoices } from '@/lib/invoice-status'
+import { Phone, Mail, MapPin, Truck } from 'lucide-react'
+import { CustomerDetailHeader } from '@/components/customers/CustomerDetailHeader'
+import { CustomerInvoiceHistory } from '@/components/customers/CustomerInvoiceHistory'
 
-const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'info'> = {
-  draft: 'secondary', sent: 'info', partial: 'warning', paid: 'success', overdue: 'destructive',
-}
+export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const data = await getCustomerDetail(id)
+  if (!data) notFound()
 
-export default function CustomerDetailPage() {
-  const { id } = useParams<{ id: string }>()
-  const router = useRouter()
-  const { hasPermission } = useAuth()
-  const [customer, setCustomer] = useState<Customer | null>(null)
-  const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (!id) return
-    Promise.all([
-      supabase.from('customers').select('*').eq('id', id).single(),
-      supabase.from('invoices').select('*').eq('customer_id', id).order('invoice_date', { ascending: false }),
-    ]).then(([cRes, iRes]) => {
-      setCustomer(cRes.data)
-      setInvoices(iRes.data ?? [])
-      setLoading(false)
-    })
-  }, [id])
-
-  if (loading) return <div className="flex items-center justify-center h-40"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" /></div>
-  if (!customer) return <p className="text-gray-500">Customer not found.</p>
-
-  const totalBilled = invoices.filter(i => !isVoided(i)).reduce((s, i) => s + Number(i.total), 0)
-  const totalOutstanding = invoices
-    .filter(i => isOutstanding(i))
-    .reduce((s, i) => s + Number(i.total), 0)
+  const { customer, invoices } = data
+  const { totalBilled, totalOutstanding } = summarizeCustomerInvoices(invoices)
 
   return (
     <div className="space-y-6 max-w-4xl">
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{customer.clinic_name}</h1>
-            {customer.contact_person && <p className="text-sm text-gray-500 mt-0.5">{customer.contact_person}</p>}
-          </div>
-        </div>
-        <div className="flex gap-2">
-          {hasPermission('customers.edit') && (
-            <Button variant="outline" size="sm" asChild>
-              <Link href={`/customers/${id}/edit`}><Edit className="h-4 w-4 mr-2" />Edit</Link>
-            </Button>
-          )}
-          <Button size="sm" asChild>
-            <Link href={`/invoices/new?customer=${id}`}><Plus className="h-4 w-4 mr-2" />New Invoice</Link>
-          </Button>
-        </div>
-      </div>
+      <CustomerDetailHeader id={id} clinicName={customer.clinic_name} contactPerson={customer.contact_person} />
 
       <div className="grid md:grid-cols-3 gap-4">
         <Card className="md:col-span-2">
@@ -133,40 +87,7 @@ export default function CustomerDetailPage() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader><CardTitle className="text-base">Invoice History</CardTitle></CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Invoice #</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Due</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {invoices.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="text-center py-8 text-gray-400">No invoices yet</TableCell></TableRow>
-              )}
-              {invoices.map(inv => (
-                <TableRow key={inv.id} className="cursor-pointer" onClick={() => router.push(`/invoices/${inv.id}`)}>
-                  <TableCell className="font-medium text-primary">{inv.invoice_number}</TableCell>
-                  <TableCell className="text-gray-500 text-sm">{formatDate(inv.invoice_date)}</TableCell>
-                  <TableCell className="text-gray-500 text-sm">{formatDate(inv.due_date)}</TableCell>
-                  <TableCell className="font-medium">{formatCurrency(inv.total)}</TableCell>
-                  <TableCell>
-                    {isVoided(inv)
-                      ? <Badge variant="destructive" className="uppercase">Voided</Badge>
-                      : <Badge variant={STATUS_VARIANT[inv.status] ?? 'secondary'} className="capitalize">{inv.status}</Badge>}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <CustomerInvoiceHistory invoices={invoices} />
     </div>
   )
 }
