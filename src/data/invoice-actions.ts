@@ -58,6 +58,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth/require-permission'
 import type { PermissionCheck } from '@/lib/auth/require-permission'
 import { isVoided } from '@/lib/invoice-status'
+import { hold } from '@/domain/production'
 import type { Json, TablesUpdate, WorkStatus } from '@/lib/database.types'
 
 export type ActionResult = { ok: true } | { ok: false; error: string }
@@ -214,11 +215,32 @@ export async function updateWorkStatusAction(
   if (!gate.ok) return gate
 
   const admin = createAdminClient()
+
+  // Read the item's CURRENT work_status to drive the on_hold round-trip
+  // (`production.ts` `hold()`/`resume()`). Moving INTO on_hold from a non-hold
+  // status remembers where to return to; moving OFF on_hold clears the memory.
+  const { data: current, error: readErr } = await admin
+    .from('invoice_items')
+    .select('work_status')
+    .eq('id', itemId)
+    .single()
+  if (readErr || !current) return { ok: false, error: readErr?.message ?? 'Work item not found' }
+
+  // - entering on_hold from a non-hold status → remember it (hold().resumeFrom)
+  // - otherwise (any non-hold target) → forget the remembered status
+  // - re-selecting on_hold while already on_hold is a no-op for resume_status.
+  const resume_status: WorkStatus | null =
+    input.work_status === 'on_hold'
+      ? current.work_status === 'on_hold'
+        ? null
+        : hold(current.work_status).resumeFrom
+      : null
+
   // The DB trigger logs history + stamps work_status_updated_at; we only write
   // the change. Return the affected invoice id so the caller can revalidate.
   const { data, error } = await admin
     .from('invoice_items')
-    .update({ work_status: input.work_status, stage_id: input.stage_id })
+    .update({ work_status: input.work_status, stage_id: input.stage_id, resume_status })
     .eq('id', itemId)
     .select('invoice_id')
     .single()
