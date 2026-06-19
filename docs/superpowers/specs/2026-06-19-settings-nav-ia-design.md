@@ -2,7 +2,9 @@
 
 **Date:** 2026-06-19
 **Status:** Approved (design) — pending implementation plan
-**Scope:** Information-architecture refactor of the app's navigation and Settings, plus a new self-service **My Account** section. No new business-config features (Billing/Organization are reserved as structure only).
+**Scope:** Information-architecture refactor of the app's navigation and Settings, plus a new self-service **Profile** area (separate from Settings). No new business-config features (Billing/Organization are reserved as structure only).
+
+> **Profile vs Settings — the core distinction.** *Profile* is personal: your own login (PIN), your display name, your role — reached by clicking **yourself** (the user chip), like a social-media profile. *Settings* is workspace configuration (lab lookups, employees, roles) — reached from the sidebar and **only visible to users who hold a configuration permission**. A user with no config permission sees **no Settings entry at all**, but always has a Profile.
 
 ---
 
@@ -26,8 +28,8 @@ Three issues, all rooted in the same cause.
 - **One source of truth** per route — adding a future feature or permission is a one-line change.
 - **Flatten settings navigation** — one click between settings sections, no tile-grid hop.
 - **Separate daily work from configuration** in the sidebar.
-- **Permission-flexible Settings** — Settings is *not* admin-only. A user sees exactly the sections their permissions allow; system/super admin sees all.
-- **Self-service account** — every user can change their own PIN and display name.
+- **Permission-flexible Settings** — Settings is *not* admin-only, but it *is* permission-gated. A user sees exactly the config sections their permissions allow; a user with no config permission sees no Settings entry; system/super admin sees all.
+- **Separate, self-service Profile** — every user can change their own PIN and display name from their own Profile, independent of any Settings permission.
 
 Non-goals: building Billing or Organization settings (structure reserved, not implemented); changing the permission model itself; touching invoice/work business logic.
 
@@ -72,6 +74,8 @@ guardFor(pathname): Permission | 'superadmin' | null  // longest-prefix match
 
 `canSee` rule: `superadminOnly ? isSuperadmin : (!permission || hasPermission(permission))`. Super admin passes every check (already true via `permissionGranted`/`isSuperadmin`).
 
+**Profile is intentionally NOT in the registry.** It is the user's own page, reached from the user chip, available to everyone — not a permission-gated nav destination. Keeping it out of `NAV` is what lets Settings be hidden for non-config users without also hiding Profile.
+
 ## 4. Sidebar (the `main` area)
 
 Daily-work destinations, with a single **Settings** entry pinned at the bottom and visually separated.
@@ -86,17 +90,18 @@ Daily-work destinations, with a single **Settings** entry pinned at the bottom a
 │ ▦ Products      │   products.view
 │ ▥ Reports       │   reports.view
 │  ·············  │   divider (margin-top:auto pushes block down)
-│ ⚙ Settings      │   → /settings  (see visibility note)
+│ ⚙ Settings      │   → /settings  (only if user has a config perm)
 │ ───────────────│
-│ admin · S.Admin │   user chip + Sign out
+│ 👤 admin ·S.Adm │   user chip → /profile (clickable)   ⏻ Sign out
 └─────────────────┘
 ```
 
 **Changes from today:**
 - **Remove** the standalone `Employees` sidebar link (it lives inside Settings).
-- **Settings** is rendered as a pinned bottom item, not an inline nav item.
+- **Settings** is a pinned bottom item, **conditionally rendered**.
+- **User chip becomes a link to `/profile`** (the social-media pattern: click yourself to manage your account). Sign out stays adjacent.
 
-**Settings visibility note:** because **My Account** (§5) has no permission gate, every authenticated user can see at least one settings section. Therefore the Settings entry is effectively **always visible**; gating happens *per-section inside*. This is intentional and simpler than conditionally hiding the entry. (The registry still computes it generically: show Settings iff `settingsGroups(ctx)` is non-empty.)
+**Settings visibility rule:** show the Settings entry **iff `settingsGroups(ctx)` is non-empty** — i.e. the user holds at least one configuration permission (`services.edit`, `settings.manage`, `staff.manage`, or superadmin). A user with none of these sees **no Settings entry**. Profile is the separate, always-available personal area and does **not** count toward Settings visibility.
 
 ## 5. Settings (the `settings` area) — two-pane layout
 
@@ -105,11 +110,8 @@ A Next.js layout `src/app/(authenticated)/settings/layout.tsx` renders a persist
 
 ```
 ┌──────────── Settings ─────────────────────────────┐
-│  MY ACCOUNT          │                             │
-│ › My Account         │   <selected section's page> │
-│                      │                             │
 │  LAB SETUP           │                             │
-│   Service Statuses   │                             │
+│ › Service Statuses   │   <selected section's page> │
 │   Work Stages        │                             │
 │                      │                             │
 │  TEAM & ACCESS       │                             │
@@ -120,14 +122,14 @@ A Next.js layout `src/app/(authenticated)/settings/layout.tsx` renders a persist
 
 - Left rail = `settingsGroups(ctx)`: grouped, permission-filtered, empty groups omitted.
 - Right pane = the routed child page.
-- `/settings` (index) **redirects** to the first visible section for that user (no more tile grid). The old `visibleSections` tile array is deleted.
+- `/settings` (index) **redirects** to the first visible section for that user (no more tile grid). The old `visibleSections` tile array is deleted. If the user has no visible section (no config permission), `/settings` redirects to `/dashboard`.
 - One click switches sections; the rail persists.
+- Settings contains **no personal/account section** — that is Profile (§6), a separate top-level area.
 
 ### Section catalogue (this refactor)
 
 | Group | Section | Route | Gate | Status |
 |---|---|---|---|---|
-| My Account | My Account | `/settings/account` | none (all users) | **new** |
 | Lab Setup | Service Statuses | `/settings/service-statuses` | `services.edit` | exists — rehomed |
 | Lab Setup | Work Stages | `/settings/work-stages` | `settings.manage` | exists — rehomed |
 | Team & Access | Employees | `/settings/employees` | `staff.manage` | exists — rehomed |
@@ -138,9 +140,9 @@ A Next.js layout `src/app/(authenticated)/settings/layout.tsx` renders a persist
 ### Reserved groups (structure only — NOT built now)
 `Billing & Invoices` (numbering, tax, terms — `settings.manage`) and `Organization` (company profile/logo — `settings.manage`). They are documented here so future entries slot into existing groups without redesign. No routes, pages, or registry rows are added for them now.
 
-## 6. My Account (new section)
+## 6. Profile (new, top-level — NOT under Settings)
 
-**Route:** `/settings/account` — visible to every authenticated user.
+**Route:** `/profile` — a standalone top-level route, available to every authenticated user. **Reached by clicking the user chip** at the bottom of the sidebar (the social-media pattern), *not* from the Settings rail. It is not part of the `settings` nav area and does not affect Settings visibility.
 
 **Capabilities:**
 1. **Change my PIN** — 6-digit, validated (reuse the existing PIN rules from `employee-actions`). Uses the user's **own session**: `supabase.auth.updateUser({ password })`. No elevated permission required.
@@ -154,34 +156,34 @@ A Next.js layout `src/app/(authenticated)/settings/layout.tsx` renders a persist
 
 **Decision:** the PIN change is wrapped in a `changeMyPin({ pin })` server action (not done inline client-side), for consistency with the rest of the app's server-action pattern and to centralise the 6-digit validation. It resolves the caller from the session and changes only their own password; it accepts no target id.
 
-**Security boundary:** both account actions operate exclusively on `auth.uid()`; there is no id parameter, so My Account can never be used to modify another user. This is distinct from the admin `resetPin`/`updateEmployee` actions, which remain `staff.manage`-gated.
+**Security boundary:** both Profile actions operate exclusively on `auth.uid()`; there is no id parameter, so Profile can never be used to modify another user. This is distinct from the admin `resetPin`/`updateEmployee` actions, which remain `staff.manage`-gated.
 
 ## 7. Files & components
 
 **New**
 - `src/domain/navigation.ts` — the registry + pure helpers (`canSee`, `mainNav`, `settingsGroups`, `guardFor`).
 - `src/app/(authenticated)/settings/layout.tsx` — two-pane shell + grouped sub-nav (client; uses `useAuth`).
-- `src/app/(authenticated)/settings/account/page.tsx` — My Account.
-- `src/components/account/AccountManager.tsx` — My Account form (client).
+- `src/app/(authenticated)/profile/page.tsx` — Profile (top-level, not under settings).
+- `src/components/profile/ProfileManager.tsx` — Profile form (client).
 - `src/lib/auth/account-actions.ts` — `updateMyProfile` and `changeMyPin` (both self-only, no id parameter).
 - Unit tests for the registry helpers.
 
 **Changed**
-- `src/components/layout/AppShell.tsx` — sidebar derives from `mainNav()`; Settings pinned at bottom; deep-link guards derive from `guardFor()`. Remove inline `navItems` and `viewGuards`.
+- `src/components/layout/AppShell.tsx` — sidebar derives from `mainNav()`; Settings pinned at bottom and conditionally rendered; user chip becomes a link to `/profile`; deep-link guards derive from `guardFor()`. Remove inline `navItems` and `viewGuards`.
 - `src/app/(authenticated)/settings/page.tsx` — becomes a redirect to the first visible section; delete the tile grid.
 
 **Unchanged** (only rehomed under the new layout): `service-statuses`, `work-stages`, `employees`, `roles` page implementations.
 
 ## 8. Testing
 
-- **Unit:** registry helpers — `canSee` for each role × entry; `settingsGroups` drops empty groups; `guardFor` longest-prefix wins; Settings-visible iff any group visible.
-- **Manual/Playwright per role** (reuse the harness from earlier): Super Admin sees all groups; a `staff.manage`-only user sees Team & Access + My Account but not Lab Setup; a plain user sees only My Account; deep-linking a forbidden settings route still redirects to `/dashboard`.
-- **My Account:** a non-admin can change own PIN (re-login with new PIN) and own name; cannot affect another user (no id surface).
+- **Unit:** registry helpers — `canSee` for each role × entry; `settingsGroups` drops empty groups; `guardFor` longest-prefix wins; Settings-visible iff any config group visible.
+- **Manual/Playwright per role** (reuse the harness from earlier): Super Admin sees all groups; a `staff.manage`-only user sees Team & Access but not Lab Setup; a plain user (no config perm) sees **no Settings entry** but still has a Profile; deep-linking a forbidden settings route still redirects to `/dashboard`.
+- **Profile:** a non-admin can change own PIN (re-login with new PIN) and own name; cannot affect another user (no id surface).
 
 ## 9. Migration / rollout
 
-Pure front-end IA + one self-scoped server action. No schema changes required for the IA or My Account (uses existing `profiles`/auth). The reserved Billing/Organization groups would later need their own tables — out of scope here.
+Pure front-end IA + self-scoped server actions. No schema changes required for the IA or Profile (uses existing `profiles`/auth). The reserved Billing/Organization groups would later need their own tables — out of scope here.
 
 ## 10. Open questions
 
-None blocking. Decided: My Account included now; Billing/Organization reserved as structure only; Settings entry effectively always visible (gating is per-section).
+None blocking. Decided: **Profile is separate from Settings** — a top-level `/profile` reached from the user chip; Settings is config-only and **hidden** for users with no configuration permission; Billing/Organization reserved as structure only.
