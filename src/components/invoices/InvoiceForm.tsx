@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
+import { useToast } from '@/components/feedback/toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,10 +13,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { formatCurrency, cn } from '@/lib/utils'
 import { ArrowLeft, ChevronDown, ChevronRight, Plus, RotateCcw, Trash2 } from 'lucide-react'
-import type { Customer, Product, ServiceStatus, Invoice, InvoiceItem, InvoiceStatus } from '@/lib/database.types'
+import type { InvoiceStatus } from '@/lib/database.types'
 import { addDays, format } from 'date-fns'
-import { fetchActiveServiceStatuses, DEFAULT_COLOR } from '@/lib/service-status'
+import { DEFAULT_COLOR } from '@/lib/service-status'
 import { canEditInvoice } from '@/lib/invoice-permissions'
+import { createInvoiceAction, updateInvoiceAction } from '@/data/invoice-actions'
+import type { InvoicePayload, InvoiceItemPayload } from '@/data/invoice-actions'
+import type { InvoiceFormData, InvoiceForEdit } from '@/data/invoices'
 
 interface LineItem {
   id: string | null            // existing invoice_items.id, or null for a new row
@@ -28,102 +31,70 @@ interface LineItem {
 
 const blankItem = (): LineItem => ({ id: null, product_id: null, description: '', quantity: 1, unit_price: 0 })
 
-export default function InvoiceForm({ invoiceId }: { invoiceId?: string }) {
+export default function InvoiceForm({
+  invoiceId,
+  formData,
+  editData,
+}: {
+  invoiceId?: string
+  formData: InvoiceFormData
+  editData?: InvoiceForEdit
+}) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user, hasPermission, loading: authLoading } = useAuth()
+  const { hasPermission, loading: authLoading } = useAuth()
+  const { show } = useToast()
   const isEdit = Boolean(invoiceId)
 
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [products, setProducts] = useState<Product[]>([])
-  const [serviceStatuses, setServiceStatuses] = useState<ServiceStatus[]>([])
-  const [customerId, setCustomerId] = useState(searchParams.get('customer') ?? '')
-  const [invoiceDate, setInvoiceDate] = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [dueDate, setDueDate] = useState(format(addDays(new Date(), 30), 'yyyy-MM-dd'))
-  const [notes, setNotes] = useState('')
-  const [patient, setPatient] = useState('')
-  const [doctor, setDoctor] = useState('')
-  const [serviceStatusId, setServiceStatusId] = useState<string | null>(null)
-  const [items, setItems] = useState<LineItem[]>([blankItem()])
-  const [billToName, setBillToName] = useState('')
-  const [billToContact, setBillToContact] = useState('')
-  const [billToPhone, setBillToPhone] = useState('')
-  const [billingAddress, setBillingAddress] = useState('')
-  const [shipToName, setShipToName] = useState('')
-  const [shipToContact, setShipToContact] = useState('')
-  const [deliveryAddress, setDeliveryAddress] = useState('')
+  // Reference data arrives from the server wrapper as props.
+  const { customers, products, serviceStatuses } = formData
+  const editInvoice = editData?.invoice ?? null
+
+  const [customerId, setCustomerId] = useState(editInvoice?.customer_id ?? searchParams.get('customer') ?? '')
+  const [invoiceDate, setInvoiceDate] = useState(editInvoice?.invoice_date ?? format(new Date(), 'yyyy-MM-dd'))
+  const [dueDate, setDueDate] = useState(
+    editInvoice ? (editInvoice.due_date ?? '') : format(addDays(new Date(), 30), 'yyyy-MM-dd'),
+  )
+  const [notes, setNotes] = useState(editInvoice?.notes ?? '')
+  const [patient, setPatient] = useState(editInvoice?.patient ?? '')
+  const [doctor, setDoctor] = useState(editInvoice?.doctor ?? '')
+  const [serviceStatusId, setServiceStatusId] = useState<string | null>(editInvoice?.service_status_id ?? null)
+  const [items, setItems] = useState<LineItem[]>(() => {
+    const rows = editData?.items ?? []
+    return rows.length > 0
+      ? rows.map(r => ({
+          id: r.id,
+          product_id: r.product_id,
+          description: r.description,
+          quantity: Number(r.quantity),
+          unit_price: Number(r.unit_price),
+        }))
+      : [blankItem()]
+  })
+  const [billToName, setBillToName] = useState(editInvoice?.bill_to_name ?? '')
+  const [billToContact, setBillToContact] = useState(editInvoice?.bill_to_contact ?? '')
+  const [billToPhone, setBillToPhone] = useState(editInvoice?.bill_to_phone ?? '')
+  const [billingAddress, setBillingAddress] = useState(editInvoice?.billing_address ?? '')
+  const [shipToName, setShipToName] = useState(editInvoice?.ship_to_name ?? '')
+  const [shipToContact, setShipToContact] = useState(editInvoice?.ship_to_contact ?? '')
+  const [deliveryAddress, setDeliveryAddress] = useState(editInvoice?.delivery_address ?? '')
   const [showRecipient, setShowRecipient] = useState(false)
-  const [loading, setLoading] = useState(isEdit)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   // Status of the loaded invoice (edit mode) — drives the edit lock guard + banner.
-  const [loadedStatus, setLoadedStatus] = useState<InvoiceStatus | null>(null)
+  const [loadedStatus] = useState<InvoiceStatus | null>(
+    editInvoice ? (editInvoice.status as InvoiceStatus) : null,
+  )
   // Void (soft-delete) marker of the loaded invoice — voided invoices are locked for everyone.
-  const [loadedVoidedAt, setLoadedVoidedAt] = useState<string | null>(null)
+  const [loadedVoidedAt] = useState<string | null>(editInvoice?.voided_at ?? null)
 
   // The customer id whose recipient defaults are already reflected in the form.
   // Guards the auto-fill effect so it doesn't clobber an invoice's saved recipient on load.
-  const recipientSyncRef = useRef<string | null>(null)
+  // In edit mode we pre-seed it with the loaded invoice's customer so the saved
+  // recipient values survive the initial render of the auto-fill effect.
+  const recipientSyncRef = useRef<string | null>(editInvoice?.customer_id ?? null)
 
   const selectedCustomer = customers.find(c => c.id === customerId) ?? null
-
-  // Load reference data (customers, products, service statuses).
-  useEffect(() => {
-    Promise.all([
-      supabase.from('customers').select('*').order('clinic_name'),
-      supabase.from('products').select('*').eq('active', true).order('created_at'),
-      fetchActiveServiceStatuses(),
-    ]).then(([cRes, pRes, ssList]) => {
-      setCustomers(cRes.data ?? [])
-      setProducts(pRes.data ?? [])
-      setServiceStatuses(ssList)
-    })
-  }, [])
-
-  // Edit mode: preload the invoice and its line items.
-  useEffect(() => {
-    if (!isEdit || !invoiceId) return
-    Promise.all([
-      supabase.from('invoices').select('*').eq('id', invoiceId).single(),
-      supabase.from('invoice_items').select('*').eq('invoice_id', invoiceId).order('created_at'),
-    ]).then(([invRes, itemsRes]) => {
-      const inv = invRes.data as Invoice | null
-      if (inv) {
-        setLoadedStatus(inv.status as InvoiceStatus)
-        setLoadedVoidedAt(inv.voided_at)
-        setCustomerId(inv.customer_id)
-        setInvoiceDate(inv.invoice_date)
-        setDueDate(inv.due_date ?? '')
-        setNotes(inv.notes ?? '')
-        setPatient(inv.patient ?? '')
-        setDoctor(inv.doctor ?? '')
-        setServiceStatusId(inv.service_status_id)
-        setBillToName(inv.bill_to_name ?? '')
-        setBillToContact(inv.bill_to_contact ?? '')
-        setBillToPhone(inv.bill_to_phone ?? '')
-        setBillingAddress(inv.billing_address ?? '')
-        setShipToName(inv.ship_to_name ?? '')
-        setShipToContact(inv.ship_to_contact ?? '')
-        setDeliveryAddress(inv.delivery_address ?? '')
-        // Mark this customer as already synced so the auto-fill effect leaves
-        // the invoice's saved recipient values untouched.
-        recipientSyncRef.current = inv.customer_id
-      }
-      const rows = (itemsRes.data ?? []) as InvoiceItem[]
-      setItems(
-        rows.length > 0
-          ? rows.map(r => ({
-              id: r.id,
-              product_id: r.product_id,
-              description: r.description,
-              quantity: Number(r.quantity),
-              unit_price: Number(r.unit_price),
-            }))
-          : [blankItem()],
-      )
-      setLoading(false)
-    })
-  }, [isEdit, invoiceId])
 
   // Edit lock: staff may only edit drafts; admins may edit any non-void invoice.
   // Deep-links to a locked invoice are redirected back to its detail page.
@@ -218,7 +189,7 @@ export default function InvoiceForm({ invoiceId }: { invoiceId?: string }) {
   })
   const hasItemPriceErrors = itemPriceErrors.some(Boolean)
 
-  const invoicePayload = () => ({
+  const invoicePayload = (): InvoicePayload => ({
     customer_id: customerId,
     invoice_date: invoiceDate,
     due_date: dueDate,
@@ -251,7 +222,7 @@ export default function InvoiceForm({ invoiceId }: { invoiceId?: string }) {
     setSaving(true)
     setError('')
 
-    const itemsPayload = items
+    const itemsPayload: InvoiceItemPayload[] = items
       .filter(i => i.description.trim())
       .map(i => ({
         product_id: i.product_id,
@@ -261,18 +232,20 @@ export default function InvoiceForm({ invoiceId }: { invoiceId?: string }) {
         amount: i.quantity * i.unit_price,
       }))
 
-    // Single transactional RPC: invoice header + all items succeed or fail together.
-    const { data: newId, error } = await supabase.rpc('create_invoice_with_items', {
-      p_invoice: { ...invoicePayload(), created_by: user!.id, status },
+    // Single transactional action: invoice header + all items succeed or fail
+    // together. The action injects created_by; status comes from the caller.
+    const result = await createInvoiceAction({
+      p_invoice: { ...invoicePayload(), status },
       p_items: itemsPayload,
     })
 
-    if (error || !newId) {
-      setError(error?.message ?? 'Failed to create invoice')
+    if (result.ok === false) {
+      show({ variant: 'error', title: result.error })
       setSaving(false)
       return
     }
-    router.push(`/invoices/${newId as string}`)
+    show({ variant: 'success', title: 'Invoice created' })
+    router.push(`/invoices/${result.id}`)
   }
 
   const handleUpdate = async () => {
@@ -280,10 +253,10 @@ export default function InvoiceForm({ invoiceId }: { invoiceId?: string }) {
     setSaving(true)
     setError('')
 
-    // The RPC diffs items by id: rows with an id are updated, rows without are
+    // The action diffs items by id: rows with an id are updated, rows without are
     // inserted, and any previously-saved id absent from this list is deleted —
     // all inside one transaction.
-    const itemsPayload = items
+    const itemsPayload: InvoiceItemPayload[] = items
       .filter(i => i.description.trim())
       .map(i => ({
         id: i.id,
@@ -294,20 +267,23 @@ export default function InvoiceForm({ invoiceId }: { invoiceId?: string }) {
         amount: i.quantity * i.unit_price,
       }))
 
-    const { error } = await supabase.rpc('update_invoice_with_items', {
-      p_invoice_id: invoiceId,
+    const result = await updateInvoiceAction(invoiceId, {
       p_invoice: invoicePayload(),
       p_items: itemsPayload,
     })
-    if (error) { setError(error.message); setSaving(false); return }
-
+    if (result.ok === false) {
+      show({ variant: 'error', title: result.error })
+      setSaving(false)
+      return
+    }
+    show({ variant: 'success', title: 'Invoice updated' })
     router.push(`/invoices/${invoiceId}`)
   }
 
   // While auth resolves or a locked invoice redirects away, hold on the spinner.
   const blocked = isEdit && loadedStatus !== null && !authLoading && !canEditInvoice({ status: loadedStatus, voided_at: loadedVoidedAt }, hasPermission)
 
-  if (loading || blocked) {
+  if (blocked) {
     return <div className="flex items-center justify-center h-40"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" /></div>
   }
 
