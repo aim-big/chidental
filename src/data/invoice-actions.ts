@@ -55,6 +55,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import { requirePermission } from '@/lib/auth/require-permission'
 import type { PermissionCheck } from '@/lib/auth/require-permission'
 import { isVoided } from '@/lib/invoice-status'
@@ -214,12 +215,16 @@ export async function updateWorkStatusAction(
   const gate = await requirePermission('invoices.view')
   if (!gate.ok) return gate
 
-  const admin = createAdminClient()
+  // Use the SSR (session) client, NOT the admin client: RLS's authenticated_all
+  // policy permits this write, and keeping the user's auth context lets the
+  // history trigger (auth.uid()/auth.jwt()) record WHO made the change. The
+  // admin client has no session, which would log a null actor.
+  const supabase = await createClient()
 
   // Read the item's CURRENT work_status to drive the on_hold round-trip
   // (`production.ts` `hold()`/`resume()`). Moving INTO on_hold from a non-hold
   // status remembers where to return to; moving OFF on_hold clears the memory.
-  const { data: current, error: readErr } = await admin
+  const { data: current, error: readErr } = await supabase
     .from('invoice_items')
     .select('work_status')
     .eq('id', itemId)
@@ -238,7 +243,7 @@ export async function updateWorkStatusAction(
 
   // The DB trigger logs history + stamps work_status_updated_at; we only write
   // the change. Return the affected invoice id so the caller can revalidate.
-  const { data, error } = await admin
+  const { data, error } = await supabase
     .from('invoice_items')
     .update({ work_status: input.work_status, stage_id: input.stage_id, resume_status })
     .eq('id', itemId)
