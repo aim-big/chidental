@@ -4,13 +4,14 @@ import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Settings, LogOut, Menu, X, ChevronRight } from 'lucide-react'
+import { Settings, LogOut, Menu, X, ChevronRight, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/contexts/AuthContext'
 import { mainNav, settingsGroups, guardFor, type NavEntry } from '@/domain/navigation'
 import { COMPANY } from '@/lib/config'
 import { cn } from '@/lib/utils'
+import CommandPalette from '@/components/command-palette'
 
 // Declared at module scope (not inside AppShell's render) so the component keeps
 // a stable identity across renders — see react-hooks/static-components.
@@ -49,6 +50,21 @@ function SidebarContent({
       </div>
 
       <Separator />
+
+      {/* Search button */}
+      <div className="px-3 pt-2 pb-1">
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('command-palette:open'))}
+          className="flex w-full items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 transition-colors"
+        >
+          <Search className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left">Search…</span>
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-xs text-gray-400 font-sans">
+            ⌘K
+          </kbd>
+        </button>
+      </div>
 
       {/* Daily-work nav */}
       <nav className="flex-1 p-3 space-y-1">
@@ -184,6 +200,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+
+      <CommandPalette />
     </div>
   )
 }
