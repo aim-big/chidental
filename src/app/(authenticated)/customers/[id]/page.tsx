@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { formatCurrency } from '@/lib/utils'
 import { summarizeCustomerInvoices } from '@/lib/invoice-status'
-import { Phone, Mail, MapPin, Truck } from 'lucide-react'
+import { Phone, Mail, MapPin, Truck, MessageCircle } from 'lucide-react'
 import { CustomerDetailHeader } from '@/components/customers/CustomerDetailHeader'
 import { CustomerInvoiceHistory } from '@/components/customers/CustomerInvoiceHistory'
 
@@ -27,18 +27,26 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
 
       <div className="grid md:grid-cols-3 gap-4">
         <Card className="md:col-span-2">
-          <CardHeader><CardTitle className="text-sm text-gray-500">Contact Details</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-sm text-muted-foreground">Contact Details</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {customer.phone && (
               <div className="flex items-center gap-2 text-sm">
-                <Phone className="h-4 w-4 text-gray-400" />
-                <span>{customer.phone}</span>
+                <Phone className="h-4 w-4 text-muted-foreground" />
+                <a href={`tel:${customer.phone}`} className="text-primary hover:underline">{customer.phone}</a>
+                <a
+                  href={`https://wa.me/${customer.phone.replace(/\D/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />WhatsApp
+                </a>
               </div>
             )}
             {customer.email && (
               <div className="flex items-center gap-2 text-sm">
-                <Mail className="h-4 w-4 text-gray-400" />
-                <span>{customer.email}</span>
+                <Mail className="h-4 w-4 text-muted-foreground" />
+                <a href={`mailto:${customer.email}`} className="text-primary hover:underline">{customer.email}</a>
               </div>
             )}
             {(customer.billing_address || customer.delivery_address) && (
@@ -46,18 +54,18 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             )}
             {customer.billing_address && (
               <div className="flex items-start gap-2 text-sm">
-                <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-xs font-medium text-gray-400 mb-0.5">Billing Address</p>
+                  <p className="text-xs font-medium text-muted-foreground mb-0.5">Billing Address</p>
                   <span className="whitespace-pre-line">{customer.billing_address}</span>
                 </div>
               </div>
             )}
             {customer.delivery_address && (
               <div className="flex items-start gap-2 text-sm">
-                <Truck className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                <Truck className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-xs font-medium text-gray-400 mb-0.5">Delivery Address</p>
+                  <p className="text-xs font-medium text-muted-foreground mb-0.5">Delivery Address</p>
                   <span className="whitespace-pre-line">{customer.delivery_address}</span>
                 </div>
               </div>
@@ -65,7 +73,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             {customer.notes && (
               <>
                 <Separator />
-                <p className="text-sm text-gray-500 italic">{customer.notes}</p>
+                <p className="text-sm text-muted-foreground italic">{customer.notes}</p>
               </>
             )}
           </CardContent>
@@ -74,13 +82,13 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         <div className="space-y-4">
           <Card>
             <CardContent className="pt-4">
-              <p className="text-xs text-gray-400">Total Billed</p>
-              <p className="text-xl font-bold text-gray-900 mt-1">{formatCurrency(totalBilled)}</p>
+              <p className="text-xs text-muted-foreground">Total Billed</p>
+              <p className="text-xl font-bold text-foreground mt-1">{formatCurrency(totalBilled)}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4">
-              <p className="text-xs text-gray-400">Outstanding</p>
+              <p className="text-xs text-muted-foreground">Outstanding</p>
               <p className="text-xl font-bold text-yellow-600 mt-1">{formatCurrency(totalOutstanding)}</p>
             </CardContent>
           </Card>
