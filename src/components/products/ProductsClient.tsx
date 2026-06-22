@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useForm, useWatch, type Resolver } from 'react-hook-form'
+import { useForm, useWatch, Controller, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
+import { Combobox } from '@/components/ui/combobox'
 import { formatCurrency } from '@/lib/utils'
 import { Plus, Pencil, ToggleLeft, ToggleRight } from 'lucide-react'
 import type { Product } from '@/lib/database.types'
@@ -20,6 +21,10 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/components/feedback/toast'
 import type { ProductInput } from '@/domain/schemas'
 import { createProductAction, updateProductAction, toggleProductActiveAction } from '@/data/product-actions'
+
+// Common dental-lab units (stored as bare nouns; rendered as "per {unit}").
+// The combobox still accepts a custom typed value.
+const UNIT_OPTIONS = ['unit', 'tooth', 'arch', 'quadrant', 'case', 'set', 'pair']
 
 // Client island for the products catalogue. The Server Component
 // (`products/page.tsx`) fetches the rows via `getProducts` and passes them in;
@@ -76,7 +81,7 @@ export function ProductsClient({ products }: { products: Product[] }) {
     // zod's `coerce.number()` types the resolver input as `unknown`; cast to the
     // form's value type so RHF's Resolver generics line up.
     resolver: zodResolver(schema) as Resolver<FormData>,
-    defaultValues: { unit: 'per unit', unit_price: 0, use_price_range: false },
+    defaultValues: { unit: 'unit', unit_price: 0, use_price_range: false },
   })
   const usePriceRange = useWatch({ control, name: 'use_price_range' })
 
@@ -89,7 +94,7 @@ export function ProductsClient({ products }: { products: Product[] }) {
       unit_price: 0,
       min_unit_price: undefined,
       max_unit_price: undefined,
-      unit: 'per unit',
+      unit: 'unit',
     })
     setOpen(true)
   }
@@ -175,7 +180,7 @@ export function ProductsClient({ products }: { products: Product[] }) {
                 <TableRow key={p.id} className={p.active ? '' : 'opacity-50'}>
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell className="text-gray-500 text-sm">{p.description ?? '—'}</TableCell>
-                  <TableCell className="text-gray-500 text-sm">{p.unit}</TableCell>
+                  <TableCell className="text-gray-500 text-sm">per {p.unit}</TableCell>
                   <TableCell className="font-medium">
                     {p.min_unit_price != null && p.max_unit_price != null
                       ? `${formatCurrency(p.min_unit_price)} – ${formatCurrency(p.max_unit_price)}`
@@ -269,7 +274,24 @@ export function ProductsClient({ products }: { products: Product[] }) {
             </label>
             <div className="space-y-2">
               <Label>Unit *</Label>
-              <Input placeholder="per unit" {...register('unit')} />
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500">per</span>
+                <div className="flex-1">
+                  <Controller
+                    control={control}
+                    name="unit"
+                    render={({ field }) => (
+                      <Combobox
+                        value={field.value}
+                        onChange={field.onChange}
+                        options={UNIT_OPTIONS}
+                        placeholder="unit"
+                      />
+                    )}
+                  />
+                </div>
+              </div>
+              {errors.unit && <p className="text-xs text-destructive">{errors.unit.message}</p>}
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
