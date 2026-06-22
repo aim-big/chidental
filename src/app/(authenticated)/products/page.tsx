@@ -1,7 +1,7 @@
-import { getProducts } from '@/data/products'
+import { getProducts, getActiveUnits } from '@/data/products'
 import { ProductsClient } from '@/components/products/ProductsClient'
 
 export default async function ProductsPage() {
-  const products = await getProducts()
-  return <ProductsClient products={products} />
+  const [products, units] = await Promise.all([getProducts(), getActiveUnits()])
+  return <ProductsClient products={products} units={units} />
 }

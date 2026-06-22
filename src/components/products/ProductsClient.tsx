@@ -13,21 +13,18 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
-import { Combobox } from '@/components/ui/combobox'
 import { usePaginatedList } from '@/lib/use-paginated-list'
 import { ListToolbar } from '@/components/ui/list-toolbar'
 import { Pagination } from '@/components/ui/pagination'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { buildUnitOptions } from '@/lib/units'
 import { formatCurrency } from '@/lib/utils'
 import { Plus, Pencil, ToggleLeft, ToggleRight } from 'lucide-react'
-import type { Product } from '@/lib/database.types'
+import type { Product, Unit } from '@/lib/database.types'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/components/feedback/toast'
 import type { ProductInput } from '@/domain/schemas'
 import { createProductAction, updateProductAction, toggleProductActiveAction } from '@/data/product-actions'
-
-// Common dental-lab units (stored as bare nouns; rendered as "per {unit}").
-// The combobox still accepts a custom typed value.
-const UNIT_OPTIONS = ['unit', 'tooth', 'arch', 'quadrant', 'case', 'set', 'pair']
 
 // Stable identity (module-level) so the hook's memoized filter is stable.
 function productMatchesQuery(p: Product, query: string): boolean {
@@ -82,10 +79,12 @@ const schema = z
   })
 type FormData = z.infer<typeof schema>
 
-export function ProductsClient({ products }: { products: Product[] }) {
+export function ProductsClient({ products, units }: { products: Product[]; units: Unit[] }) {
   const { hasPermission } = useAuth()
   const { show } = useToast()
   const canEdit = hasPermission('products.edit')
+  const unitLabels = units.map(u => u.label)
+  const defaultUnit = unitLabels.includes('unit') ? 'unit' : (unitLabels[0] ?? 'unit')
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
   const [saving, setSaving] = useState(false)
@@ -94,7 +93,7 @@ export function ProductsClient({ products }: { products: Product[] }) {
     // zod's `coerce.number()` types the resolver input as `unknown`; cast to the
     // form's value type so RHF's Resolver generics line up.
     resolver: zodResolver(schema) as Resolver<FormData>,
-    defaultValues: { unit: 'unit', unit_price: 0, use_price_range: false },
+    defaultValues: { unit: defaultUnit, unit_price: 0, use_price_range: false },
   })
   const usePriceRange = useWatch({ control, name: 'use_price_range' })
 
@@ -119,7 +118,7 @@ export function ProductsClient({ products }: { products: Product[] }) {
       unit_price: 0,
       min_unit_price: undefined,
       max_unit_price: undefined,
-      unit: 'unit',
+      unit: defaultUnit,
     })
     setOpen(true)
   }
@@ -325,12 +324,18 @@ export function ProductsClient({ products }: { products: Product[] }) {
                     control={control}
                     name="unit"
                     render={({ field }) => (
-                      <Combobox
-                        value={field.value}
-                        onChange={field.onChange}
-                        options={UNIT_OPTIONS}
-                        placeholder="unit"
-                      />
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a unit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {buildUnitOptions(unitLabels, field.value).map(u => (
+                            <SelectItem key={u} value={u}>
+                              {unitLabels.includes(u) ? u : `${u} (inactive)`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     )}
                   />
                 </div>
