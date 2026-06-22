@@ -10,7 +10,8 @@
     "build": "NODE_OPTIONS='--max-old-space-size=8192' next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -44,10 +45,12 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.1",
     "@types/node": "^24.12.2",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.4",
+    "pg": "^8.22.0",
     "postcss": "^8.5.10",
     "tailwindcss": "^4.3.1",
     "typescript": "^5.7.2",
