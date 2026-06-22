@@ -12,10 +12,9 @@ import type { Column } from '@/lib/data-table'
 import { EmptyState } from '@/components/ui/empty-state'
 import { listViewState } from '@/lib/list-view-state'
 import { statusBadgeVariant } from '@/lib/status-badge'
-import { FileText } from 'lucide-react'
+import { FileText, Plus, Search } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { formatCurrency, formatDate, todayISODate } from '@/lib/utils'
-import { Plus, Search } from 'lucide-react'
+import { cn, formatCurrency, formatDate, todayISODate } from '@/lib/utils'
 import type { WorkStatus } from '@/lib/database.types'
 import {
   WORK_STATUSES,
@@ -24,7 +23,6 @@ import {
 } from '@/lib/work-status'
 import { WorkStatusBadge } from '@/components/work-status-badge'
 import { DEFAULT_COLOR } from '@/lib/service-status'
-import { cn } from '@/lib/utils'
 import { isVoided, isOverdue } from '@/lib/invoice-status'
 import type { InvoiceListRow } from '@/data/invoices'
 
