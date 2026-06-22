@@ -75,6 +75,7 @@ export function ActionsBar({ invoice, customerName, outstanding, unrecorded, onP
     defaultValues: { payment_date: todayISODate() },
   })
   const watchedAmount = useWatch({ control, name: 'amount' })
+  const overAmount = outstanding > 0 && Number(watchedAmount) > outstanding
 
   const voided = isVoided(invoice)
   const canEdit = canEditInvoice(invoice, hasPermission)
@@ -260,8 +261,8 @@ export function ActionsBar({ invoice, customerName, outstanding, unrecorded, onP
               <Label>Amount (MYR) *</Label>
               <Input type="number" min="0.01" step="0.01" {...register('amount')} />
               {errors.amount && <p className="text-xs text-destructive">{errors.amount.message}</p>}
-              {!errors.amount && outstanding > 0 && Number(watchedAmount) > outstanding && (
-                <p className="text-xs text-amber-600">
+              {!errors.amount && overAmount && (
+                <p className="text-xs text-destructive">
                   Exceeds the outstanding balance of {formatCurrency(outstanding)}.
                 </p>
               )}
@@ -280,7 +281,7 @@ export function ActionsBar({ invoice, customerName, outstanding, unrecorded, onP
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setPaymentOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={savingPayment}>{savingPayment ? 'Saving…' : 'Record Payment'}</Button>
+              <Button type="submit" disabled={savingPayment || overAmount}>{savingPayment ? 'Saving…' : 'Record Payment'}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
