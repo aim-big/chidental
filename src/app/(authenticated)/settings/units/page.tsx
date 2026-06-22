@@ -68,12 +68,13 @@ export default function UnitsPage() {
     if (!canEdit) return
     setSaving(true)
     setError(null)
+    let saveError: string | null = null
     if (editing) {
       const { error } = await supabase
         .from('units')
         .update({ label: data.label.trim() })
         .eq('id', editing.id)
-      if (error) setError(error.message)
+      if (error) saveError = error.message
     } else {
       const nextOrder = (rows.at(-1)?.sort_order ?? 0) + 10
       const { error } = await supabase.from('units').insert({
@@ -81,10 +82,12 @@ export default function UnitsPage() {
         sort_order: nextOrder,
         is_active: true,
       })
-      if (error) setError(error.message)
+      if (error) saveError = error.message
     }
     setSaving(false)
-    if (!error) {
+    if (saveError) {
+      setError(saveError)
+    } else {
       setOpen(false)
       load()
     }
