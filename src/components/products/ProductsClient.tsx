@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useForm, useWatch, type Resolver } from 'react-hook-form'
+import { useForm, useWatch, Controller, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,11 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
+import { Combobox } from '@/components/ui/combobox'
+import { usePaginatedList } from '@/lib/use-paginated-list'
+import { ListToolbar } from '@/components/ui/list-toolbar'
+import { Pagination } from '@/components/ui/pagination'
 import { formatCurrency } from '@/lib/utils'
 import { Plus, Pencil, ToggleLeft, ToggleRight } from 'lucide-react'
 import type { Product } from '@/lib/database.types'
@@ -19,6 +24,20 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/components/feedback/toast'
 import type { ProductInput } from '@/domain/schemas'
 import { createProductAction, updateProductAction, toggleProductActiveAction } from '@/data/product-actions'
+
+// Common dental-lab units (stored as bare nouns; rendered as "per {unit}").
+// The combobox still accepts a custom typed value.
+const UNIT_OPTIONS = ['unit', 'tooth', 'arch', 'quadrant', 'case', 'set', 'pair']
+
+// Stable identity (module-level) so the hook's memoized filter is stable.
+function productMatchesQuery(p: Product, query: string): boolean {
+  const q = query.toLowerCase()
+  return (
+    p.name.toLowerCase().includes(q) ||
+    (p.description?.toLowerCase().includes(q) ?? false) ||
+    p.unit.toLowerCase().includes(q)
+  )
+}
 
 // Client island for the products catalogue. The Server Component
 // (`products/page.tsx`) fetches the rows via `getProducts` and passes them in;
@@ -75,9 +94,21 @@ export function ProductsClient({ products }: { products: Product[] }) {
     // zod's `coerce.number()` types the resolver input as `unknown`; cast to the
     // form's value type so RHF's Resolver generics line up.
     resolver: zodResolver(schema) as Resolver<FormData>,
-    defaultValues: { unit: 'per unit', unit_price: 0, use_price_range: false },
+    defaultValues: { unit: 'unit', unit_price: 0, use_price_range: false },
   })
   const usePriceRange = useWatch({ control, name: 'use_price_range' })
+
+  const {
+    query,
+    setQuery,
+    page,
+    setPage,
+    pageItems,
+    filteredCount,
+    totalPages,
+    pageStart,
+    pageEnd,
+  } = usePaginatedList(products, { searchFn: productMatchesQuery, pageSize: 10 })
 
   const openNew = () => {
     setEditing(null)
@@ -88,7 +119,7 @@ export function ProductsClient({ products }: { products: Product[] }) {
       unit_price: 0,
       min_unit_price: undefined,
       max_unit_price: undefined,
-      unit: 'per unit',
+      unit: 'unit',
     })
     setOpen(true)
   }
@@ -145,6 +176,7 @@ export function ProductsClient({ products }: { products: Product[] }) {
   }
 
   return (
+    <TooltipProvider delayDuration={200}>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -153,6 +185,8 @@ export function ProductsClient({ products }: { products: Product[] }) {
         </div>
         {canEdit && <Button onClick={openNew}><Plus className="h-4 w-4 mr-2" />Add Product</Button>}
       </div>
+
+      <ListToolbar value={query} onChange={setQuery} placeholder="Search products…" />
 
       <Card>
         <CardContent className="p-0">
@@ -168,12 +202,18 @@ export function ProductsClient({ products }: { products: Product[] }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {products.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-gray-400">No products yet</TableCell></TableRow>}
-              {products.map(p => (
+              {pageItems.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-gray-400">
+                    {query ? 'No products match your search' : 'No products yet'}
+                  </TableCell>
+                </TableRow>
+              )}
+              {pageItems.map(p => (
                 <TableRow key={p.id} className={p.active ? '' : 'opacity-50'}>
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell className="text-gray-500 text-sm">{p.description ?? '—'}</TableCell>
-                  <TableCell className="text-gray-500 text-sm">{p.unit}</TableCell>
+                  <TableCell className="text-gray-500 text-sm">per {p.unit}</TableCell>
                   <TableCell className="font-medium">
                     {p.min_unit_price != null && p.max_unit_price != null
                       ? `${formatCurrency(p.min_unit_price)} – ${formatCurrency(p.max_unit_price)}`
@@ -185,12 +225,30 @@ export function ProductsClient({ products }: { products: Product[] }) {
                   <TableCell>
                     {canEdit && (
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(p)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleActive(p)}>
-                          {p.active ? <ToggleRight className="h-4 w-4 text-green-600" /> : <ToggleLeft className="h-4 w-4 text-gray-400" />}
-                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Edit product" onClick={() => openEdit(p)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Edit product</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              aria-label={p.active ? 'Deactivate product' : 'Activate product'}
+                              onClick={() => toggleActive(p)}
+                            >
+                              {p.active ? <ToggleRight className="h-4 w-4 text-green-600" /> : <ToggleLeft className="h-4 w-4 text-gray-400" />}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {p.active ? 'Active — click to deactivate (hides from new invoices)' : 'Inactive — click to activate'}
+                          </TooltipContent>
+                        </Tooltip>
                       </div>
                     )}
                   </TableCell>
@@ -199,6 +257,17 @@ export function ProductsClient({ products }: { products: Product[] }) {
             </TableBody>
           </Table>
         </CardContent>
+        <div className="border-t px-4 py-3">
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            filteredCount={filteredCount}
+            pageStart={pageStart}
+            pageEnd={pageEnd}
+            onPageChange={setPage}
+            itemLabel="products"
+          />
+        </div>
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -249,7 +318,24 @@ export function ProductsClient({ products }: { products: Product[] }) {
             </label>
             <div className="space-y-2">
               <Label>Unit *</Label>
-              <Input placeholder="per unit" {...register('unit')} />
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500">per</span>
+                <div className="flex-1">
+                  <Controller
+                    control={control}
+                    name="unit"
+                    render={({ field }) => (
+                      <Combobox
+                        value={field.value}
+                        onChange={field.onChange}
+                        options={UNIT_OPTIONS}
+                        placeholder="unit"
+                      />
+                    )}
+                  />
+                </div>
+              </div>
+              {errors.unit && <p className="text-xs text-destructive">{errors.unit.message}</p>}
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
@@ -259,5 +345,6 @@ export function ProductsClient({ products }: { products: Product[] }) {
         </DialogContent>
       </Dialog>
     </div>
+    </TooltipProvider>
   )
 }
