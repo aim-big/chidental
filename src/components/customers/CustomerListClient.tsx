@@ -6,9 +6,12 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { DataTable } from '@/components/ui/data-table'
+import type { Column } from '@/lib/data-table'
+import { EmptyState } from '@/components/ui/empty-state'
+import { listViewState } from '@/lib/list-view-state'
+import { Plus, Search, Users } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
-import { Plus, Search } from 'lucide-react'
 import type { Customer } from '@/lib/database.types'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -28,6 +31,23 @@ export function CustomerListClient({ customers }: { customers: Customer[] }) {
       (c.phone ?? '').includes(q)
     )
   }, [search, customers])
+
+  const columns: Column<Customer>[] = [
+    { key: 'clinic', header: 'Clinic / Name', cell: c => <span className="font-medium text-gray-900">{c.clinic_name}</span> },
+    { key: 'contact', header: 'Contact Person', cell: c => <span className="text-gray-600">{c.contact_person ?? '—'}</span> },
+    { key: 'phone', header: 'Phone', cell: c => <span className="text-gray-600">{c.phone ?? '—'}</span> },
+    { key: 'email', header: 'Email', cell: c => <span className="text-gray-600">{c.email ?? '—'}</span> },
+    { key: 'registered', header: 'Registered', cell: c => <span className="text-sm text-gray-400">{formatDate(c.created_at)}</span> },
+  ]
+
+  const view = listViewState({ loading: false, total: customers.length, filtered: filtered.length, hasQuery: search.trim() !== '' })
+  const emptyState = (
+    <EmptyState
+      icon={<Users className="h-8 w-8" />}
+      title={view === 'empty-no-results' ? 'No customers match your search' : 'No customers yet'}
+      description={view === 'empty-no-results' ? 'Try a different search term.' : 'Add your first customer to get started.'}
+    />
+  )
 
   return (
     <div className="space-y-6">
@@ -55,35 +75,13 @@ export function CustomerListClient({ customers }: { customers: Customer[] }) {
 
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Clinic / Name</TableHead>
-                <TableHead>Contact Person</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Registered</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="text-center py-8 text-gray-400">No customers found</TableCell></TableRow>
-              )}
-              {filtered.map(c => (
-                <TableRow
-                  key={c.id}
-                  className="cursor-pointer"
-                  onClick={() => router.push(`/customers/${c.id}`)}
-                >
-                  <TableCell className="font-medium text-gray-900">{c.clinic_name}</TableCell>
-                  <TableCell className="text-gray-600">{c.contact_person ?? '—'}</TableCell>
-                  <TableCell className="text-gray-600">{c.phone ?? '—'}</TableCell>
-                  <TableCell className="text-gray-600">{c.email ?? '—'}</TableCell>
-                  <TableCell className="text-gray-400 text-sm">{formatDate(c.created_at)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <DataTable
+            columns={columns}
+            rows={filtered}
+            rowKey={c => c.id}
+            onRowClick={c => router.push(`/customers/${c.id}`)}
+            empty={emptyState}
+          />
         </CardContent>
       </Card>
     </div>
