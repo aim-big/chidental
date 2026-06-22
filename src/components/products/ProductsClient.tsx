@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import { formatCurrency } from '@/lib/utils'
 import { Plus, Pencil, ToggleLeft, ToggleRight } from 'lucide-react'
 import type { Product } from '@/lib/database.types'
@@ -145,6 +146,7 @@ export function ProductsClient({ products }: { products: Product[] }) {
   }
 
   return (
+    <TooltipProvider delayDuration={200}>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -185,12 +187,30 @@ export function ProductsClient({ products }: { products: Product[] }) {
                   <TableCell>
                     {canEdit && (
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(p)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleActive(p)}>
-                          {p.active ? <ToggleRight className="h-4 w-4 text-green-600" /> : <ToggleLeft className="h-4 w-4 text-gray-400" />}
-                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Edit product" onClick={() => openEdit(p)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Edit product</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              aria-label={p.active ? 'Deactivate product' : 'Activate product'}
+                              onClick={() => toggleActive(p)}
+                            >
+                              {p.active ? <ToggleRight className="h-4 w-4 text-green-600" /> : <ToggleLeft className="h-4 w-4 text-gray-400" />}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {p.active ? 'Active — click to deactivate (hides from new invoices)' : 'Inactive — click to activate'}
+                          </TooltipContent>
+                        </Tooltip>
                       </div>
                     )}
                   </TableCell>
@@ -259,5 +279,6 @@ export function ProductsClient({ products }: { products: Product[] }) {
         </DialogContent>
       </Dialog>
     </div>
+    </TooltipProvider>
   )
 }
