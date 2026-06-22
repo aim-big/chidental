@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { paginate } from '@/lib/pagination'
 
 export interface UsePaginatedListOptions<T> {
@@ -45,10 +45,10 @@ export function usePaginatedList<T>(
     pageSize,
   )
 
-  const setQuery = (q: string) => {
+  const setQuery = useCallback((q: string) => {
     setQueryState(q)
     setPage(1)
-  }
+  }, [])
 
   return {
     query,
