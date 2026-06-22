@@ -31,7 +31,8 @@ export function Combobox({
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const containerRef = React.useRef<HTMLDivElement>(null)
-  const listId = React.useMemo(() => id ? `${id}-listbox` : undefined, [id])
+  const reactId = React.useId()
+  const listId = `${id ?? reactId}-listbox`
 
   React.useEffect(() => {
     if (!open) return
@@ -45,7 +46,8 @@ export function Combobox({
   }, [open])
 
   const q = value.trim().toLowerCase()
-  const filtered = q ? options.filter((o) => o.toLowerCase().includes(q)) : options
+  const isCommitted = options.some((o) => o.toLowerCase() === q)
+  const filtered = q && !isCommitted ? options.filter((o) => o.toLowerCase().includes(q)) : options
 
   return (
     <div ref={containerRef} className="relative">
@@ -76,7 +78,7 @@ export function Combobox({
         )}
       />
       {open && filtered.length > 0 && (
-        <ul id={listId} role="listbox" className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-md border border-input bg-white p-1 text-sm shadow-md">
+        <ul id={listId} role="listbox" className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-md border border-input bg-popover p-1 text-sm shadow-md">
           {filtered.map((opt) => (
             <li key={opt}>
               <button
