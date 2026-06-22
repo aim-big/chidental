@@ -11,7 +11,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { DataTable } from '@/components/ui/data-table'
+import type { Column } from '@/lib/data-table'
+import { EmptyState } from '@/components/ui/empty-state'
+import { listViewState } from '@/lib/list-view-state'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import { usePaginatedList } from '@/lib/use-paginated-list'
 import { ListToolbar } from '@/components/ui/list-toolbar'
@@ -19,7 +22,7 @@ import { Pagination } from '@/components/ui/pagination'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { buildUnitOptions } from '@/lib/units'
 import { formatCurrency } from '@/lib/utils'
-import { Plus, Pencil, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Plus, Pencil, ToggleLeft, ToggleRight, Package } from 'lucide-react'
 import type { Product, Unit } from '@/lib/database.types'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/components/feedback/toast'
@@ -174,6 +177,79 @@ export function ProductsClient({ products, units }: { products: Product[]; units
     show({ variant: 'success', title: p.active ? 'Product deactivated' : 'Product activated' })
   }
 
+  const columns: Column<Product>[] = [
+    { key: 'name', header: 'Name', cell: p => <span className="font-medium">{p.name}</span> },
+    { key: 'description', header: 'Description', cell: p => <span className="text-sm text-muted-foreground">{p.description ?? '—'}</span> },
+    { key: 'unit', header: 'Unit', cell: p => <span className="text-sm text-muted-foreground">per {p.unit}</span> },
+    {
+      key: 'price',
+      header: 'Price',
+      align: 'right',
+      cell: p => (
+        <span className="font-medium tabular-nums">
+          {p.min_unit_price != null && p.max_unit_price != null
+            ? `${formatCurrency(p.min_unit_price)} – ${formatCurrency(p.max_unit_price)}`
+            : formatCurrency(p.unit_price)}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: p => <Badge variant={p.active ? 'success' : 'secondary'}>{p.active ? 'Active' : 'Inactive'}</Badge>,
+    },
+    {
+      key: 'actions',
+      header: '',
+      align: 'right',
+      width: 'w-24',
+      cell: p =>
+        canEdit ? (
+          <div className="flex justify-end gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Edit product" onClick={() => openEdit(p)}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Edit product</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  aria-label={p.active ? 'Deactivate product' : 'Activate product'}
+                  onClick={() => toggleActive(p)}
+                >
+                  {p.active ? <ToggleRight className="h-4 w-4 text-green-600" /> : <ToggleLeft className="h-4 w-4 text-gray-400" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {p.active ? 'Active — click to deactivate (hides from new invoices)' : 'Inactive — click to activate'}
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        ) : null,
+    },
+  ]
+
+  const view = listViewState({
+    loading: false,
+    total: products.length,
+    filtered: filteredCount,
+    hasQuery: query.trim().length > 0,
+  })
+
+  const emptyState = (
+    <EmptyState
+      icon={<Package className="h-8 w-8" />}
+      title={view === 'empty-no-results' ? 'No products match your search' : 'No products yet'}
+      description={view === 'empty-no-results' ? 'Try a different search term.' : 'Add your first product to start invoicing.'}
+    />
+  )
+
   return (
     <TooltipProvider delayDuration={200}>
     <div className="space-y-6">
@@ -189,84 +265,25 @@ export function ProductsClient({ products, units }: { products: Product[]; units
 
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Unit</TableHead>
-                <TableHead>Price</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-20"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pageItems.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-gray-400">
-                    {query ? 'No products match your search' : 'No products yet'}
-                  </TableCell>
-                </TableRow>
-              )}
-              {pageItems.map(p => (
-                <TableRow key={p.id} className={p.active ? '' : 'opacity-50'}>
-                  <TableCell className="font-medium">{p.name}</TableCell>
-                  <TableCell className="text-gray-500 text-sm">{p.description ?? '—'}</TableCell>
-                  <TableCell className="text-gray-500 text-sm">per {p.unit}</TableCell>
-                  <TableCell className="font-medium">
-                    {p.min_unit_price != null && p.max_unit_price != null
-                      ? `${formatCurrency(p.min_unit_price)} – ${formatCurrency(p.max_unit_price)}`
-                      : formatCurrency(p.unit_price)}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={p.active ? 'success' : 'secondary'}>{p.active ? 'Active' : 'Inactive'}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    {canEdit && (
-                      <div className="flex gap-1">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Edit product" onClick={() => openEdit(p)}>
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Edit product</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              aria-label={p.active ? 'Deactivate product' : 'Activate product'}
-                              onClick={() => toggleActive(p)}
-                            >
-                              {p.active ? <ToggleRight className="h-4 w-4 text-green-600" /> : <ToggleLeft className="h-4 w-4 text-gray-400" />}
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {p.active ? 'Active — click to deactivate (hides from new invoices)' : 'Inactive — click to activate'}
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-        <div className="border-t px-4 py-3">
-          <Pagination
-            page={page}
-            totalPages={totalPages}
-            filteredCount={filteredCount}
-            pageStart={pageStart}
-            pageEnd={pageEnd}
-            onPageChange={setPage}
-            itemLabel="products"
+          <DataTable
+            columns={columns}
+            rows={pageItems}
+            rowKey={p => p.id}
+            rowClassName={p => (p.active ? '' : 'opacity-50')}
+            empty={emptyState}
+            footer={
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                filteredCount={filteredCount}
+                pageStart={pageStart}
+                pageEnd={pageEnd}
+                onPageChange={setPage}
+                itemLabel="products"
+              />
+            }
           />
-        </div>
+        </CardContent>
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
