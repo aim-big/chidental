@@ -14,6 +14,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import { Combobox } from '@/components/ui/combobox'
+import { usePaginatedList } from '@/lib/use-paginated-list'
+import { ListToolbar } from '@/components/ui/list-toolbar'
+import { Pagination } from '@/components/ui/pagination'
 import { formatCurrency } from '@/lib/utils'
 import { Plus, Pencil, ToggleLeft, ToggleRight } from 'lucide-react'
 import type { Product } from '@/lib/database.types'
@@ -25,6 +28,16 @@ import { createProductAction, updateProductAction, toggleProductActiveAction } f
 // Common dental-lab units (stored as bare nouns; rendered as "per {unit}").
 // The combobox still accepts a custom typed value.
 const UNIT_OPTIONS = ['unit', 'tooth', 'arch', 'quadrant', 'case', 'set', 'pair']
+
+// Stable identity (module-level) so the hook's memoized filter is stable.
+function productMatchesQuery(p: Product, query: string): boolean {
+  const q = query.toLowerCase()
+  return (
+    p.name.toLowerCase().includes(q) ||
+    (p.description?.toLowerCase().includes(q) ?? false) ||
+    p.unit.toLowerCase().includes(q)
+  )
+}
 
 // Client island for the products catalogue. The Server Component
 // (`products/page.tsx`) fetches the rows via `getProducts` and passes them in;
@@ -84,6 +97,18 @@ export function ProductsClient({ products }: { products: Product[] }) {
     defaultValues: { unit: 'unit', unit_price: 0, use_price_range: false },
   })
   const usePriceRange = useWatch({ control, name: 'use_price_range' })
+
+  const {
+    query,
+    setQuery,
+    page,
+    setPage,
+    pageItems,
+    filteredCount,
+    totalPages,
+    pageStart,
+    pageEnd,
+  } = usePaginatedList(products, { searchFn: productMatchesQuery, pageSize: 10 })
 
   const openNew = () => {
     setEditing(null)
@@ -161,6 +186,8 @@ export function ProductsClient({ products }: { products: Product[] }) {
         {canEdit && <Button onClick={openNew}><Plus className="h-4 w-4 mr-2" />Add Product</Button>}
       </div>
 
+      <ListToolbar value={query} onChange={setQuery} placeholder="Search products…" />
+
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -175,8 +202,14 @@ export function ProductsClient({ products }: { products: Product[] }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {products.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-gray-400">No products yet</TableCell></TableRow>}
-              {products.map(p => (
+              {pageItems.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-gray-400">
+                    {query ? 'No products match your search' : 'No products yet'}
+                  </TableCell>
+                </TableRow>
+              )}
+              {pageItems.map(p => (
                 <TableRow key={p.id} className={p.active ? '' : 'opacity-50'}>
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell className="text-gray-500 text-sm">{p.description ?? '—'}</TableCell>
@@ -224,6 +257,17 @@ export function ProductsClient({ products }: { products: Product[] }) {
             </TableBody>
           </Table>
         </CardContent>
+        <div className="border-t px-4 py-3">
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            filteredCount={filteredCount}
+            pageStart={pageStart}
+            pageEnd={pageEnd}
+            onPageChange={setPage}
+            itemLabel="products"
+          />
+        </div>
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
