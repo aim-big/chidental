@@ -213,13 +213,21 @@ export function InvoiceDocument({
     // consistent when line items are overridden in the print dialog. With no
     // overrides we use the stored values verbatim.
     const discountPct = Number(invoice.discount_pct ?? 0)
+    const taxRate = Number(invoice.tax_rate ?? 0)
     const previewSubtotal = o
       ? items.reduce((sum, it) => sum + itemResolve(it).amount, 0)
       : Number(invoice.subtotal ?? invoice.total)
     const previewDiscount = o
       ? Math.round(previewSubtotal * discountPct) / 100
       : Number(invoice.discount_amount ?? 0)
-    const previewTotal = o ? previewSubtotal - previewDiscount : Number(invoice.total)
+    // SST tax (Wave 5) applies AFTER discount, on the discounted (taxable) amount —
+    // same subtotal→discount→tax→total order as the invoice form. With no overrides
+    // we use the stored tax_amount verbatim.
+    const previewTaxable = previewSubtotal - previewDiscount
+    const previewTax = o
+      ? Math.round(previewTaxable * taxRate) / 100
+      : Number(invoice.tax_amount ?? 0)
+    const previewTotal = o ? previewTaxable + previewTax : Number(invoice.total)
     return {
       field: {
         date:            o ? o.date            : invoice.invoice_date,
@@ -241,6 +249,8 @@ export function InvoiceDocument({
       previewSubtotal,
       previewDiscount,
       previewDiscountPct: discountPct,
+      previewTax,
+      previewTaxRate: taxRate,
       previewTotal,
       instructions: o?.instructions ?? '',
     }
@@ -252,7 +262,10 @@ export function InvoiceDocument({
     showInlineEdit: boolean
   }) => {
     const { mode, resolved, showInlineEdit } = opts
-    const { field, serviceStatusForPrint, itemResolve, previewSubtotal, previewDiscount, previewDiscountPct, previewTotal, instructions } = resolved
+    const { field, serviceStatusForPrint, itemResolve, previewSubtotal, previewDiscount, previewDiscountPct, previewTax, previewTaxRate, previewTotal, instructions } = resolved
+    // Subtotal breakdown prints when EITHER a discount or tax applies; an invoice
+    // with neither keeps the original single Total row.
+    const hasAdjustments = previewDiscount > 0 || previewTax > 0
     const isDelivery = mode === 'delivery'
     return (
       <>
@@ -394,25 +407,37 @@ export function InvoiceDocument({
           </tbody>
           {!isDelivery && (
             <tfoot>
-              {/* Subtotal / Discount rows print only when a discount applies; an
-                  undiscounted invoice keeps the original single Total row. */}
-              {previewDiscount > 0 && (
+              {/* Subtotal / Discount / Tax rows print only when an adjustment
+                  applies; an invoice with neither discount nor tax keeps the
+                  original single Total row. */}
+              {hasAdjustments && (
                 <>
                   <tr>
                     <td colSpan={3} className="pt-4 text-right text-gray-500">Subtotal</td>
                     <td className="pt-4 text-right text-gray-700">{formatCurrency(previewSubtotal)}</td>
                   </tr>
-                  <tr>
-                    <td colSpan={3} className="pt-1 text-right text-gray-500">
-                      Discount{previewDiscountPct > 0 ? ` (${previewDiscountPct}%)` : ''}
-                    </td>
-                    <td className="pt-1 text-right text-gray-700">({formatCurrency(previewDiscount)})</td>
-                  </tr>
+                  {previewDiscount > 0 && (
+                    <tr>
+                      <td colSpan={3} className="pt-1 text-right text-gray-500">
+                        Discount{previewDiscountPct > 0 ? ` (${previewDiscountPct}%)` : ''}
+                      </td>
+                      <td className="pt-1 text-right text-gray-700">({formatCurrency(previewDiscount)})</td>
+                    </tr>
+                  )}
+                  {/* SST tax row (Wave 5) — between Discount and Total, only when tax applies. */}
+                  {previewTax > 0 && (
+                    <tr>
+                      <td colSpan={3} className="pt-1 text-right text-gray-500">
+                        SST{previewTaxRate > 0 ? ` (${previewTaxRate}%)` : ''}
+                      </td>
+                      <td className="pt-1 text-right text-gray-700">{formatCurrency(previewTax)}</td>
+                    </tr>
+                  )}
                 </>
               )}
               <tr>
-                <td colSpan={3} className={cn('text-right font-semibold text-gray-700', previewDiscount > 0 ? 'pt-1' : 'pt-4')}>Total</td>
-                <td className={cn('text-right text-lg font-bold text-gray-900', previewDiscount > 0 ? 'pt-1' : 'pt-4')}>{formatCurrency(previewTotal)}</td>
+                <td colSpan={3} className={cn('text-right font-semibold text-gray-700', hasAdjustments ? 'pt-1' : 'pt-4')}>Total</td>
+                <td className={cn('text-right text-lg font-bold text-gray-900', hasAdjustments ? 'pt-1' : 'pt-4')}>{formatCurrency(previewTotal)}</td>
               </tr>
               {totalPaid > 0 && (
                 <>

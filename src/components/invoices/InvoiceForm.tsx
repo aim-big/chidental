@@ -18,6 +18,7 @@ import type { InvoiceStatus, Product } from '@/lib/database.types'
 import { addDays, format } from 'date-fns'
 import { DEFAULT_COLOR } from '@/lib/service-status'
 import { canEditInvoice } from '@/lib/invoice-permissions'
+import { DEFAULT_TAX_RATE } from '@/lib/config'
 import { useUnsavedChangesGuard } from '@/lib/use-unsaved-changes-guard'
 import { createInvoiceAction, updateInvoiceAction } from '@/data/invoice-actions'
 import type { InvoicePayload, InvoiceItemPayload } from '@/data/invoice-actions'
@@ -86,6 +87,11 @@ export default function InvoiceForm({
   // invoice; loaded from the saved invoice in edit mode. Editable on the invoice.
   const [discountPct, setDiscountPct] = useState<number>(
     editInvoice ? Number(editInvoice.discount_pct ?? 0) : 0,
+  )
+  // Per-invoice SST tax (Wave 5). New invoices prefill from DEFAULT_TAX_RATE
+  // (ships at 0%); edit mode loads the saved invoice rate. Editable on the invoice.
+  const [taxRate, setTaxRate] = useState<number>(
+    editInvoice ? Number(editInvoice.tax_rate ?? 0) : DEFAULT_TAX_RATE,
   )
   const [billToName, setBillToName] = useState(editInvoice?.bill_to_name ?? '')
   const [billToContact, setBillToContact] = useState(editInvoice?.bill_to_contact ?? '')
@@ -247,7 +253,13 @@ export default function InvoiceForm({
   // and derive the total. The client stays authoritative for these money values.
   const clampedDiscountPct = Math.min(100, Math.max(0, discountPct || 0))
   const discountAmount = Math.round(subtotal * clampedDiscountPct) / 100
-  const total = subtotal - discountAmount
+  // SST tax (Wave 5) applies AFTER discount: tax the discounted (taxable) amount,
+  // round to 2dp the same way, then add it back for the total. Clamp the rate to
+  // 0–100 to match the DB CHECK; the client stays authoritative for the math.
+  const taxable = subtotal - discountAmount
+  const clampedTaxRate = Math.min(100, Math.max(0, taxRate || 0))
+  const taxAmount = Math.round(taxable * clampedTaxRate) / 100
+  const total = taxable + taxAmount
 
   const itemPriceErrors = items.map(item => {
     if (!item.product_id) return null
@@ -265,7 +277,7 @@ export default function InvoiceForm({
   // recipient, items) flips `dirty`, which arms the unsaved-changes guard.
   const snapshot = JSON.stringify({
     customerId, invoiceDate, dueDate, remarks, patient, doctor, serviceStatusId,
-    discountPct,
+    discountPct, taxRate,
     billToName, billToContact, billToPhone, billingAddress,
     shipToName, shipToContact, deliveryAddress, shipDifferent, items,
   })
@@ -294,6 +306,8 @@ export default function InvoiceForm({
     subtotal,
     discount_pct: clampedDiscountPct,
     discount_amount: discountAmount,
+    tax_rate: clampedTaxRate,
+    tax_amount: taxAmount,
     total,
   })
 
@@ -306,6 +320,9 @@ export default function InvoiceForm({
     if (items.some(i => !i.description.trim())) { setError('Every line needs a description.'); return false }
     if (items.some(i => !(i.quantity > 0))) { setError('Quantity must be greater than 0.'); return false }
     if (hasItemPriceErrors) { setError('Some line items are outside the allowed price range.'); return false }
+    // Tax rate must sit in 0–100 to match the DB CHECK (the input already clamps,
+    // this is the belt-and-braces guard).
+    if (taxRate < 0 || taxRate > 100) { setError('Tax rate must be between 0 and 100.'); return false }
     return true
   }
 
@@ -741,6 +758,28 @@ export default function InvoiceForm({
                     <span className="text-sm font-medium text-gray-900">
                       {discountAmount > 0 ? `(${formatCurrency(discountAmount)})` : formatCurrency(0)}
                     </span>
+                  </div>
+                  {/* Tax % (Wave 5): SST on the discounted amount. The input stays
+                      visible (like the discount control) so the rate is always
+                      editable; the computed amount sits on the right. The printed
+                      invoice hides this row entirely when the rate is 0. */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm text-gray-500">Tax</span>
+                      <Input
+                        className={cn('h-7 w-16 px-1.5 text-right text-sm', noSpin)}
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        max={100}
+                        step="0.01"
+                        value={taxRate}
+                        onChange={e => setTaxRate(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
+                        aria-label="Tax percent"
+                      />
+                      <span className="text-sm text-gray-400">%</span>
+                    </div>
+                    <span className="text-sm font-medium text-gray-900">{formatCurrency(taxAmount)}</span>
                   </div>
                   <div className="flex items-baseline justify-between border-t border-gray-200 pt-1.5">
                     <span className="text-sm text-gray-500">Total</span>

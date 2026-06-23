@@ -86,6 +86,10 @@ export type InvoicePayload = {
   // p_invoice blob; the client stays authoritative for subtotal/total.
   discount_pct: number
   discount_amount: number
+  // Per-invoice SST tax (Wave 5). Same contract as discount: the RPCs read these
+  // from the p_invoice blob; the client stays authoritative for the math.
+  tax_rate: number
+  tax_amount: number
   total: number
 }
 

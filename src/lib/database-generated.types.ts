@@ -207,6 +207,8 @@ export type Database = {
           ship_to_name: string | null
           status: string
           subtotal: number
+          tax_amount: number
+          tax_rate: number
           total: number
           void_reason: string | null
           voided_at: string | null
@@ -235,6 +237,8 @@ export type Database = {
           ship_to_name?: string | null
           status?: string
           subtotal?: number
+          tax_amount?: number
+          tax_rate?: number
           total?: number
           void_reason?: string | null
           voided_at?: string | null
@@ -263,6 +267,8 @@ export type Database = {
           ship_to_name?: string | null
           status?: string
           subtotal?: number
+          tax_amount?: number
+          tax_rate?: number
           total?: number
           void_reason?: string | null
           voided_at?: string | null
