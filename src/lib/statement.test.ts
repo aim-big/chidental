@@ -169,3 +169,18 @@ describe('buildStatement', () => {
     })
   })
 })
+
+describe('buildStatement — draft exclusion', () => {
+  it('excludes draft (not-yet-issued) invoices from lines, totals, and aging', () => {
+    const stmt = buildStatement(
+      [makeInv({ id: 'd', total: 800, status: 'draft' }), makeInv({ id: 's', total: 200, status: 'sent' })],
+      [],
+      TODAY,
+    )
+    expect(stmt.lines).toHaveLength(1)
+    expect(stmt.lines[0].number).toBe('INV-s')
+    expect(stmt.totalBilled).toBe(200)
+    expect(stmt.balance).toBe(200)
+    expect(stmt.aging.total).toBe(200)
+  })
+})

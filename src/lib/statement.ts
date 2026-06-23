@@ -50,7 +50,8 @@ export type Statement = {
 /**
  * Build an open-item statement.
  *
- * - Voided invoices are excluded entirely.
+ * - Voided and draft (not-yet-issued) invoices are excluded entirely — a
+ *   statement of account shows issued billing activity only.
  * - Per-invoice `paid` is the sum of all matching payment rows.
  * - Only invoices with `balance > 0.005` appear in the open-item table,
  *   sorted by `invoice_date` ascending.
@@ -80,7 +81,8 @@ export function buildStatement(
   const aging: ArAging = { current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d90plus: 0, total: 0 }
 
   for (const inv of invoices) {
-    if (inv.voided_at != null) continue
+    // A statement shows ISSUED activity only — skip voided and not-yet-issued drafts.
+    if (inv.voided_at != null || inv.status === 'draft') continue
 
     const total = Number(inv.total)
     const paid = paidByInvoice.get(inv.id) ?? 0
