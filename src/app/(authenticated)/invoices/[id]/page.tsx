@@ -64,6 +64,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         products={products}
         serviceStatuses={serviceStatuses}
         currentServiceStatus={currentServiceStatus}
+        stages={stages}
         customerName={customer?.clinic_name ?? null}
         totalPaid={totalPaid}
         unrecorded={unrecorded}

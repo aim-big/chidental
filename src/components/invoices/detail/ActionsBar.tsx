@@ -44,7 +44,7 @@ const paymentSchema = z.object({
 })
 type PaymentForm = z.infer<typeof paymentSchema>
 
-type PrintMode = 'invoice' | 'delivery'
+type PrintMode = 'invoice' | 'delivery' | 'work_ticket'
 
 export type ActionsBarProps = {
   invoice: InvoiceDetail
@@ -215,6 +215,11 @@ export function ActionsBar({ invoice, customerName, unrecorded, dominantWork, on
         </Button>
         <Button variant="outline" size="sm" onClick={() => onPrint('delivery')}>
           <Printer className="h-4 w-4 mr-2" />Print Delivery
+        </Button>
+        {/* Internal bench ticket — work status + notes, no prices. Prints directly
+            (no print-preview override editor; see InvoiceDocument). */}
+        <Button variant="outline" size="sm" onClick={() => onPrint('work_ticket')}>
+          <Printer className="h-4 w-4 mr-2" />Print Work Ticket
         </Button>
         {hasPermission('invoices.manage') && !voided && (
           <Button
