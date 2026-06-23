@@ -18,7 +18,6 @@ import {
   dominantWorkStatus,
 } from '@/lib/work-status'
 import { WorkStatusBadge } from '@/components/work-status-badge'
-import { DEFAULT_COLOR } from '@/lib/service-status'
 import { isVoided, isOverdue } from '@/lib/invoice-status'
 import type { InvoiceListRow } from '@/data/invoices'
 
@@ -60,7 +59,6 @@ export function InvoiceListClient({ invoices }: { invoices: InvoiceListRow[] }) 
     { key: 'customer', header: 'Customer', cell: inv => <span className="text-muted-foreground">{inv.customers?.clinic_name ?? '—'}</span> },
     { key: 'patient', header: 'Patient', cell: inv => <span className="text-muted-foreground">{inv.patient ?? '—'}</span> },
     { key: 'date', header: 'Date', cell: inv => <span className="text-sm text-muted-foreground">{formatDate(inv.invoice_date)}</span> },
-    { key: 'due', header: 'Due Date', cell: inv => <span className="text-sm text-muted-foreground">{formatDate(inv.due_date)}</span> },
     { key: 'amount', header: 'Amount', align: 'right', cell: inv => <span className="font-medium tabular-nums">{formatCurrency(inv.total)}</span> },
     {
       key: 'payment',
@@ -81,18 +79,6 @@ export function InvoiceListClient({ invoices }: { invoices: InvoiceListRow[] }) 
         const dominant = dominantWorkStatus((inv.invoice_items ?? []).map(it => it.work_status))
         return dominant ? <WorkStatusBadge status={dominant} /> : <span className="text-xs text-muted-foreground">—</span>
       },
-    },
-    {
-      key: 'service',
-      header: 'Service',
-      cell: inv =>
-        inv.service_statuses ? (
-          <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', inv.service_statuses.color ?? DEFAULT_COLOR)}>
-            {inv.service_statuses.label}
-          </span>
-        ) : (
-          <span className="text-xs text-muted-foreground">—</span>
-        ),
     },
   ]
 
