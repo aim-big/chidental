@@ -22,8 +22,7 @@ export const isOutstanding = (inv: CountFields): boolean =>
  * The status to write after recording a payment. `paidSum` is the total of all
  * recorded payment rows; `total` is the invoice total. A fully-covered invoice
  * becomes 'paid', otherwise 'partial'. An invoice already settled (status
- * 'paid' — e.g. via the "Mark Paid" shortcut, which records no payment rows)
- * is never downgraded: logging a later bank reference must not flip it back to
+ * 'paid') is never downgraded: logging a later payment must not flip it back to
  * partial.
  */
 export const nextStatusAfterPayment = (

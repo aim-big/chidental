@@ -22,13 +22,9 @@
 //     is draft→edit / sent→manage — see src/lib/invoice-permissions.ts. We load
 //     the current status server-side to choose.)
 // - recordPaymentAction       → invoices.manage
-//     Record Payment button shows only for sent/partial/overdue/paid invoices
-//     ([id]/page.tsx line ~672) — i.e. already-sent records, which canEditInvoice
-//     maps to invoices.manage (docs/modules/permissions.md: manage = "already-sent
-//     billing records").
-// - markInvoicePaidAction     → invoices.manage
-//     Mark Paid shows only for sent/partial/overdue ([id]/page.tsx line ~678) —
-//     same already-sent tier → invoices.manage.
+//     Record Payment button shows only for sent/partial/overdue invoices —
+//     already-sent records, which canEditInvoice maps to invoices.manage
+//     (docs/modules/permissions.md: manage = "already-sent billing records").
 // - markSentAction            → invoices.edit
 //     Mark as Sent shows only for draft invoices ([id]/page.tsx line ~667).
 //     Acting on a draft → invoices.edit (canEditInvoice draft branch).
@@ -176,21 +172,6 @@ export async function recordPaymentAction(
     p_payment_date: input.payment_date,
     p_reference: input.reference,
     p_notes: input.notes,
-  })
-  if (error) return { ok: false, error: error.message }
-  revalidateInvoice(id)
-  return { ok: true }
-}
-
-export async function markInvoicePaidAction(id: string, reference?: string): Promise<ActionResult> {
-  const gate = await requirePermission('invoices.manage')
-  if (!gate.ok) return gate
-
-  const admin = createAdminClient()
-  const { error } = await admin.rpc('mark_invoice_paid', {
-    p_invoice_id: id,
-    p_created_by: gate.userId,
-    p_reference: reference,
   })
   if (error) return { ok: false, error: error.message }
   revalidateInvoice(id)
