@@ -6,7 +6,6 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { Settings, LogOut, Menu, X, ChevronRight, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/contexts/AuthContext'
 import { mainNav, settingsGroups, guardFor, type NavEntry } from '@/domain/navigation'
 import { COMPANY } from '@/lib/config'
@@ -35,32 +34,32 @@ function SidebarContent({
   const linkClass = (active: boolean) =>
     cn(
       'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-      active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-gray-100 hover:text-foreground',
+      active
+        ? 'bg-primary-foreground text-primary shadow-sm'
+        : 'text-primary-foreground/70 hover:bg-white/10 hover:text-primary-foreground',
     )
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-4">
-        <div className="flex items-center gap-3">
-          <Image src="/logo-mark.png" alt="" width={36} height={36} className="w-9 h-9 flex-shrink-0 object-contain" />
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground truncate">Chi Dental Lab</p>
-          </div>
+      <div className="px-5 pt-5 pb-4">
+        <div className="flex items-center gap-2.5">
+          <Image src="/logo-mark.png" alt="" width={32} height={32} className="h-8 w-8 flex-shrink-0 object-contain brightness-0 invert" />
+          <p className="font-display text-lg font-semibold tracking-tight text-primary-foreground truncate">Chi Dental Lab</p>
         </div>
       </div>
 
-      <Separator />
+      <div className="mx-4 border-t border-white/10" />
 
       {/* Search button */}
-      <div className="px-3 pt-2 pb-1">
+      <div className="px-3 pb-2">
         <button
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent('command-palette:open'))}
-          className="flex w-full items-center gap-2 rounded-lg border border-border bg-gray-50 px-3 py-2 text-sm text-muted-foreground hover:bg-gray-100 transition-colors"
+          className="flex w-full items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-primary-foreground/60 hover:bg-white/10 hover:text-primary-foreground/90 transition-colors"
         >
           <Search className="h-4 w-4 shrink-0" />
           <span className="flex-1 text-left">Search…</span>
-          <kbd className="hidden sm:inline-flex items-center gap-0.5 rounded border border-border bg-card px-1.5 py-0.5 text-xs text-muted-foreground font-sans">
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 rounded border border-white/15 bg-white/5 px-1.5 py-0.5 text-xs text-primary-foreground/60 font-sans">
             ⌘K
           </kbd>
         </button>
@@ -88,7 +87,7 @@ function SidebarContent({
         </div>
       )}
 
-      <Separator />
+      <div className="mx-4 border-t border-white/10" />
 
       {/* User chip → Profile (click yourself), with Sign out */}
       <div className="p-3">
@@ -97,16 +96,16 @@ function SidebarContent({
           onClick={onNavigate}
           className={cn(
             'block px-3 py-2 mb-1 rounded-lg transition-colors',
-            activeHref === '/profile' ? 'bg-primary/10' : 'hover:bg-gray-100',
+            activeHref === '/profile' ? 'bg-white/10' : 'hover:bg-white/10',
           )}
         >
-          <p className="text-sm font-medium text-muted-foreground truncate">{username}</p>
-          <p className="text-xs text-muted-foreground capitalize">{roleName}</p>
+          <p className="text-sm font-medium text-primary-foreground truncate">{username}</p>
+          <p className="text-xs text-primary-foreground/50 capitalize">{roleName}</p>
         </Link>
         <Button
           variant="ghost"
           size="sm"
-          className="w-full justify-start text-muted-foreground hover:text-red-600 hover:bg-red-50"
+          className="w-full justify-start text-primary-foreground/70 hover:text-primary-foreground hover:bg-white/10"
           onClick={onSignOut}
         >
           <LogOut className="h-4 w-4 mr-2" />
@@ -153,9 +152,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const closeSidebar = () => setSidebarOpen(false)
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-background">
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex flex-col w-60 bg-card border-r border-border flex-shrink-0">
+      <aside className="hidden md:flex flex-col w-60 bg-primary flex-shrink-0">
         <SidebarContent
           items={items}
           activeHref={activeHref}
@@ -171,7 +170,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={closeSidebar} />
-          <aside className="absolute left-0 top-0 bottom-0 w-64 bg-card shadow-xl z-50">
+          <aside className="absolute left-0 top-0 bottom-0 w-64 bg-primary shadow-xl z-50">
             <SidebarContent
               items={items}
               activeHref={activeHref}
