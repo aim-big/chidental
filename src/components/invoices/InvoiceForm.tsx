@@ -234,6 +234,8 @@ export default function InvoiceForm({
 
   const validate = () => {
     if (!customerId) { setError('Please select a customer.'); return false }
+    if (!patient.trim()) { setError('Patient name is required.'); return false }
+    if (!doctor.trim()) { setError('Doctor name is required.'); return false }
     if (!invoiceDate || !dueDate) { setError('Invoice date and due date are required.'); return false }
     if (items.length === 0) { setError('Add at least one item.'); return false }
     if (items.some(i => !i.description.trim())) { setError('Every line needs a description.'); return false }
@@ -447,12 +449,12 @@ export default function InvoiceForm({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Patient</Label>
-              <Input placeholder="Patient name" value={patient} onChange={e => setPatient(e.target.value)} />
+              <Label>Patient *</Label>
+              <Input placeholder="Patient name" value={patient} onChange={e => setPatient(e.target.value)} aria-required />
             </div>
             <div className="space-y-2">
-              <Label>Doctor</Label>
-              <Input placeholder="Doctor name" value={doctor} onChange={e => setDoctor(e.target.value)} />
+              <Label>Doctor *</Label>
+              <Input placeholder="Doctor name" value={doctor} onChange={e => setDoctor(e.target.value)} aria-required />
             </div>
           </div>
 
