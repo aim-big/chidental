@@ -11,12 +11,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Combobox } from '@/components/ui/combobox'
 import { formatCurrency, cn } from '@/lib/utils'
 import { ArrowLeft, ChevronDown, ChevronRight, RotateCcw, Trash2 } from 'lucide-react'
 import type { InvoiceStatus, Product } from '@/lib/database.types'
 import { addDays, format } from 'date-fns'
 import { DEFAULT_COLOR } from '@/lib/service-status'
 import { canEditInvoice } from '@/lib/invoice-permissions'
+import { useUnsavedChangesGuard } from '@/lib/use-unsaved-changes-guard'
 import { createInvoiceAction, updateInvoiceAction } from '@/data/invoice-actions'
 import type { InvoicePayload, InvoiceItemPayload } from '@/data/invoice-actions'
 import type { InvoiceFormData, InvoiceForEdit } from '@/data/invoices'
@@ -93,6 +95,9 @@ export default function InvoiceForm({
   const [showRecipient, setShowRecipient] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  // Set true once a save succeeds, so the unsaved-changes guard stands down
+  // before the post-save `router.push`.
+  const [saved, setSaved] = useState(false)
   // Status of the loaded invoice (edit mode) — drives the edit lock guard + banner.
   const [loadedStatus] = useState<InvoiceStatus | null>(
     editInvoice ? (editInvoice.status as InvoiceStatus) : null,
@@ -211,6 +216,19 @@ export default function InvoiceForm({
   })
   const hasItemPriceErrors = itemPriceErrors.some(Boolean)
 
+  // Dirty tracking: serialize every user-editable field and compare to the
+  // snapshot taken on first render. Cheap and exhaustive — any edit (header,
+  // recipient, items) flips `dirty`, which arms the unsaved-changes guard.
+  const snapshot = JSON.stringify({
+    customerId, invoiceDate, dueDate, remarks, patient, doctor, serviceStatusId,
+    billToName, billToContact, billToPhone, billingAddress,
+    shipToName, shipToContact, deliveryAddress, shipDifferent, items,
+  })
+  // Lazy initializer captures the snapshot exactly once (first render).
+  const [initialSnapshot] = useState(snapshot)
+  const dirty = !saved && snapshot !== initialSnapshot
+  useUnsavedChangesGuard(dirty)
+
   const invoicePayload = (): InvoicePayload => ({
     customer_id: customerId,
     invoice_date: invoiceDate,
@@ -271,6 +289,7 @@ export default function InvoiceForm({
       setSaving(false)
       return
     }
+    setSaved(true)
     show({ variant: 'success', title: 'Invoice created' })
     router.push(`/invoices/${result.id}`)
   }
@@ -303,8 +322,34 @@ export default function InvoiceForm({
       setSaving(false)
       return
     }
+    setSaved(true)
     show({ variant: 'success', title: 'Invoice updated' })
     router.push(`/invoices/${invoiceId}`)
+  }
+
+  // Enter-to-save: the form's primary submit. Edit mode saves; create mode does
+  // the primary "Create & Send". Guarded so a save can't double-fire while one
+  // is in flight or while line items have price errors.
+  const onFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (saving || hasItemPriceErrors) return
+    if (isEdit) handleUpdate()
+    else handleCreate('sent')
+  }
+
+  // Line Items wrapper ref: Enter pressed inside the item editor (qty / price /
+  // descriptions / the product-search filter) must NOT submit the form — the
+  // user is editing a row, not finishing the invoice. Enter in the header text
+  // fields still submits.
+  const lineItemsRef = useRef<HTMLDivElement>(null)
+  const onFormKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Enter') return
+    const target = e.target as HTMLElement
+    // Textareas legitimately use Enter for newlines; never submit from one.
+    if (target.tagName === 'TEXTAREA') return
+    if (lineItemsRef.current?.contains(target)) {
+      e.preventDefault()
+    }
   }
 
   // While auth resolves (edit mode) or a locked invoice redirects away, hold on
@@ -316,9 +361,9 @@ export default function InvoiceForm({
   }
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <form className="max-w-3xl space-y-6" onSubmit={onFormSubmit} onKeyDown={onFormKeyDown}>
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+        <Button type="button" variant="ghost" size="icon" onClick={() => router.back()}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
@@ -338,16 +383,15 @@ export default function InvoiceForm({
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Clinic *</Label>
-            <Select value={customerId} onValueChange={setCustomerId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a clinic…" />
-              </SelectTrigger>
-              <SelectContent>
-                {customers.map(c => (
-                  <SelectItem key={c.id} value={c.id}>{c.clinic_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              aria-label="Clinic"
+              options={customers.map(c => ({ value: c.id, label: c.clinic_name, hint: c.contact_person ?? undefined }))}
+              value={customerId || null}
+              onChange={setCustomerId}
+              placeholder="Select a clinic…"
+              searchPlaceholder="Search clinics…"
+              emptyText="No clinics match."
+            />
           </div>
 
           {selectedCustomer && (
@@ -487,7 +531,7 @@ export default function InvoiceForm({
         <CardHeader>
           <CardTitle className="text-base">Line Items</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent ref={lineItemsRef} className="space-y-3">
           {items.length === 0 ? (
             <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center">
               <p className="text-sm font-medium text-gray-500">No items yet</p>
@@ -649,21 +693,23 @@ export default function InvoiceForm({
 
       <div className="flex gap-3">
         {isEdit ? (
-          <Button onClick={handleUpdate} disabled={saving || hasItemPriceErrors}>
+          // type="submit" → Enter in a header field saves; the form's onSubmit is
+          // the single save path (no onClick, so a click can't double-fire it).
+          <Button type="submit" disabled={saving || hasItemPriceErrors}>
             {saving ? 'Saving…' : 'Save Changes'}
           </Button>
         ) : (
           <>
-            <Button onClick={() => handleCreate('sent')} disabled={saving || hasItemPriceErrors}>
+            <Button type="submit" disabled={saving || hasItemPriceErrors}>
               {saving ? 'Saving…' : 'Create & Send'}
             </Button>
-            <Button variant="outline" onClick={() => handleCreate('draft')} disabled={saving || hasItemPriceErrors}>
+            <Button type="button" variant="outline" onClick={() => handleCreate('draft')} disabled={saving || hasItemPriceErrors}>
               Save as Draft
             </Button>
           </>
         )}
-        <Button variant="ghost" onClick={() => router.back()} disabled={saving}>Cancel</Button>
+        <Button type="button" variant="ghost" onClick={() => router.back()} disabled={saving}>Cancel</Button>
       </div>
-    </div>
+    </form>
   )
 }

@@ -1,6 +1,12 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+// Client island for the invoices list. URL-DRIVEN: the Server Component
+// (`invoices/page.tsx`) reads `searchParams`, fetches the matching page via
+// `getInvoicesPage`, and passes it down. This island only MUTATES the URL
+// (search, saved-view tab, page, sort) through `useListUrlState` — it never
+// filters in-browser, so reloads / back-forward / shared links all reproduce
+// the same view.
+
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -10,56 +16,51 @@ import { Card, CardContent } from '@/components/ui/card'
 import { DataTable } from '@/components/ui/data-table'
 import type { Column } from '@/lib/data-table'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Pagination } from '@/components/ui/pagination'
+import { FilterChips, type FilterChip } from '@/components/ui/filter-chips'
 import { listViewState } from '@/lib/list-view-state'
 import { statusBadgeVariant } from '@/lib/status-badge'
 import { FileText, Plus, Search } from 'lucide-react'
 import { cn, formatCurrency, formatDate, todayISODate } from '@/lib/utils'
-import {
-  dominantWorkStatus,
-} from '@/lib/work-status'
+import { dominantWorkStatus } from '@/lib/work-status'
 import { WorkStatusBadge } from '@/components/work-status-badge'
 import { isVoided, isOverdue } from '@/lib/invoice-status'
-import type { InvoiceListRow } from '@/data/invoices'
+import { useListUrlState, type ListUrlState } from '@/lib/use-list-url-state'
+import type { InvoiceListRow, InvoiceListPage, InvoiceView } from '@/data/invoices'
 
-type ViewKey = 'all' | 'drafts' | 'unpaid' | 'overdue' | 'in_production' | 'ready' | 'voided'
-
-const VIEWS: { key: ViewKey; label: string; match: (inv: InvoiceListRow, today: string) => boolean }[] = [
-  { key: 'all', label: 'All', match: () => true },
-  { key: 'drafts', label: 'Drafts', match: inv => !isVoided(inv) && inv.status === 'draft' },
-  { key: 'unpaid', label: 'Awaiting payment', match: inv => !isVoided(inv) && ['sent', 'partial', 'overdue'].includes(inv.status) },
-  { key: 'overdue', label: 'Overdue', match: (inv, today) => isOverdue(inv, today) },
-  { key: 'in_production', label: 'In production', match: inv => {
-      const d = dominantWorkStatus((inv.invoice_items ?? []).map(it => it.work_status))
-      return !isVoided(inv) && d != null && d !== 'ready' && d !== 'delivered'
-    } },
-  { key: 'ready', label: 'Ready to deliver', match: inv => dominantWorkStatus((inv.invoice_items ?? []).map(it => it.work_status)) === 'ready' },
-  { key: 'voided', label: 'Voided', match: inv => isVoided(inv) },
+const VIEWS: { key: InvoiceView; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'drafts', label: 'Drafts' },
+  { key: 'unpaid', label: 'Awaiting payment' },
+  { key: 'overdue', label: 'Overdue' },
+  { key: 'in_production', label: 'In production' },
+  { key: 'ready', label: 'Ready to deliver' },
+  { key: 'voided', label: 'Voided' },
 ]
 
-export function InvoiceListClient({ invoices }: { invoices: InvoiceListRow[] }) {
+export function InvoiceListClient({
+  page,
+  counts,
+  state,
+}: {
+  page: InvoiceListPage
+  counts: Record<InvoiceView, number>
+  state: ListUrlState
+}) {
   const router = useRouter()
-  const [search, setSearch] = useState('')
-  const [viewKey, setViewKey] = useState<ViewKey>('all')
   const today = todayISODate()
+  const { search, setSearch, setView, setPage, toggleSort, sort, clearSearch, clearView } =
+    useListUrlState(state, 'all')
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase()
-    const view = VIEWS.find(v => v.key === viewKey) ?? VIEWS[0]
-    return invoices.filter(inv => {
-      const matchSearch =
-        inv.invoice_number.toLowerCase().includes(q) ||
-        (inv.customers?.clinic_name ?? '').toLowerCase().includes(q) ||
-        (inv.patient ?? '').toLowerCase().includes(q)
-      return matchSearch && view.match(inv, today)
-    })
-  }, [search, viewKey, invoices, today])
+  const viewKey = state.view as InvoiceView
+  const rows = page.rows
 
   const columns: Column<InvoiceListRow>[] = [
-    { key: 'number', header: 'Invoice #', cell: inv => <span className="font-medium text-primary">{inv.invoice_number}</span> },
-    { key: 'customer', header: 'Clinic', cell: inv => <span className="text-muted-foreground">{inv.customers?.clinic_name ?? '—'}</span> },
-    { key: 'patient', header: 'Patient', cell: inv => <span className="text-muted-foreground">{inv.patient ?? '—'}</span> },
-    { key: 'date', header: 'Date', cell: inv => <span className="text-sm text-muted-foreground">{formatDate(inv.invoice_date)}</span> },
-    { key: 'amount', header: 'Amount', align: 'right', cell: inv => <span className="font-medium tabular-nums">{formatCurrency(inv.total)}</span> },
+    { key: 'number', header: 'Invoice #', sortKey: 'number', cell: inv => <span className="font-medium text-primary">{inv.invoice_number}</span> },
+    { key: 'customer', header: 'Clinic', sortKey: 'customer', cell: inv => <span className="text-muted-foreground">{inv.customers?.clinic_name ?? '—'}</span> },
+    { key: 'patient', header: 'Patient', sortKey: 'patient', cell: inv => <span className="text-muted-foreground">{inv.patient ?? '—'}</span> },
+    { key: 'date', header: 'Date', sortKey: 'date', cell: inv => <span className="text-sm text-muted-foreground">{formatDate(inv.invoice_date)}</span> },
+    { key: 'amount', header: 'Amount', align: 'right', sortKey: 'amount', cell: inv => <span className="font-medium tabular-nums">{formatCurrency(inv.total)}</span> },
     {
       key: 'payment',
       header: 'Payment',
@@ -82,9 +83,15 @@ export function InvoiceListClient({ invoices }: { invoices: InvoiceListRow[] }) 
     },
   ]
 
-  const hasQuery = search.trim() !== '' || viewKey !== 'all'
-  const viewState = listViewState({ loading: false, total: invoices.length, filtered: filtered.length, hasQuery })
+  const hasQuery = state.q.trim() !== '' || viewKey !== 'all'
+  const viewState = listViewState({ loading: false, total: counts.all, filtered: page.total, hasQuery })
   const activeViewLabel = VIEWS.find(v => v.key === viewKey)?.label ?? 'All'
+
+  // Removable chips for the active search / non-default view.
+  const chips: FilterChip[] = []
+  if (viewKey !== 'all') chips.push({ key: 'view', label: `View: ${activeViewLabel}`, onRemove: clearView })
+  if (state.q.trim() !== '') chips.push({ key: 'search', label: `Search: ${state.q.trim()}`, onRemove: clearSearch })
+
   const emptyState = (
     <EmptyState
       icon={<FileText className="h-8 w-8" />}
@@ -98,7 +105,7 @@ export function InvoiceListClient({ invoices }: { invoices: InvoiceListRow[] }) 
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Invoices</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{invoices.length} total</p>
+          <p className="text-sm text-muted-foreground mt-0.5">{counts.all} total</p>
         </div>
         <Button asChild>
           <Link href="/invoices/new"><Plus className="h-4 w-4 mr-2" />New Invoice</Link>
@@ -107,20 +114,19 @@ export function InvoiceListClient({ invoices }: { invoices: InvoiceListRow[] }) 
 
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
         {VIEWS.map(v => {
-          const count = invoices.filter(inv => v.match(inv, today)).length
           const active = v.key === viewKey
           return (
             <button
               key={v.key}
               type="button"
-              onClick={() => setViewKey(v.key)}
+              onClick={() => setView(v.key)}
               className={cn(
                 'shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
                 active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted',
               )}
             >
               {v.label}
-              <span className={cn('ml-1.5 text-xs', active ? 'text-primary-foreground/70' : 'text-muted-foreground/60')}>{count}</span>
+              <span className={cn('ml-1.5 text-xs', active ? 'text-primary-foreground/70' : 'text-muted-foreground/60')}>{counts[v.key]}</span>
             </button>
           )
         })}
@@ -131,14 +137,29 @@ export function InvoiceListClient({ invoices }: { invoices: InvoiceListRow[] }) 
         <Input placeholder="Search invoice #, clinic, or patient…" value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
       </div>
 
+      <FilterChips chips={chips} />
+
       <Card>
         <CardContent className="p-0">
           <DataTable
             columns={columns}
-            rows={filtered}
+            rows={rows}
             rowKey={inv => inv.id}
             onRowClick={inv => router.push(`/invoices/${inv.id}`)}
             empty={emptyState}
+            sort={sort}
+            onSort={toggleSort}
+            footer={
+              <Pagination
+                page={page.page}
+                totalPages={page.totalPages}
+                filteredCount={page.total}
+                pageStart={page.pageStart}
+                pageEnd={page.pageEnd}
+                onPageChange={setPage}
+                itemLabel="invoices"
+              />
+            }
           />
         </CardContent>
       </Card>

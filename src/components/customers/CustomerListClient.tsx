@@ -1,6 +1,5 @@
 'use client'
 
-import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -9,38 +8,37 @@ import { Card, CardContent } from '@/components/ui/card'
 import { DataTable } from '@/components/ui/data-table'
 import type { Column } from '@/lib/data-table'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Pagination } from '@/components/ui/pagination'
+import { FilterChips, type FilterChip } from '@/components/ui/filter-chips'
 import { listViewState } from '@/lib/list-view-state'
 import { Plus, Search, Users } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
+import { useListUrlState, type ListUrlState } from '@/lib/use-list-url-state'
 import type { Customer } from '@/lib/database.types'
+import type { CustomerListPage } from '@/data/customers'
 import { useAuth } from '@/contexts/AuthContext'
 
-// Client island for the customers list. The Server Component (`customers/page.tsx`)
-// fetches the rows; this component owns the client-side search filter and the
-// permission-gated New button — behaviour-identical to the pre-migration page.
-export function CustomerListClient({ customers }: { customers: Customer[] }) {
+// Client island for the clinics list. URL-DRIVEN: the Server Component
+// (`customers/page.tsx`) reads `searchParams`, fetches the page via
+// `getCustomersPage` (server-side search + sort + pagination), and passes it in;
+// this island only mutates the URL state via `useListUrlState`.
+export function CustomerListClient({ page, state }: { page: CustomerListPage; state: ListUrlState }) {
   const router = useRouter()
   const { hasPermission } = useAuth()
-  const [search, setSearch] = useState('')
-
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase()
-    return customers.filter(c =>
-      c.clinic_name.toLowerCase().includes(q) ||
-      (c.contact_person ?? '').toLowerCase().includes(q) ||
-      (c.phone ?? '').includes(q)
-    )
-  }, [search, customers])
+  const { search, setSearch, setPage, toggleSort, sort, clearSearch } = useListUrlState(state, '')
 
   const columns: Column<Customer>[] = [
-    { key: 'clinic', header: 'Clinic', cell: c => <span className="font-medium text-foreground">{c.clinic_name}</span> },
-    { key: 'contact', header: 'Contact Person', cell: c => <span className="text-muted-foreground">{c.contact_person ?? '—'}</span> },
+    { key: 'clinic', header: 'Clinic', sortKey: 'clinic', cell: c => <span className="font-medium text-foreground">{c.clinic_name}</span> },
+    { key: 'contact', header: 'Contact Person', sortKey: 'contact', cell: c => <span className="text-muted-foreground">{c.contact_person ?? '—'}</span> },
     { key: 'phone', header: 'Phone', cell: c => <span className="text-muted-foreground">{c.phone ?? '—'}</span> },
     { key: 'email', header: 'Email', cell: c => <span className="text-muted-foreground">{c.email ?? '—'}</span> },
-    { key: 'registered', header: 'Registered', cell: c => <span className="text-sm text-muted-foreground">{formatDate(c.created_at)}</span> },
+    { key: 'registered', header: 'Registered', sortKey: 'registered', cell: c => <span className="text-sm text-muted-foreground">{formatDate(c.created_at)}</span> },
   ]
 
-  const view = listViewState({ loading: false, total: customers.length, filtered: filtered.length, hasQuery: search.trim() !== '' })
+  const view = listViewState({ loading: false, total: page.total, filtered: page.total, hasQuery: state.q.trim() !== '' })
+  const chips: FilterChip[] = []
+  if (state.q.trim() !== '') chips.push({ key: 'search', label: `Search: ${state.q.trim()}`, onRemove: clearSearch })
+
   const emptyState = (
     <EmptyState
       icon={<Users className="h-8 w-8" />}
@@ -54,7 +52,7 @@ export function CustomerListClient({ customers }: { customers: Customer[] }) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Clinics</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{customers.length} registered</p>
+          <p className="text-sm text-muted-foreground mt-0.5">{page.total} registered</p>
         </div>
         {hasPermission('customers.edit') && (
           <Button asChild>
@@ -73,14 +71,29 @@ export function CustomerListClient({ customers }: { customers: Customer[] }) {
         />
       </div>
 
+      <FilterChips chips={chips} />
+
       <Card>
         <CardContent className="p-0">
           <DataTable
             columns={columns}
-            rows={filtered}
+            rows={page.rows}
             rowKey={c => c.id}
             onRowClick={c => router.push(`/customers/${c.id}`)}
             empty={emptyState}
+            sort={sort}
+            onSort={toggleSort}
+            footer={
+              <Pagination
+                page={page.page}
+                totalPages={page.totalPages}
+                filteredCount={page.total}
+                pageStart={page.pageStart}
+                pageEnd={page.pageEnd}
+                onPageChange={setPage}
+                itemLabel="clinics"
+              />
+            }
           />
         </CardContent>
       </Card>

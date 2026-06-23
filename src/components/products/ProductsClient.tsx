@@ -16,33 +16,33 @@ import type { Column } from '@/lib/data-table'
 import { EmptyState } from '@/components/ui/empty-state'
 import { listViewState } from '@/lib/list-view-state'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
-import { usePaginatedList } from '@/lib/use-paginated-list'
 import { ListToolbar } from '@/components/ui/list-toolbar'
 import { Pagination } from '@/components/ui/pagination'
+import { FilterChips, type FilterChip } from '@/components/ui/filter-chips'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { buildUnitOptions } from '@/lib/units'
 import { formatCurrency } from '@/lib/utils'
 import { Plus, Pencil, ToggleLeft, ToggleRight, Package } from 'lucide-react'
 import type { Product, Unit } from '@/lib/database.types'
+import type { ProductListPage, ProductView } from '@/data/products'
+import { useListUrlState, type ListUrlState } from '@/lib/use-list-url-state'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/components/feedback/toast'
 import type { ProductInput } from '@/domain/schemas'
 import { createProductAction, updateProductAction, toggleProductActiveAction } from '@/data/product-actions'
 
-// Stable identity (module-level) so the hook's memoized filter is stable.
-function productMatchesQuery(p: Product, query: string): boolean {
-  const q = query.toLowerCase()
-  return (
-    p.name.toLowerCase().includes(q) ||
-    (p.description?.toLowerCase().includes(q) ?? false) ||
-    p.unit.toLowerCase().includes(q)
-  )
+const VIEW_LABELS: Record<ProductView, string> = {
+  active: 'Active only',
+  inactive: 'Inactive only',
+  all: 'All',
 }
 
-// Client island for the products catalogue. The Server Component
-// (`products/page.tsx`) fetches the rows via `getProducts` and passes them in;
-// this component owns the create/edit dialog and the price-range toggle, and
-// writes through the permission-gated Server Actions (which revalidate the list).
+// Client island for the products catalogue. URL-DRIVEN: the Server Component
+// (`products/page.tsx`) reads `searchParams`, fetches the page via
+// `getProductsPage` (server-side active filter + search + sort + pagination),
+// and passes it in; this component owns the create/edit dialog and the
+// price-range toggle, and writes through the permission-gated Server Actions
+// (which revalidate the list).
 //
 // The form schema (with the `use_price_range` UI toggle + numeric coercion) is
 // client-only; the action re-validates a clean payload with `productInputSchema`.
@@ -82,7 +82,15 @@ const schema = z
   })
 type FormData = z.infer<typeof schema>
 
-export function ProductsClient({ products, units }: { products: Product[]; units: Unit[] }) {
+export function ProductsClient({
+  page,
+  units,
+  state,
+}: {
+  page: ProductListPage
+  units: Unit[]
+  state: ListUrlState
+}) {
   const { hasPermission } = useAuth()
   const { show } = useToast()
   const canEdit = hasPermission('products.edit')
@@ -91,10 +99,10 @@ export function ProductsClient({ products, units }: { products: Product[]; units
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
   const [saving, setSaving] = useState(false)
-  const [activeFilter, setActiveFilter] = useState<'active' | 'inactive' | 'all'>('active')
-  const visibleProducts = products.filter(p =>
-    activeFilter === 'all' ? true : activeFilter === 'active' ? p.active : !p.active,
-  )
+
+  const activeFilter = (['active', 'inactive', 'all'].includes(state.view) ? state.view : 'active') as ProductView
+  const { search, setSearch, setView, setPage, toggleSort, sort, clearSearch, clearView } =
+    useListUrlState(state, 'active')
 
   const { register, handleSubmit, reset, control, formState: { errors } } = useForm<FormData>({
     // zod's `coerce.number()` types the resolver input as `unknown`; cast to the
@@ -103,18 +111,6 @@ export function ProductsClient({ products, units }: { products: Product[]; units
     defaultValues: { unit: defaultUnit, unit_price: 0, use_price_range: false },
   })
   const usePriceRange = useWatch({ control, name: 'use_price_range' })
-
-  const {
-    query,
-    setQuery,
-    page,
-    setPage,
-    pageItems,
-    filteredCount,
-    totalPages,
-    pageStart,
-    pageEnd,
-  } = usePaginatedList(visibleProducts, { searchFn: productMatchesQuery, pageSize: 10 })
 
   const openNew = () => {
     setEditing(null)
@@ -182,13 +178,14 @@ export function ProductsClient({ products, units }: { products: Product[]; units
   }
 
   const columns: Column<Product>[] = [
-    { key: 'name', header: 'Name', cell: p => <span className="font-medium">{p.name}</span> },
+    { key: 'name', header: 'Name', sortKey: 'name', cell: p => <span className="font-medium">{p.name}</span> },
     { key: 'description', header: 'Description', cell: p => <span className="text-sm text-muted-foreground">{p.description ?? '—'}</span> },
-    { key: 'unit', header: 'Unit', cell: p => <span className="text-sm text-muted-foreground">per {p.unit}</span> },
+    { key: 'unit', header: 'Unit', sortKey: 'unit', cell: p => <span className="text-sm text-muted-foreground">per {p.unit}</span> },
     {
       key: 'price',
       header: 'Price',
       align: 'right',
+      sortKey: 'price',
       cell: p => (
         <span className="font-medium tabular-nums">
           {p.min_unit_price != null && p.max_unit_price != null
@@ -241,10 +238,14 @@ export function ProductsClient({ products, units }: { products: Product[]; units
 
   const view = listViewState({
     loading: false,
-    total: visibleProducts.length,
-    filtered: filteredCount,
-    hasQuery: query.trim().length > 0,
+    total: page.total,
+    filtered: page.total,
+    hasQuery: state.q.trim().length > 0 || activeFilter !== 'active',
   })
+
+  const chips: FilterChip[] = []
+  if (activeFilter !== 'active') chips.push({ key: 'view', label: `Filter: ${VIEW_LABELS[activeFilter]}`, onRemove: clearView })
+  if (state.q.trim() !== '') chips.push({ key: 'search', label: `Search: ${state.q.trim()}`, onRemove: clearSearch })
 
   const emptyState = (
     <EmptyState
@@ -265,8 +266,8 @@ export function ProductsClient({ products, units }: { products: Product[]; units
         {canEdit && <Button onClick={openNew}><Plus className="h-4 w-4 mr-2" />Add Product</Button>}
       </div>
 
-      <ListToolbar value={query} onChange={setQuery} placeholder="Search products…">
-        <Select value={activeFilter} onValueChange={v => setActiveFilter(v as 'active' | 'inactive' | 'all')}>
+      <ListToolbar value={search} onChange={setSearch} placeholder="Search products…">
+        <Select value={activeFilter} onValueChange={v => setView(v as ProductView)}>
           <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="active">Active only</SelectItem>
@@ -276,21 +277,25 @@ export function ProductsClient({ products, units }: { products: Product[]; units
         </Select>
       </ListToolbar>
 
+      <FilterChips chips={chips} />
+
       <Card>
         <CardContent className="p-0">
           <DataTable
             columns={columns}
-            rows={pageItems}
+            rows={page.rows}
             rowKey={p => p.id}
             rowClassName={p => (p.active ? '' : 'opacity-50')}
             empty={emptyState}
+            sort={sort}
+            onSort={toggleSort}
             footer={
               <Pagination
-                page={page}
-                totalPages={totalPages}
-                filteredCount={filteredCount}
-                pageStart={pageStart}
-                pageEnd={pageEnd}
+                page={page.page}
+                totalPages={page.totalPages}
+                filteredCount={page.total}
+                pageStart={page.pageStart}
+                pageEnd={page.pageEnd}
                 onPageChange={setPage}
                 itemLabel="products"
               />

@@ -25,6 +25,72 @@ export async function getCustomers(): Promise<Customer[]> {
   return (data ?? []) as Customer[]
 }
 
+// --- Paginated list (URL-driven) -------------------------------------------
+
+export interface CustomerListParams {
+  q?: string
+  page?: number
+  pageSize?: number
+  sort?: string | null
+  dir?: 'asc' | 'desc'
+}
+
+export interface CustomerListPage {
+  rows: Customer[]
+  total: number
+  page: number
+  totalPages: number
+  pageStart: number
+  pageEnd: number
+}
+
+// Sortable columns → DB column names. Default order is clinic_name asc.
+const CUSTOMER_SORT_COLUMNS: Record<string, string> = {
+  clinic: 'clinic_name',
+  contact: 'contact_person',
+  registered: 'created_at',
+}
+
+/**
+ * URL-driven clinics list: server-side search + sort + pagination via
+ * `.order().range()` with an exact count. Search spans clinic name / contact /
+ * phone (all base-table columns, so the whole filter lives in SQL).
+ */
+export async function getCustomersPage(params: CustomerListParams = {}): Promise<CustomerListPage> {
+  const { q = '', page = 1, pageSize = 15, sort = null, dir = 'asc' } = params
+  const supabase = await createClient()
+
+  const sortCol = (sort && CUSTOMER_SORT_COLUMNS[sort]) || 'clinic_name'
+
+  let query = supabase
+    .from('customers')
+    .select('*', { count: 'exact' })
+    .order(sortCol, { ascending: dir !== 'desc' })
+
+  const term = q.trim()
+  if (term) {
+    const safe = term.replace(/[%,]/g, ' ')
+    query = query.or(`clinic_name.ilike.%${safe}%,contact_person.ilike.%${safe}%,phone.ilike.%${safe}%`)
+  }
+
+  const safePage = Math.max(1, page)
+  const from = (safePage - 1) * pageSize
+  const { data, count } = await query.range(from, from + pageSize - 1)
+
+  const total = count ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const clamped = Math.min(safePage, totalPages)
+  const rows = (data ?? []) as Customer[]
+  return {
+    rows,
+    total,
+    page: clamped,
+    totalPages,
+    pageStart: total === 0 ? 0 : from + 1,
+    pageEnd: from + rows.length,
+  }
+}
+
 // Detail bundle — mirrors the 2 parallel reads in `[id]/page.tsx`. Returns
 // `null` when the customer row is missing.
 export async function getCustomerDetail(id: string): Promise<CustomerDetail | null> {

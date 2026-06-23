@@ -67,6 +67,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         customerName={customer?.clinic_name ?? null}
         totalPaid={totalPaid}
         unrecorded={unrecorded}
+        dominantWork={dominantWork}
       >
         {/* Unified case-status strip — payment · work · service + money, at a glance */}
         <Card className="print:hidden">

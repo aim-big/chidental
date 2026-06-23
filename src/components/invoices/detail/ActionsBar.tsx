@@ -23,16 +23,19 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { formatCurrency, todayISODate } from '@/lib/utils'
-import { ArrowLeft, Printer, CreditCard, Ban, Pencil, Lock } from 'lucide-react'
+import { ArrowLeft, Printer, CreditCard, Ban, Pencil, Lock, ArrowRight } from 'lucide-react'
 import { canEditInvoice } from '@/lib/invoice-permissions'
 import { isVoided, isOverdue } from '@/lib/invoice-status'
 import { statusBadgeVariant } from '@/lib/status-badge'
+import { nextWorkStatus, WORK_STATUS_LABELS } from '@/lib/work-status'
 import {
   markSentAction,
   recordPaymentAction,
+  updateCaseWorkStatusAction,
 } from '@/data/invoice-actions'
 import { voidInvoice as voidInvoiceAction, restoreInvoice } from '@/lib/invoices/void-actions'
 import type { InvoiceDetail } from '@/data/invoices'
+import type { WorkStatus } from '@/lib/database.types'
 
 const paymentSchema = z.object({
   payment_date: z.string().min(1),
@@ -48,11 +51,13 @@ export type ActionsBarProps = {
   customerName: string | null
   /** max(0, total - totalPaid) — the full balance recorded by Record Payment. */
   unrecorded: number
+  /** Rolled-up (dominant/least-finished) work status across the case's items. */
+  dominantWork: WorkStatus | null
   /** Opens the print dialog owned by the document island. */
   onPrint: (mode: PrintMode) => void
 }
 
-export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: ActionsBarProps) {
+export function ActionsBar({ invoice, customerName, unrecorded, dominantWork, onPrint }: ActionsBarProps) {
   const router = useRouter()
   const { hasPermission } = useAuth()
   const { show } = useToast()
@@ -63,6 +68,7 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
   const [voiding, setVoiding] = useState(false)
   const [voidReason, setVoidReason] = useState('')
   const [restoring, setRestoring] = useState(false)
+  const [advancing, setAdvancing] = useState(false)
 
   const { register, handleSubmit, reset } = useForm<PaymentForm>({
     // Cast keeps RHF's Resolver generics aligned with the zod schema's inferred type.
@@ -98,6 +104,22 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
     const res = await markSentAction(invoice.id)
     if (res.ok === false) { show({ variant: 'error', title: res.error }); return }
     show({ variant: 'success', title: 'Invoice marked as sent' })
+    router.refresh()
+  }
+
+  // One-click advance of the whole case to the next stage of the rolled-up work
+  // status (received → in_progress → ready → delivered). `nextWorkStatus`
+  // returns null when the dominant status is delivered or on_hold (off the
+  // linear flow), so the button is hidden in those cases. Writes every item to
+  // the new status via the same action the Kanban drag uses.
+  const advanceTarget = dominantWork ? nextWorkStatus(dominantWork) : null
+  const advanceWorkStatus = async () => {
+    if (!advanceTarget) return
+    setAdvancing(true)
+    const res = await updateCaseWorkStatusAction(invoice.id, advanceTarget)
+    setAdvancing(false)
+    if (res.ok === false) { show({ variant: 'error', title: res.error }); return }
+    show({ variant: 'success', title: `Work advanced to ${WORK_STATUS_LABELS[advanceTarget]}` })
     router.refresh()
   }
 
@@ -163,6 +185,15 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
       <div className="flex flex-wrap gap-2">
         {!voided && invoice.status === 'draft' && (
           <Button variant="outline" size="sm" onClick={markAsSent}>Mark as Sent</Button>
+        )}
+        {/* One-click advance of the case's rolled-up work status to the next
+            stage. Hidden when there's nothing to advance (no items, delivered,
+            or on-hold). */}
+        {!voided && advanceTarget && (
+          <Button variant="outline" size="sm" onClick={advanceWorkStatus} disabled={advancing}>
+            <ArrowRight className="h-4 w-4 mr-2" />
+            {advancing ? 'Advancing…' : `Advance to ${WORK_STATUS_LABELS[advanceTarget]}`}
+          </Button>
         )}
         {/* Record Payment is the single settle action: it records the full
             outstanding balance and marks the invoice paid. Hidden once paid so
