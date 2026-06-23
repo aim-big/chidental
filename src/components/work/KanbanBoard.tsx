@@ -1,15 +1,20 @@
 'use client'
 
-// Kanban board for the Work page. Each card represents a CASE (invoice);
-// dragging a card to a column advances ALL its line items to that work status.
+// Kanban board for the Work page. Each card represents a SERVICE (one invoice
+// line item); dragging a card to a column advances THAT item's work status only.
 //
-// Grouping: rows are grouped by invoices.id into cases. The column a case
-// appears in is determined by dominantWorkStatus(item work_statuses).
+// Services on the same invoice move through stages independently (a crown can be
+// Ready while a denture on the same invoice is still In Progress), so the board
+// is per-item — matching the list view and the underlying invoice_items model.
 //
-// DnD: native HTML5 drag-and-drop. onDragStart stashes invoiceId in
-// dataTransfer; column drop handlers read it and call updateCaseWorkStatusAction.
+// Column placement: a card sits in the column for its own item.work_status.
 //
-// Optimistic UX: useOptimistic moves the case column immediately on drop; on
+// DnD: native HTML5 drag-and-drop. onDragStart stashes the item id in
+// dataTransfer; column drop handlers read it and call updateWorkStatusAction.
+// Dropping into a status column clears the in-progress substage (stage_id=null);
+// the coarse board only models the five top-level statuses.
+//
+// Optimistic UX: useOptimistic moves the card column immediately on drop; on
 // action failure the state reverts and a toast appears. router.refresh() syncs
 // the server state after either outcome.
 
@@ -18,113 +23,69 @@ import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/feedback/toast'
 import { cn } from '@/lib/utils'
 import { todayISODate } from '@/lib/utils'
-import { WORK_STATUSES, WORK_STATUS_LABELS, WORK_STATUS_COLORS, dominantWorkStatus } from '@/lib/work-status'
-import { updateCaseWorkStatusAction } from '@/data/invoice-actions'
+import { WORK_STATUSES, WORK_STATUS_LABELS, WORK_STATUS_COLORS } from '@/lib/work-status'
+import { updateWorkStatusAction } from '@/data/invoice-actions'
 import type { WorkStatus } from '@/lib/database.types'
 import type { WorkQueueRow } from '@/data/work'
 
-// ─── Case grouping ──────────────────────────────────────────────────────────
-
-type KanbanCase = {
-  invoiceId: string
-  invoiceNumber: string
-  clinicName: string
-  patient: string | null
-  dueDate: string
-  items: WorkQueueRow[]
-  dominant: WorkStatus
-}
-
-function groupIntoCases(rows: WorkQueueRow[]): KanbanCase[] {
-  const map = new Map<string, KanbanCase>()
-  for (const row of rows) {
-    if (!row.invoices) continue
-    const { id: invoiceId, invoice_number, patient, due_date } = row.invoices
-    const clinicName = row.invoices.customers?.clinic_name ?? '—'
-    if (!map.has(invoiceId)) {
-      map.set(invoiceId, {
-        invoiceId,
-        invoiceNumber: invoice_number,
-        clinicName,
-        patient: patient ?? null,
-        dueDate: due_date,
-        items: [],
-        dominant: 'received', // placeholder, computed below
-      })
-    }
-    map.get(invoiceId)!.items.push(row)
-  }
-
-  // Compute dominant status now that all items are grouped.
-  const cases: KanbanCase[] = []
-  for (const c of map.values()) {
-    const dominant = dominantWorkStatus(c.items.map(i => i.work_status))
-    if (dominant !== null) {
-      cases.push({ ...c, dominant })
-    }
-  }
-  return cases
-}
-
 // ─── Optimistic state ───────────────────────────────────────────────────────
 
-type OptimisticCaseMove = { invoiceId: string; dominant: WorkStatus }
+type OptimisticItemMove = { id: string; work_status: WorkStatus }
 
-function applyOptimisticMove(cases: KanbanCase[], move: OptimisticCaseMove): KanbanCase[] {
-  return cases.map(c =>
-    c.invoiceId === move.invoiceId
-      ? { ...c, dominant: move.dominant, items: c.items.map(i => ({ ...i, work_status: move.dominant })) }
-      : c,
+function applyOptimisticMove(rows: WorkQueueRow[], move: OptimisticItemMove): WorkQueueRow[] {
+  return rows.map(r =>
+    r.id === move.id ? { ...r, work_status: move.work_status, stage_id: null } : r,
   )
 }
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
 
-function CaseCard({
-  kase,
+function ItemCard({
+  row,
   today,
   onDragStart,
   onClick,
 }: {
-  kase: KanbanCase
+  row: WorkQueueRow
   today: string
-  onDragStart: (e: React.DragEvent, invoiceId: string) => void
-  onClick: (invoiceId: string) => void
+  onDragStart: (e: React.DragEvent, itemId: string) => void
+  onClick: (invoiceId: string | undefined) => void
 }) {
-  const isPastDue = kase.dueDate < today && kase.dominant !== 'delivered'
+  const dueDate = row.invoices?.due_date ?? null
+  const isPastDue = dueDate != null && dueDate < today && row.work_status !== 'delivered'
 
   return (
     <div
       draggable
-      onDragStart={e => onDragStart(e, kase.invoiceId)}
-      onClick={() => onClick(kase.invoiceId)}
+      onDragStart={e => onDragStart(e, row.id)}
+      onClick={() => onClick(row.invoices?.id)}
       className={cn(
         'bg-card border border-border rounded-lg p-3 cursor-grab active:cursor-grabbing',
         'hover:shadow-md transition-shadow select-none',
       )}
     >
-      {/* Clinic name */}
-      <div className="font-semibold text-foreground text-sm leading-snug truncate">
-        {kase.clinicName}
+      {/* Service description — the card's subject */}
+      <div className="font-semibold text-foreground text-sm leading-snug">
+        {row.description}
       </div>
 
-      {/* Patient */}
-      {kase.patient && (
-        <div className="text-xs text-muted-foreground mt-0.5 truncate">{kase.patient}</div>
-      )}
+      {/* Clinic + patient */}
+      <div className="text-xs text-muted-foreground mt-1 truncate">
+        {row.invoices?.customers?.clinic_name ?? '—'}
+        {row.invoices?.patient && ` · ${row.invoices.patient}`}
+      </div>
 
-      {/* Invoice # + item count */}
+      {/* Invoice # + due date */}
       <div className="flex items-center justify-between mt-2">
-        <span className="text-xs font-mono text-muted-foreground">{kase.invoiceNumber}</span>
-        <span className="text-xs text-muted-foreground">
-          {kase.items.length} item{kase.items.length === 1 ? '' : 's'}
+        <span className="text-xs font-mono text-muted-foreground">
+          {row.invoices?.invoice_number ?? '—'}
         </span>
-      </div>
-
-      {/* Due date */}
-      <div className={cn('text-xs mt-1', isPastDue ? 'text-red-600 font-medium' : 'text-muted-foreground')}>
-        Due {kase.dueDate}
-        {isPastDue && ' · overdue'}
+        {dueDate && (
+          <span className={cn('text-xs', isPastDue ? 'text-red-600 font-medium' : 'text-muted-foreground')}>
+            Due {dueDate}
+            {isPastDue && ' · overdue'}
+          </span>
+        )}
       </div>
     </div>
   )
@@ -132,18 +93,18 @@ function CaseCard({
 
 function KanbanColumn({
   status,
-  cases,
+  rows,
   today,
   onDragStart,
   onDrop,
   onCardClick,
 }: {
   status: WorkStatus
-  cases: KanbanCase[]
+  rows: WorkQueueRow[]
   today: string
-  onDragStart: (e: React.DragEvent, invoiceId: string) => void
+  onDragStart: (e: React.DragEvent, itemId: string) => void
   onDrop: (e: React.DragEvent, targetStatus: WorkStatus) => void
-  onCardClick: (invoiceId: string) => void
+  onCardClick: (invoiceId: string | undefined) => void
 }) {
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -167,7 +128,7 @@ function KanbanColumn({
         )}>
           {WORK_STATUS_LABELS[status]}
         </span>
-        <span className="text-xs text-muted-foreground ml-auto">{cases.length}</span>
+        <span className="text-xs text-muted-foreground ml-auto">{rows.length}</span>
       </div>
 
       {/* Cards area — scrolls vertically if many cards */}
@@ -177,18 +138,18 @@ function KanbanColumn({
           'rounded-b-lg border border-border bg-muted/20',
         )}
       >
-        {cases.map(c => (
-          <CaseCard
-            key={c.invoiceId}
-            kase={c}
+        {rows.map(r => (
+          <ItemCard
+            key={r.id}
+            row={r}
             today={today}
             onDragStart={onDragStart}
             onClick={onCardClick}
           />
         ))}
-        {cases.length === 0 && (
+        {rows.length === 0 && (
           <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground py-6">
-            No cases
+            No items
           </div>
         )}
       </div>
@@ -205,39 +166,39 @@ export function KanbanBoard({ rows }: { rows: WorkQueueRow[] }) {
 
   const today = todayISODate()
 
-  const baseCases = useMemo(() => groupIntoCases(rows), [rows])
-
-  const [optimisticCases, applyOptimistic] = useOptimistic(
-    baseCases,
+  const [optimisticRows, applyOptimistic] = useOptimistic(
+    rows,
     applyOptimisticMove,
   )
 
-  // Group cases into columns by dominant status.
-  const casesByStatus = useMemo(() => {
-    const map = new Map<WorkStatus, KanbanCase[]>()
+  // Group items into columns by their own work status.
+  const rowsByStatus = useMemo(() => {
+    const map = new Map<WorkStatus, WorkQueueRow[]>()
     for (const s of WORK_STATUSES) map.set(s, [])
-    for (const c of optimisticCases) {
-      map.get(c.dominant)!.push(c)
+    for (const r of optimisticRows) {
+      map.get(r.work_status)?.push(r)
     }
     return map
-  }, [optimisticCases])
+  }, [optimisticRows])
 
-  const handleDragStart = (e: React.DragEvent, invoiceId: string) => {
-    e.dataTransfer.setData('text/plain', invoiceId)
+  const handleDragStart = (e: React.DragEvent, itemId: string) => {
+    e.dataTransfer.setData('text/plain', itemId)
     e.dataTransfer.effectAllowed = 'move'
   }
 
   const handleDrop = (e: React.DragEvent, targetStatus: WorkStatus) => {
     e.preventDefault()
-    const invoiceId = e.dataTransfer.getData('text/plain')
-    if (!invoiceId) return
+    const itemId = e.dataTransfer.getData('text/plain')
+    if (!itemId) return
 
-    const kase = optimisticCases.find(c => c.invoiceId === invoiceId)
-    if (!kase || kase.dominant === targetStatus) return
+    const row = optimisticRows.find(r => r.id === itemId)
+    if (!row || row.work_status === targetStatus) return
 
     startTransition(async () => {
-      applyOptimistic({ invoiceId, dominant: targetStatus })
-      const res = await updateCaseWorkStatusAction(invoiceId, targetStatus)
+      applyOptimistic({ id: itemId, work_status: targetStatus })
+      // Dropping into a status column resets the in-progress substage; the board
+      // only models the five top-level statuses. resume_status is handled server-side.
+      const res = await updateWorkStatusAction(itemId, { work_status: targetStatus, stage_id: null })
       if (res.ok === false) {
         show({ variant: 'error', title: res.error })
       }
@@ -245,8 +206,8 @@ export function KanbanBoard({ rows }: { rows: WorkQueueRow[] }) {
     })
   }
 
-  const handleCardClick = (invoiceId: string) => {
-    router.push(`/invoices/${invoiceId}`)
+  const handleCardClick = (invoiceId: string | undefined) => {
+    if (invoiceId) router.push(`/invoices/${invoiceId}`)
   }
 
   return (
@@ -256,7 +217,7 @@ export function KanbanBoard({ rows }: { rows: WorkQueueRow[] }) {
           <KanbanColumn
             key={status}
             status={status}
-            cases={casesByStatus.get(status) ?? []}
+            rows={rowsByStatus.get(status) ?? []}
             today={today}
             onDragStart={handleDragStart}
             onDrop={handleDrop}
