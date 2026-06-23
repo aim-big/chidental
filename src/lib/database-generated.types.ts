@@ -21,11 +21,15 @@ export type Database = {
           contact_person: string | null
           created_at: string
           delivery_address: string | null
+          discount_pct: number
           email: string | null
           id: string
           notes: string | null
+          payment_terms_days: number
           phone: string | null
           ssm_no: string | null
+          tin: string | null
+          whatsapp_optin: boolean
         }
         Insert: {
           billing_address?: string | null
@@ -33,11 +37,15 @@ export type Database = {
           contact_person?: string | null
           created_at?: string
           delivery_address?: string | null
+          discount_pct?: number
           email?: string | null
           id?: string
           notes?: string | null
+          payment_terms_days?: number
           phone?: string | null
           ssm_no?: string | null
+          tin?: string | null
+          whatsapp_optin?: boolean
         }
         Update: {
           billing_address?: string | null
@@ -45,11 +53,15 @@ export type Database = {
           contact_person?: string | null
           created_at?: string
           delivery_address?: string | null
+          discount_pct?: number
           email?: string | null
           id?: string
           notes?: string | null
+          payment_terms_days?: number
           phone?: string | null
           ssm_no?: string | null
+          tin?: string | null
+          whatsapp_optin?: boolean
         }
         Relationships: []
       }
@@ -181,6 +193,8 @@ export type Database = {
           created_by: string
           customer_id: string
           delivery_address: string | null
+          discount_amount: number
+          discount_pct: number
           doctor: string | null
           due_date: string
           id: string
@@ -207,6 +221,8 @@ export type Database = {
           created_by: string
           customer_id: string
           delivery_address?: string | null
+          discount_amount?: number
+          discount_pct?: number
           doctor?: string | null
           due_date: string
           id?: string
@@ -233,6 +249,8 @@ export type Database = {
           created_by?: string
           customer_id?: string
           delivery_address?: string | null
+          discount_amount?: number
+          discount_pct?: number
           doctor?: string | null
           due_date?: string
           id?: string

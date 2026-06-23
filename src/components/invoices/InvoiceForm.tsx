@@ -82,6 +82,11 @@ export default function InvoiceForm({
       unit_price: Number(r.unit_price),
     })),
   )
+  // Per-invoice discount (Wave 4). Defaults from the selected clinic on a new
+  // invoice; loaded from the saved invoice in edit mode. Editable on the invoice.
+  const [discountPct, setDiscountPct] = useState<number>(
+    editInvoice ? Number(editInvoice.discount_pct ?? 0) : 0,
+  )
   const [billToName, setBillToName] = useState(editInvoice?.bill_to_name ?? '')
   const [billToContact, setBillToContact] = useState(editInvoice?.bill_to_contact ?? '')
   const [billToPhone, setBillToPhone] = useState(editInvoice?.bill_to_phone ?? '')
@@ -110,6 +115,13 @@ export default function InvoiceForm({
   // In edit mode we pre-seed it with the loaded invoice's customer so the saved
   // recipient values survive the initial render of the auto-fill effect.
   const recipientSyncRef = useRef<string | null>(editInvoice?.customer_id ?? null)
+
+  // True once the user manually edits the due date, so the payment-terms
+  // auto-fill never clobbers a hand-picked date. Pre-seeded true in edit mode so
+  // a saved invoice's due date is treated as already-set and is never recomputed.
+  const dueDateTouchedRef = useRef<boolean>(Boolean(editInvoice))
+  // Mirrors recipientSyncRef for the clinic-discount pre-fill (new invoices only).
+  const discountSyncRef = useRef<string | null>(editInvoice?.customer_id ?? null)
 
   const selectedCustomer = customers.find(c => c.id === customerId) ?? null
 
@@ -149,6 +161,33 @@ export default function InvoiceForm({
     setShipDifferent(deliveryDiffersFromBilling(c.delivery_address, c.billing_address))
   }, [customerId, customers])
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Auto due-date from the clinic's payment terms (Wave 4): due = invoice date +
+  // payment_terms_days. Recomputes on a (different) clinic pick or an invoice-date
+  // change, but only while the user hasn't manually overridden the due date — and
+  // never in edit mode (dueDateTouchedRef is pre-seeded true), so a manually-set
+  // saved date is preserved. Same external-sync shape as the recipient effect.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (dueDateTouchedRef.current) return
+    const c = customers.find(x => x.id === customerId) ?? null
+    if (!c || !invoiceDate) return
+    const days = Number(c.payment_terms_days ?? 30)
+    setDueDate(format(addDays(new Date(invoiceDate), days), 'yyyy-MM-dd'))
+  }, [customerId, invoiceDate, customers])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Pre-fill the invoice discount from the selected clinic's default discount_pct
+  // (Wave 4) — new invoices only. The clinic value is just a starting point; the
+  // user can override it on the invoice. The ref guard skips the initial edit-mode
+  // load so a saved discount survives.
+  useEffect(() => {
+    if (customers.length === 0 && customerId) return
+    if (discountSyncRef.current === customerId) return
+    discountSyncRef.current = customerId
+    const c = customers.find(x => x.id === customerId) ?? null
+    setDiscountPct(c ? Number(c.discount_pct ?? 0) : 0)
+  }, [customerId, customers])
 
   const recipientDirty = selectedCustomer
     ? billToName !== (selectedCustomer.clinic_name ?? '')
@@ -204,6 +243,11 @@ export default function InvoiceForm({
   const removeItem = (i: number) => setItems(prev => prev.filter((_, idx) => idx !== i))
 
   const subtotal = items.reduce((s, item) => s + item.quantity * item.unit_price, 0)
+  // Per-invoice discount (Wave 4): clamp the % to 0–100, round the amount to 2dp,
+  // and derive the total. The client stays authoritative for these money values.
+  const clampedDiscountPct = Math.min(100, Math.max(0, discountPct || 0))
+  const discountAmount = Math.round(subtotal * clampedDiscountPct) / 100
+  const total = subtotal - discountAmount
 
   const itemPriceErrors = items.map(item => {
     if (!item.product_id) return null
@@ -221,6 +265,7 @@ export default function InvoiceForm({
   // recipient, items) flips `dirty`, which arms the unsaved-changes guard.
   const snapshot = JSON.stringify({
     customerId, invoiceDate, dueDate, remarks, patient, doctor, serviceStatusId,
+    discountPct,
     billToName, billToContact, billToPhone, billingAddress,
     shipToName, shipToContact, deliveryAddress, shipDifferent, items,
   })
@@ -247,7 +292,9 @@ export default function InvoiceForm({
     ship_to_contact: shipDifferent ? (shipToContact.trim() || null) : null,
     delivery_address: shipDifferent ? (deliveryAddress.trim() || null) : null,
     subtotal,
-    total: subtotal,
+    discount_pct: clampedDiscountPct,
+    discount_amount: discountAmount,
+    total,
   })
 
   const validate = () => {
@@ -487,7 +534,11 @@ export default function InvoiceForm({
             </div>
             <div className="space-y-2">
               <Label>Due Date</Label>
-              <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+              <Input
+                type="date"
+                value={dueDate}
+                onChange={e => { dueDateTouchedRef.current = true; setDueDate(e.target.value) }}
+              />
             </div>
           </div>
 
@@ -664,9 +715,37 @@ export default function InvoiceForm({
               <ProductSearchAdd products={products} onAdd={addProduct} />
 
               <div className="flex justify-end border-t border-gray-200 pt-3">
-                <div className="flex w-56 items-baseline justify-between">
-                  <span className="text-sm text-gray-500">Total</span>
-                  <span className="text-lg font-semibold text-gray-900">{formatCurrency(subtotal)}</span>
+                <div className="w-64 space-y-1.5">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-sm text-gray-500">Subtotal</span>
+                    <span className="text-sm font-medium text-gray-900">{formatCurrency(subtotal)}</span>
+                  </div>
+                  {/* Discount % (Wave 4): pre-filled from the clinic default, editable
+                      per-invoice. The computed amount sits on the right. */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm text-gray-500">Discount</span>
+                      <Input
+                        className={cn('h-7 w-16 px-1.5 text-right text-sm', noSpin)}
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        max={100}
+                        step="0.01"
+                        value={discountPct}
+                        onChange={e => setDiscountPct(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
+                        aria-label="Discount percent"
+                      />
+                      <span className="text-sm text-gray-400">%</span>
+                    </div>
+                    <span className="text-sm font-medium text-gray-900">
+                      {discountAmount > 0 ? `(${formatCurrency(discountAmount)})` : formatCurrency(0)}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between border-t border-gray-200 pt-1.5">
+                    <span className="text-sm text-gray-500">Total</span>
+                    <span className="text-lg font-semibold text-gray-900">{formatCurrency(total)}</span>
+                  </div>
                 </div>
               </div>
             </>

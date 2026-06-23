@@ -208,9 +208,18 @@ export function InvoiceDocument({
       const unitPrice = ov ? ov.unitPrice : Number(it.unit_price)
       return { description, quantity, unitPrice, amount: quantity * unitPrice }
     }
-    const previewTotal = o
+    // Subtotal = sum of (possibly overridden) line amounts. Apply the saved
+    // invoice discount_pct to keep the printed Subtotal / Discount / Total
+    // consistent when line items are overridden in the print dialog. With no
+    // overrides we use the stored values verbatim.
+    const discountPct = Number(invoice.discount_pct ?? 0)
+    const previewSubtotal = o
       ? items.reduce((sum, it) => sum + itemResolve(it).amount, 0)
-      : Number(invoice.total)
+      : Number(invoice.subtotal ?? invoice.total)
+    const previewDiscount = o
+      ? Math.round(previewSubtotal * discountPct) / 100
+      : Number(invoice.discount_amount ?? 0)
+    const previewTotal = o ? previewSubtotal - previewDiscount : Number(invoice.total)
     return {
       field: {
         date:            o ? o.date            : invoice.invoice_date,
@@ -229,6 +238,9 @@ export function InvoiceDocument({
         ? (serviceStatuses.find(s => s.id === o.serviceStatusId) ?? null)
         : currentServiceStatus,
       itemResolve,
+      previewSubtotal,
+      previewDiscount,
+      previewDiscountPct: discountPct,
       previewTotal,
       instructions: o?.instructions ?? '',
     }
@@ -240,7 +252,7 @@ export function InvoiceDocument({
     showInlineEdit: boolean
   }) => {
     const { mode, resolved, showInlineEdit } = opts
-    const { field, serviceStatusForPrint, itemResolve, previewTotal, instructions } = resolved
+    const { field, serviceStatusForPrint, itemResolve, previewSubtotal, previewDiscount, previewDiscountPct, previewTotal, instructions } = resolved
     const isDelivery = mode === 'delivery'
     return (
       <>
@@ -301,6 +313,9 @@ export function InvoiceDocument({
               {field.billToContact && <div className="text-sm text-gray-600">{field.billToContact}</div>}
               {field.billingAddress && <div className="text-sm text-gray-500 whitespace-pre-line">{field.billingAddress}</div>}
               {field.billToPhone && <div className="text-sm text-gray-500">Tel: {field.billToPhone}</div>}
+              {/* Clinic TIN (Wave 4) — printed beside the clinic's registration
+                  identity when set on the customer master. */}
+              {invoice.customers?.tin && <div className="text-sm text-gray-500">TIN: {invoice.customers.tin}</div>}
             </div>
             {field.deliveryAddress && (
               <div>
@@ -379,9 +394,25 @@ export function InvoiceDocument({
           </tbody>
           {!isDelivery && (
             <tfoot>
+              {/* Subtotal / Discount rows print only when a discount applies; an
+                  undiscounted invoice keeps the original single Total row. */}
+              {previewDiscount > 0 && (
+                <>
+                  <tr>
+                    <td colSpan={3} className="pt-4 text-right text-gray-500">Subtotal</td>
+                    <td className="pt-4 text-right text-gray-700">{formatCurrency(previewSubtotal)}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={3} className="pt-1 text-right text-gray-500">
+                      Discount{previewDiscountPct > 0 ? ` (${previewDiscountPct}%)` : ''}
+                    </td>
+                    <td className="pt-1 text-right text-gray-700">({formatCurrency(previewDiscount)})</td>
+                  </tr>
+                </>
+              )}
               <tr>
-                <td colSpan={3} className="pt-4 text-right font-semibold text-gray-700">Total</td>
-                <td className="pt-4 text-right text-lg font-bold text-gray-900">{formatCurrency(previewTotal)}</td>
+                <td colSpan={3} className={cn('text-right font-semibold text-gray-700', previewDiscount > 0 ? 'pt-1' : 'pt-4')}>Total</td>
+                <td className={cn('text-right text-lg font-bold text-gray-900', previewDiscount > 0 ? 'pt-1' : 'pt-4')}>{formatCurrency(previewTotal)}</td>
               </tr>
               {totalPaid > 0 && (
                 <>

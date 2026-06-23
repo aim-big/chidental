@@ -82,6 +82,10 @@ export type InvoicePayload = {
   ship_to_contact: string | null
   delivery_address: string | null
   subtotal: number
+  // Per-invoice discount (Wave 4). The create/update RPCs read these from the
+  // p_invoice blob; the client stays authoritative for subtotal/total.
+  discount_pct: number
+  discount_amount: number
   total: number
 }
 

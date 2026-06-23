@@ -2,17 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+import Link from 'next/link'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { ArrowLeft } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/components/feedback/toast'
-import { customerInputSchema, type CustomerInput } from '@/domain/schemas'
+import { customerInputSchema, type CustomerInput, type CustomerFormInput } from '@/domain/schemas'
 import { createCustomerAction, updateCustomerAction } from '@/data/customer-actions'
 import type { Customer } from '@/lib/database.types'
 
@@ -28,7 +30,7 @@ export default function CustomerForm({ initialData }: { initialData?: Customer }
   const isEdit = Boolean(initialData)
   const [saving, setSaving] = useState(false)
 
-  const { register, handleSubmit, formState: { errors } } = useForm<CustomerInput>({
+  const { register, control, handleSubmit, formState: { errors } } = useForm<CustomerFormInput>({
     resolver: zodResolver(customerInputSchema),
     defaultValues: {
       clinic_name: initialData?.clinic_name ?? '',
@@ -39,6 +41,11 @@ export default function CustomerForm({ initialData }: { initialData?: Customer }
       billing_address: initialData?.billing_address ?? '',
       delivery_address: initialData?.delivery_address ?? '',
       notes: initialData?.notes ?? '',
+      // Wave 4 clinic economics — fall back to the DB defaults for new clinics.
+      payment_terms_days: initialData?.payment_terms_days ?? 30,
+      discount_pct: initialData?.discount_pct ?? 0,
+      tin: initialData?.tin ?? '',
+      whatsapp_optin: initialData?.whatsapp_optin ?? false,
     },
   })
 
@@ -49,13 +56,16 @@ export default function CustomerForm({ initialData }: { initialData?: Customer }
     if (!loading && !canEdit) router.replace('/customers')
   }, [loading, canEdit, router])
 
-  const onSubmit = async (data: CustomerInput) => {
+  const onSubmit = async (data: CustomerFormInput) => {
     if (!canEdit) return
     setSaving(true)
 
+    // The zod resolver has already applied the `.default()` values, so the parsed
+    // payload satisfies CustomerInput (the action re-validates with safeParse too).
+    const parsed = data as CustomerInput
     const result = isEdit
-      ? await updateCustomerAction(initialData!.id, data)
-      : await createCustomerAction(data)
+      ? await updateCustomerAction(initialData!.id, parsed)
+      : await createCustomerAction(parsed)
 
     if (result.ok === false) {
       show({ variant: 'error', title: result.error })
@@ -67,85 +77,138 @@ export default function CustomerForm({ initialData }: { initialData?: Customer }
   }
 
   return (
-    <div className="max-w-xl space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{isEdit ? 'Edit Clinic' : 'New Clinic'}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Dental clinic or dentist details</p>
+    <form onSubmit={handleSubmit(onSubmit)} className="mx-auto max-w-2xl pb-12">
+      {/* Sticky header: labeled back link + primary actions always in reach. */}
+      <div className="sticky top-0 z-10 border-b border-border bg-background py-4">
+        <Link
+          href="/customers"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Clinics
+        </Link>
+        <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">{isEdit ? 'Edit Clinic' : 'New Clinic'}</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">Dental clinic or dentist details</p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button>
+            <Button type="submit" disabled={saving || !canEdit}>
+              {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Clinic'}
+            </Button>
+          </div>
         </div>
       </div>
 
-      <Card>
-        <CardHeader><CardTitle className="text-base">Clinic Information</CardTitle></CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="clinic_name">Clinic / Business Name *</Label>
-                <Input id="clinic_name" placeholder="e.g. Klinik Gigi Sehat" {...register('clinic_name')} />
-                {errors.clinic_name && <p className="text-xs text-destructive">{errors.clinic_name.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="ssm_no">SSM No.</Label>
-                <Input id="ssm_no" placeholder="e.g. 202301012345" {...register('ssm_no')} />
-              </div>
-            </div>
+      <div className="space-y-5 pt-6">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="clinic_name">Clinic / Business Name *</Label>
+            <Input id="clinic_name" placeholder="e.g. Klinik Gigi Sehat" {...register('clinic_name')} />
+            {errors.clinic_name && <p className="text-xs text-destructive">{errors.clinic_name.message}</p>}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ssm_no">SSM No.</Label>
+            <Input id="ssm_no" placeholder="e.g. 202301012345" {...register('ssm_no')} />
+          </div>
+        </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="contact_person">Contact Person (Dr. Name)</Label>
-              <Input id="contact_person" placeholder="e.g. Dr. Ahmad bin Ali" {...register('contact_person')} />
-            </div>
+        <div className="space-y-2">
+          <Label htmlFor="contact_person">Contact Person (Dr. Name)</Label>
+          <Input id="contact_person" placeholder="e.g. Dr. Ahmad bin Ali" {...register('contact_person')} />
+        </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
-                <Input id="phone" placeholder="e.g. 012-3456789" {...register('phone')} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="clinic@example.com" {...register('email')} />
-                {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
-              </div>
-            </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="phone">Phone</Label>
+            <Controller
+              name="phone"
+              control={control}
+              render={({ field }) => (
+                <PhoneInput id="phone" value={field.value ?? ''} onChange={field.onChange} />
+              )}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input id="email" type="email" placeholder="clinic@example.com" {...register('email')} />
+            {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+          </div>
+        </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="billing_address">Billing Address</Label>
-                <Textarea
-                  id="billing_address"
-                  placeholder="Address for invoice billing…"
-                  rows={4}
-                  {...register('billing_address')}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="delivery_address">Delivery Address</Label>
-                <Textarea
-                  id="delivery_address"
-                  placeholder="Address for lab work delivery…"
-                  rows={4}
-                  {...register('delivery_address')}
-                />
-              </div>
-            </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="billing_address">Billing Address</Label>
+            <Textarea
+              id="billing_address"
+              placeholder="Address for invoice billing…"
+              rows={4}
+              {...register('billing_address')}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="delivery_address">Delivery Address</Label>
+            <Textarea
+              id="delivery_address"
+              placeholder="Address for lab work delivery…"
+              rows={4}
+              {...register('delivery_address')}
+            />
+          </div>
+        </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea id="notes" placeholder="Any additional notes…" rows={2} {...register('notes')} />
-            </div>
+        {/* Billing terms — Wave 4 clinic economics. Defaults apply to every new
+            invoice for this clinic (terms → due date, discount % → invoice). */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="payment_terms_days">Payment Terms (days)</Label>
+            <Input
+              id="payment_terms_days"
+              type="number"
+              min={0}
+              step={1}
+              placeholder="30"
+              {...register('payment_terms_days', { valueAsNumber: true })}
+            />
+            {errors.payment_terms_days && <p className="text-xs text-destructive">{errors.payment_terms_days.message}</p>}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="discount_pct">Default Discount (%)</Label>
+            <Input
+              id="discount_pct"
+              type="number"
+              min={0}
+              max={100}
+              step="0.01"
+              placeholder="0"
+              {...register('discount_pct', { valueAsNumber: true })}
+            />
+            {errors.discount_pct && <p className="text-xs text-destructive">{errors.discount_pct.message}</p>}
+          </div>
+        </div>
 
-            <div className="flex gap-3 pt-2">
-              <Button type="submit" disabled={saving || !canEdit}>
-                {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Clinic'}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+        <div className="space-y-2">
+          <Label htmlFor="tin">TIN (Tax ID)</Label>
+          <Input id="tin" placeholder="e.g. C12345678901" {...register('tin')} />
+        </div>
+
+        <Controller
+          name="whatsapp_optin"
+          control={control}
+          render={({ field }) => (
+            <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
+              <Checkbox checked={field.value} onCheckedChange={v => field.onChange(v === true)} />
+              WhatsApp opt-in (clinic agrees to receive WhatsApp messages)
+            </label>
+          )}
+        />
+
+        <div className="space-y-2">
+          <Label htmlFor="notes">Notes</Label>
+          <Textarea id="notes" placeholder="Any additional notes…" rows={3} {...register('notes')} />
+        </div>
+      </div>
+    </form>
   )
 }

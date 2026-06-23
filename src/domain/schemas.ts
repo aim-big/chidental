@@ -37,6 +37,13 @@ export const customerInputSchema = z.object({
   billing_address: z.string().optional(),
   delivery_address: z.string().optional(),
   notes: z.string().optional(),
+  // Wave 4 clinic economics. Bounds mirror the DB CHECK constraints
+  // (payment_terms_days >= 0; discount_pct 0–100). `tin` is the clinic's tax
+  // identification number, printed on the invoice when present.
+  payment_terms_days: z.number().int().min(0, 'Must be 0 or more').default(30),
+  discount_pct: z.number().min(0, 'Must be 0 or more').max(100, 'Must be 100 or less').default(0),
+  tin: z.string().optional(),
+  whatsapp_optin: z.boolean().default(false),
 })
 export const productInputSchema = z
   .object({
@@ -58,4 +65,8 @@ export const productInputSchema = z
 export type InvoiceInput = z.infer<typeof invoiceInputSchema>
 export type PaymentInput = z.infer<typeof paymentInputSchema>
 export type CustomerInput = z.infer<typeof customerInputSchema>
+// Form-side value type: the schema's INPUT shape, where `.default()` fields
+// (payment_terms_days / discount_pct / whatsapp_optin) are optional. react-hook-form
+// binds these; the resolver fills the defaults so the action receives CustomerInput.
+export type CustomerFormInput = z.input<typeof customerInputSchema>
 export type ProductInput = z.infer<typeof productInputSchema>
