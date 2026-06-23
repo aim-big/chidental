@@ -92,7 +92,7 @@ type OptimisticMove = {
   stage_id: string | null
 }
 
-export function WorkQueueClient({ rows, stages }: { rows: WorkQueueRow[]; stages: WorkStage[] }) {
+export function WorkQueueClient({ rows, stages, hideHeader }: { rows: WorkQueueRow[]; stages: WorkStage[]; hideHeader?: boolean }) {
   const router = useRouter()
   const { show } = useToast()
   const [, startTransition] = useTransition()
@@ -239,12 +239,14 @@ export function WorkQueueClient({ rows, stages }: { rows: WorkQueueRow[]; stages
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Work Queue</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          {activeCount} active item{activeCount === 1 ? '' : 's'} across all invoices
-        </p>
-      </div>
+      {!hideHeader && (
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Work Queue</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {activeCount} active item{activeCount === 1 ? '' : 's'} across all invoices
+          </p>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         {chips.map(c => {
