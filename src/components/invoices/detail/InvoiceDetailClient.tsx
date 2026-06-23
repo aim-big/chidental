@@ -6,7 +6,7 @@
 // to hoist the print dialog's state. `canEdit` (for the recipient pencil) is
 // derived here from the client auth context.
 
-import { useRef } from 'react'
+import { useRef, type ReactNode } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { canEditInvoice } from '@/lib/invoice-permissions'
 import { isVoided } from '@/lib/invoice-status'
@@ -27,6 +27,8 @@ export type InvoiceDetailClientProps = {
   totalPaid: number
   outstanding: number
   unrecorded: number
+  /** Editors + status strip, rendered between the actions bar and the printable document. */
+  children?: ReactNode
 }
 
 export function InvoiceDetailClient({
@@ -39,6 +41,7 @@ export function InvoiceDetailClient({
   totalPaid,
   outstanding,
   unrecorded,
+  children,
 }: InvoiceDetailClientProps) {
   const { hasPermission } = useAuth()
   const printOpenRef = useRef<(mode: PrintMode) => void>(() => {})
@@ -54,6 +57,7 @@ export function InvoiceDetailClient({
         unrecorded={unrecorded}
         onPrint={mode => printOpenRef.current(mode)}
       />
+      {children}
       <InvoiceDocument
         invoice={invoice}
         items={items}
