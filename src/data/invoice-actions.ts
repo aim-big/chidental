@@ -22,13 +22,9 @@
 //     is draft→edit / sent→manage — see src/lib/invoice-permissions.ts. We load
 //     the current status server-side to choose.)
 // - recordPaymentAction       → invoices.manage
-//     Record Payment button shows only for sent/partial/overdue/paid invoices
-//     ([id]/page.tsx line ~672) — i.e. already-sent records, which canEditInvoice
-//     maps to invoices.manage (docs/modules/permissions.md: manage = "already-sent
-//     billing records").
-// - markInvoicePaidAction     → invoices.manage
-//     Mark Paid shows only for sent/partial/overdue ([id]/page.tsx line ~678) —
-//     same already-sent tier → invoices.manage.
+//     Record Payment button shows only for sent/partial/overdue invoices —
+//     already-sent records, which canEditInvoice maps to invoices.manage
+//     (docs/modules/permissions.md: manage = "already-sent billing records").
 // - markSentAction            → invoices.edit
 //     Mark as Sent shows only for draft invoices ([id]/page.tsx line ~667).
 //     Acting on a draft → invoices.edit (canEditInvoice draft branch).
@@ -86,12 +82,20 @@ export type InvoicePayload = {
   ship_to_contact: string | null
   delivery_address: string | null
   subtotal: number
+  // Per-invoice discount (Wave 4). The create/update RPCs read these from the
+  // p_invoice blob; the client stays authoritative for subtotal/total.
+  discount_pct: number
+  discount_amount: number
+  // Per-invoice SST tax (Wave 5). Same contract as discount: the RPCs read these
+  // from the p_invoice blob; the client stays authoritative for the math.
+  tax_rate: number
+  tax_amount: number
   total: number
 }
 
 // Line item the create/update RPC diffs. `id` is null for new rows.
-// `work_note` is the per-line internal remark (lab notes); the RPCs persist it
-// onto invoice_items.work_note. Optional/nullable — empty becomes NULL.
+// Per-line remarks were removed — a single invoice-level remark (invoices.notes,
+// surfaced in the UI as "Remarks") now covers internal notes for the whole invoice.
 export type InvoiceItemPayload = {
   id?: string | null
   product_id: string | null
@@ -99,7 +103,6 @@ export type InvoiceItemPayload = {
   quantity: number
   unit_price: number
   amount: number
-  work_note?: string | null
 }
 
 // Revalidate both the list and the specific invoice's detail page.
@@ -183,21 +186,6 @@ export async function recordPaymentAction(
   return { ok: true }
 }
 
-export async function markInvoicePaidAction(id: string, reference?: string): Promise<ActionResult> {
-  const gate = await requirePermission('invoices.manage')
-  if (!gate.ok) return gate
-
-  const admin = createAdminClient()
-  const { error } = await admin.rpc('mark_invoice_paid', {
-    p_invoice_id: id,
-    p_created_by: gate.userId,
-    p_reference: reference,
-  })
-  if (error) return { ok: false, error: error.message }
-  revalidateInvoice(id)
-  return { ok: true }
-}
-
 export async function markSentAction(id: string): Promise<ActionResult> {
   // Route through the content-edit gate so a voided draft can't be marked sent
   // (it also yields invoices.edit for a draft, matching the original UI gating).
@@ -255,6 +243,86 @@ export async function updateWorkStatusAction(
     .single()
   if (error) return { ok: false, error: error.message }
   if (data?.invoice_id) revalidateInvoice(data.invoice_id)
+  return { ok: true }
+}
+
+// Save the per-item internal work note. Mirrors updateWorkStatusAction: same
+// invoices.view gate (the note lives beside the status dropdown, which renders for
+// any non-void invoice) and the same SSR (session) client so RLS's authenticated_all
+// policy permits the write. The note is internal-only — it is NOT printed on the
+// customer-facing invoice (it'll print on the Wave 3 bench work ticket later).
+export async function updateWorkNoteAction(
+  itemId: string,
+  workNote: string | null,
+): Promise<ActionResult> {
+  const gate = await requirePermission('invoices.view')
+  if (!gate.ok) return gate
+
+  const supabase = await createClient()
+
+  // Normalize empty/whitespace-only input back to NULL so "cleared" reads as unset.
+  const trimmed = workNote?.trim()
+  const value = trimmed ? trimmed : null
+
+  const { data, error } = await supabase
+    .from('invoice_items')
+    .update({ work_note: value })
+    .eq('id', itemId)
+    .select('invoice_id')
+    .single()
+  if (error) return { ok: false, error: error.message }
+  if (data?.invoice_id) revalidateInvoice(data.invoice_id)
+  return { ok: true }
+}
+
+// Advance ALL items of an invoice to a single work status (Kanban drag-to-column).
+// Mirrors updateWorkStatusAction's permission gate, on_hold round-trip logic, and
+// revalidation. The DB trigger handles history logging + work_status_updated_at
+// stamps for each row just as it does for single-item updates.
+export async function updateCaseWorkStatusAction(
+  invoiceId: string,
+  workStatus: WorkStatus,
+): Promise<ActionResult> {
+  const gate = await requirePermission('invoices.view')
+  if (!gate.ok) return gate
+
+  // Use the SSR (session) client so the DB trigger records the acting user in history.
+  const supabase = await createClient()
+
+  // Fetch all items for this invoice to compute per-item resume_status.
+  const { data: items, error: readErr } = await supabase
+    .from('invoice_items')
+    .select('id, work_status, resume_status')
+    .eq('invoice_id', invoiceId)
+  if (readErr || !items) return { ok: false, error: readErr?.message ?? 'Invoice items not found' }
+  if (items.length === 0) return { ok: false, error: 'No items found for this invoice' }
+
+  // For each item, compute resume_status with the same on_hold round-trip logic as
+  // updateWorkStatusAction: entering on_hold remembers the previous status; leaving
+  // on_hold clears it; re-selecting on_hold while already on_hold preserves memory.
+  const updates = items.map(item => {
+    const resume_status: WorkStatus | null =
+      workStatus === 'on_hold'
+        ? item.work_status === 'on_hold'
+          ? (item.resume_status as WorkStatus | null)
+          : hold(item.work_status as WorkStatus).resumeFrom
+        : null
+    return { id: item.id, resume_status }
+  })
+
+  // Update all items sequentially — each triggers the DB history trigger.
+  // We use individual updates (not a single .in()) because resume_status differs
+  // per item. The number of items per invoice is small (typically < 20).
+  for (const { id, resume_status } of updates) {
+    const { error } = await supabase
+      .from('invoice_items')
+      .update({ work_status: workStatus, stage_id: null, resume_status })
+      .eq('id', id)
+    if (error) return { ok: false, error: error.message }
+  }
+
+  revalidateInvoice(invoiceId)
+  revalidatePath('/work')
   return { ok: true }
 }
 

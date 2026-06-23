@@ -19,6 +19,10 @@ import type {
   WorkStage,
   WorkStatus,
 } from '@/lib/database.types'
+import { dominantWorkStatus } from '@/lib/work-status'
+import { isVoided, isOverdue } from '@/lib/invoice-status'
+import { todayISODate } from '@/lib/utils'
+import { paginate } from '@/lib/pagination'
 
 // --- Return types ----------------------------------------------------------
 
@@ -72,6 +76,159 @@ export async function getInvoices(): Promise<InvoiceListRow[]> {
     .select('*, customers(clinic_name), invoice_items(work_status), service_statuses(*)')
     .order('created_at', { ascending: false })
   return (data ?? []) as InvoiceListRow[]
+}
+
+// --- Paginated list (URL-driven) -------------------------------------------
+
+export type InvoiceView = 'all' | 'drafts' | 'unpaid' | 'overdue' | 'in_production' | 'ready' | 'voided'
+
+export interface InvoiceListParams {
+  q?: string
+  view?: InvoiceView
+  page?: number
+  pageSize?: number
+  sort?: string | null
+  dir?: 'asc' | 'desc'
+}
+
+export interface InvoiceListPage {
+  rows: InvoiceListRow[]
+  /** Total rows matching the query+view (across all pages). */
+  total: number
+  page: number
+  totalPages: number
+  pageStart: number
+  pageEnd: number
+}
+
+// Columns we let the URL sort by, mapped to row accessors. Sorting runs in JS:
+// the dataset is tiny and several views already need a JS pass (derived rollup),
+// so a single in-memory sort keeps the code uniform and correct.
+const INVOICE_SORTERS: Record<string, (r: InvoiceListRow) => string | number> = {
+  number: r => r.invoice_number.toLowerCase(),
+  customer: r => (r.customers?.clinic_name ?? '').toLowerCase(),
+  patient: r => (r.patient ?? '').toLowerCase(),
+  date: r => r.invoice_date ?? '',
+  amount: r => Number(r.total),
+}
+
+// Plain-status / voided views push cheaply into SQL; the derived views
+// (overdue / in_production / ready) depend on the item rollup + today, so they
+// run as a JS predicate over the fetched, cheap-filtered rows.
+function matchesDerivedView(inv: InvoiceListRow, view: InvoiceView, today: string): boolean {
+  switch (view) {
+    case 'overdue':
+      return isOverdue(inv, today)
+    case 'in_production': {
+      const d = dominantWorkStatus((inv.invoice_items ?? []).map(it => it.work_status))
+      return !isVoided(inv) && d != null && d !== 'ready' && d !== 'delivered'
+    }
+    case 'ready':
+      return dominantWorkStatus((inv.invoice_items ?? []).map(it => it.work_status)) === 'ready'
+    default:
+      return true
+  }
+}
+
+/**
+ * URL-driven invoices list: server-side search + view filter + sort, paginated.
+ * Cheap filters (search, plain status, voided) go into the query; the derived
+ * views and the sort run in JS over the fetched rows (tiny dataset, and several
+ * predicates can't be expressed in one SQL query against the item rollup).
+ */
+export async function getInvoicesPage(params: InvoiceListParams = {}): Promise<InvoiceListPage> {
+  const { q = '', view = 'all', page = 1, pageSize = 15, sort = null, dir = 'asc' } = params
+  const supabase = await createClient()
+  const today = todayISODate()
+
+  let query = supabase
+    .from('invoices')
+    .select('*, customers(clinic_name), invoice_items(work_status), service_statuses(*)')
+    .order('created_at', { ascending: false })
+
+  // Cheap status/voided filters → SQL.
+  if (view === 'voided') {
+    query = query.not('voided_at', 'is', null)
+  } else {
+    query = query.is('voided_at', null)
+    if (view === 'drafts') query = query.eq('status', 'draft')
+    else if (view === 'unpaid') query = query.in('status', ['sent', 'partial', 'overdue'])
+  }
+
+  // Search across invoice number / clinic name / patient. clinic_name lives on
+  // the embedded relation, so an `.or()` over the base table can't reach it;
+  // match invoice_number + patient in SQL and let the JS pass cover clinic name.
+  const term = q.trim()
+  if (term) {
+    const safe = term.replace(/[%,]/g, ' ')
+    query = query.or(`invoice_number.ilike.%${safe}%,patient.ilike.%${safe}%`)
+  }
+
+  const { data } = await query
+  let rows = (data ?? []) as InvoiceListRow[]
+
+  // Clinic-name search (relation column) — JS pass over the SQL results. We only
+  // *widen* the SQL match (which already covered number + patient) so rows that
+  // matched in SQL are kept regardless.
+  if (term) {
+    const lc = term.toLowerCase()
+    rows = rows.filter(
+      inv =>
+        inv.invoice_number.toLowerCase().includes(lc) ||
+        (inv.patient ?? '').toLowerCase().includes(lc) ||
+        (inv.customers?.clinic_name ?? '').toLowerCase().includes(lc),
+    )
+  }
+
+  // Derived views → JS predicate.
+  if (view === 'overdue' || view === 'in_production' || view === 'ready') {
+    rows = rows.filter(inv => matchesDerivedView(inv, view, today))
+  }
+
+  // Sort → JS (default ordering is the SQL created_at desc above).
+  const sorter = sort ? INVOICE_SORTERS[sort] : undefined
+  if (sorter) {
+    rows = [...rows].sort((a, b) => {
+      const av = sorter(a)
+      const bv = sorter(b)
+      const cmp = av < bv ? -1 : av > bv ? 1 : 0
+      return dir === 'desc' ? -cmp : cmp
+    })
+  }
+
+  const total = rows.length
+  const sliced = paginate(rows, page, pageSize)
+  return {
+    rows: sliced.pageItems,
+    total,
+    page: sliced.page,
+    totalPages: sliced.totalPages,
+    pageStart: sliced.pageStart,
+    pageEnd: sliced.pageEnd,
+  }
+}
+
+/**
+ * Per-view counts for the saved-view tabs. Mirrors `getInvoicesPage`'s filter
+ * logic over the full set so each tab shows its total (independent of the
+ * currently-selected view). Cheap at this scale: one read, counted in JS.
+ */
+export async function getInvoiceViewCounts(): Promise<Record<InvoiceView, number>> {
+  const supabase = await createClient()
+  const today = todayISODate()
+  const { data } = await supabase
+    .from('invoices')
+    .select('*, customers(clinic_name), invoice_items(work_status), service_statuses(*)')
+  const all = (data ?? []) as InvoiceListRow[]
+  return {
+    all: all.length,
+    drafts: all.filter(i => !isVoided(i) && i.status === 'draft').length,
+    unpaid: all.filter(i => !isVoided(i) && ['sent', 'partial', 'overdue'].includes(i.status)).length,
+    overdue: all.filter(i => isOverdue(i, today)).length,
+    in_production: all.filter(i => matchesDerivedView(i, 'in_production', today)).length,
+    ready: all.filter(i => matchesDerivedView(i, 'ready', today)).length,
+    voided: all.filter(i => isVoided(i)).length,
+  }
 }
 
 // Detail bundle — mirrors the 6 parallel reads in `[id]/page.tsx`'s `load()`,

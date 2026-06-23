@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      credits: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string
+          credit_date: string
+          customer_id: string
+          id: string
+          invoice_id: string | null
+          notes: string | null
+          reason: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by: string
+          credit_date?: string
+          customer_id: string
+          id?: string
+          invoice_id?: string | null
+          notes?: string | null
+          reason: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string
+          credit_date?: string
+          customer_id?: string
+          id?: string
+          invoice_id?: string | null
+          notes?: string | null
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credits_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credits_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           billing_address: string | null
@@ -21,11 +72,15 @@ export type Database = {
           contact_person: string | null
           created_at: string
           delivery_address: string | null
+          discount_pct: number
           email: string | null
           id: string
           notes: string | null
+          payment_terms_days: number
           phone: string | null
           ssm_no: string | null
+          tin: string | null
+          whatsapp_optin: boolean
         }
         Insert: {
           billing_address?: string | null
@@ -33,11 +88,15 @@ export type Database = {
           contact_person?: string | null
           created_at?: string
           delivery_address?: string | null
+          discount_pct?: number
           email?: string | null
           id?: string
           notes?: string | null
+          payment_terms_days?: number
           phone?: string | null
           ssm_no?: string | null
+          tin?: string | null
+          whatsapp_optin?: boolean
         }
         Update: {
           billing_address?: string | null
@@ -45,11 +104,15 @@ export type Database = {
           contact_person?: string | null
           created_at?: string
           delivery_address?: string | null
+          discount_pct?: number
           email?: string | null
           id?: string
           notes?: string | null
+          payment_terms_days?: number
           phone?: string | null
           ssm_no?: string | null
+          tin?: string | null
+          whatsapp_optin?: boolean
         }
         Relationships: []
       }
@@ -181,6 +244,8 @@ export type Database = {
           created_by: string
           customer_id: string
           delivery_address: string | null
+          discount_amount: number
+          discount_pct: number
           doctor: string | null
           due_date: string
           id: string
@@ -193,6 +258,8 @@ export type Database = {
           ship_to_name: string | null
           status: string
           subtotal: number
+          tax_amount: number
+          tax_rate: number
           total: number
           void_reason: string | null
           voided_at: string | null
@@ -207,6 +274,8 @@ export type Database = {
           created_by: string
           customer_id: string
           delivery_address?: string | null
+          discount_amount?: number
+          discount_pct?: number
           doctor?: string | null
           due_date: string
           id?: string
@@ -219,6 +288,8 @@ export type Database = {
           ship_to_name?: string | null
           status?: string
           subtotal?: number
+          tax_amount?: number
+          tax_rate?: number
           total?: number
           void_reason?: string | null
           voided_at?: string | null
@@ -233,6 +304,8 @@ export type Database = {
           created_by?: string
           customer_id?: string
           delivery_address?: string | null
+          discount_amount?: number
+          discount_pct?: number
           doctor?: string | null
           due_date?: string
           id?: string
@@ -245,6 +318,8 @@ export type Database = {
           ship_to_name?: string | null
           status?: string
           subtotal?: number
+          tax_amount?: number
+          tax_rate?: number
           total?: number
           void_reason?: string | null
           voided_at?: string | null

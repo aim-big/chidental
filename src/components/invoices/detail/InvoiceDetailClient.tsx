@@ -6,16 +6,16 @@
 // to hoist the print dialog's state. `canEdit` (for the recipient pencil) is
 // derived here from the client auth context.
 
-import { useRef } from 'react'
+import { useRef, type ReactNode } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { canEditInvoice } from '@/lib/invoice-permissions'
 import { isVoided } from '@/lib/invoice-status'
 import { ActionsBar } from './ActionsBar'
 import { InvoiceDocument } from './InvoiceDocument'
-import type { InvoiceItem, Product, ServiceStatus } from '@/lib/database.types'
+import type { InvoiceItem, Product, ServiceStatus, WorkStage, WorkStatus } from '@/lib/database.types'
 import type { InvoiceDetail } from '@/data/invoices'
 
-type PrintMode = 'invoice' | 'delivery'
+type PrintMode = 'invoice' | 'delivery' | 'work_ticket'
 
 export type InvoiceDetailClientProps = {
   invoice: InvoiceDetail
@@ -23,10 +23,15 @@ export type InvoiceDetailClientProps = {
   products: Product[]
   serviceStatuses: ServiceStatus[]
   currentServiceStatus: ServiceStatus | null
+  /** Work stages — used to label per-item production status on the bench work ticket. */
+  stages: WorkStage[]
   customerName: string | null
   totalPaid: number
-  outstanding: number
   unrecorded: number
+  /** Rolled-up (dominant) work status, for the Advance-work-status action. */
+  dominantWork: WorkStatus | null
+  /** Editors + status strip, rendered between the actions bar and the printable document. */
+  children?: ReactNode
 }
 
 export function InvoiceDetailClient({
@@ -35,10 +40,12 @@ export function InvoiceDetailClient({
   products,
   serviceStatuses,
   currentServiceStatus,
+  stages,
   customerName,
   totalPaid,
-  outstanding,
   unrecorded,
+  dominantWork,
+  children,
 }: InvoiceDetailClientProps) {
   const { hasPermission } = useAuth()
   const printOpenRef = useRef<(mode: PrintMode) => void>(() => {})
@@ -50,16 +57,18 @@ export function InvoiceDetailClient({
       <ActionsBar
         invoice={invoice}
         customerName={customerName}
-        outstanding={outstanding}
         unrecorded={unrecorded}
+        dominantWork={dominantWork}
         onPrint={mode => printOpenRef.current(mode)}
       />
+      {children}
       <InvoiceDocument
         invoice={invoice}
         items={items}
         products={products}
         serviceStatuses={serviceStatuses}
         currentServiceStatus={currentServiceStatus}
+        stages={stages}
         totalPaid={totalPaid}
         canEdit={canEdit}
         onPrintReady={open => { printOpenRef.current = open }}

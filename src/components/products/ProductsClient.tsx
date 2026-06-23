@@ -11,35 +11,38 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { DataTable } from '@/components/ui/data-table'
+import type { Column } from '@/lib/data-table'
+import { EmptyState } from '@/components/ui/empty-state'
+import { listViewState } from '@/lib/list-view-state'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
-import { usePaginatedList } from '@/lib/use-paginated-list'
 import { ListToolbar } from '@/components/ui/list-toolbar'
 import { Pagination } from '@/components/ui/pagination'
+import { FilterChips, type FilterChip } from '@/components/ui/filter-chips'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { buildUnitOptions } from '@/lib/units'
 import { formatCurrency } from '@/lib/utils'
-import { Plus, Pencil, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Plus, Pencil, ToggleLeft, ToggleRight, Package } from 'lucide-react'
 import type { Product, Unit } from '@/lib/database.types'
+import type { ProductListPage, ProductView } from '@/data/products'
+import { useListUrlState, type ListUrlState } from '@/lib/use-list-url-state'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/components/feedback/toast'
 import type { ProductInput } from '@/domain/schemas'
 import { createProductAction, updateProductAction, toggleProductActiveAction } from '@/data/product-actions'
 
-// Stable identity (module-level) so the hook's memoized filter is stable.
-function productMatchesQuery(p: Product, query: string): boolean {
-  const q = query.toLowerCase()
-  return (
-    p.name.toLowerCase().includes(q) ||
-    (p.description?.toLowerCase().includes(q) ?? false) ||
-    p.unit.toLowerCase().includes(q)
-  )
+const VIEW_LABELS: Record<ProductView, string> = {
+  active: 'Active only',
+  inactive: 'Inactive only',
+  all: 'All',
 }
 
-// Client island for the products catalogue. The Server Component
-// (`products/page.tsx`) fetches the rows via `getProducts` and passes them in;
-// this component owns the create/edit dialog and the price-range toggle, and
-// writes through the permission-gated Server Actions (which revalidate the list).
+// Client island for the products catalogue. URL-DRIVEN: the Server Component
+// (`products/page.tsx`) reads `searchParams`, fetches the page via
+// `getProductsPage` (server-side active filter + search + sort + pagination),
+// and passes it in; this component owns the create/edit dialog and the
+// price-range toggle, and writes through the permission-gated Server Actions
+// (which revalidate the list).
 //
 // The form schema (with the `use_price_range` UI toggle + numeric coercion) is
 // client-only; the action re-validates a clean payload with `productInputSchema`.
@@ -79,7 +82,15 @@ const schema = z
   })
 type FormData = z.infer<typeof schema>
 
-export function ProductsClient({ products, units }: { products: Product[]; units: Unit[] }) {
+export function ProductsClient({
+  page,
+  units,
+  state,
+}: {
+  page: ProductListPage
+  units: Unit[]
+  state: ListUrlState
+}) {
   const { hasPermission } = useAuth()
   const { show } = useToast()
   const canEdit = hasPermission('products.edit')
@@ -89,6 +100,10 @@ export function ProductsClient({ products, units }: { products: Product[]; units
   const [editing, setEditing] = useState<Product | null>(null)
   const [saving, setSaving] = useState(false)
 
+  const activeFilter = (['active', 'inactive', 'all'].includes(state.view) ? state.view : 'active') as ProductView
+  const { search, setSearch, setView, setPage, toggleSort, sort, clearSearch, clearView } =
+    useListUrlState(state, 'active')
+
   const { register, handleSubmit, reset, control, formState: { errors } } = useForm<FormData>({
     // zod's `coerce.number()` types the resolver input as `unknown`; cast to the
     // form's value type so RHF's Resolver generics line up.
@@ -96,18 +111,6 @@ export function ProductsClient({ products, units }: { products: Product[]; units
     defaultValues: { unit: defaultUnit, unit_price: 0, use_price_range: false },
   })
   const usePriceRange = useWatch({ control, name: 'use_price_range' })
-
-  const {
-    query,
-    setQuery,
-    page,
-    setPage,
-    pageItems,
-    filteredCount,
-    totalPages,
-    pageStart,
-    pageEnd,
-  } = usePaginatedList(products, { searchFn: productMatchesQuery, pageSize: 10 })
 
   const openNew = () => {
     setEditing(null)
@@ -174,99 +177,131 @@ export function ProductsClient({ products, units }: { products: Product[]; units
     show({ variant: 'success', title: p.active ? 'Product deactivated' : 'Product activated' })
   }
 
+  const columns: Column<Product>[] = [
+    { key: 'name', header: 'Name', sortKey: 'name', cell: p => <span className="font-medium">{p.name}</span> },
+    { key: 'description', header: 'Description', cell: p => <span className="text-sm text-muted-foreground">{p.description ?? '—'}</span> },
+    { key: 'unit', header: 'Unit', sortKey: 'unit', cell: p => <span className="text-sm text-muted-foreground">per {p.unit}</span> },
+    {
+      key: 'price',
+      header: 'Price',
+      align: 'right',
+      sortKey: 'price',
+      cell: p => (
+        <span className="font-medium tabular-nums">
+          {p.min_unit_price != null && p.max_unit_price != null
+            ? `${formatCurrency(p.min_unit_price)} – ${formatCurrency(p.max_unit_price)}`
+            : formatCurrency(p.unit_price)}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: p => <Badge variant={p.active ? 'success' : 'secondary'}>{p.active ? 'Active' : 'Inactive'}</Badge>,
+    },
+    {
+      key: 'actions',
+      header: '',
+      align: 'right',
+      width: 'w-24',
+      cell: p =>
+        canEdit ? (
+          <div className="flex justify-end gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Edit product" onClick={() => openEdit(p)}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Edit product</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  aria-label={p.active ? 'Deactivate product' : 'Activate product'}
+                  onClick={() => toggleActive(p)}
+                >
+                  {p.active ? <ToggleRight className="h-4 w-4 text-green-600" /> : <ToggleLeft className="h-4 w-4 text-muted-foreground" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {p.active ? 'Active — click to deactivate (hides from new invoices)' : 'Inactive — click to activate'}
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        ) : null,
+    },
+  ]
+
+  const view = listViewState({
+    loading: false,
+    total: page.total,
+    filtered: page.total,
+    hasQuery: state.q.trim().length > 0 || activeFilter !== 'active',
+  })
+
+  const chips: FilterChip[] = []
+  if (activeFilter !== 'active') chips.push({ key: 'view', label: `Filter: ${VIEW_LABELS[activeFilter]}`, onRemove: clearView })
+  if (state.q.trim() !== '') chips.push({ key: 'search', label: `Search: ${state.q.trim()}`, onRemove: clearSearch })
+
+  const emptyState = (
+    <EmptyState
+      icon={<Package className="h-8 w-8" />}
+      title={view === 'empty-no-results' ? 'No products match your search' : 'No products yet'}
+      description={view === 'empty-no-results' ? 'Try a different search term.' : 'Add your first product to start invoicing.'}
+    />
+  )
+
   return (
     <TooltipProvider delayDuration={200}>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Products & Services</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Price catalog for invoicing</p>
+          <h1 className="text-2xl font-bold text-foreground">Products & Services</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Price catalog for invoicing</p>
         </div>
         {canEdit && <Button onClick={openNew}><Plus className="h-4 w-4 mr-2" />Add Product</Button>}
       </div>
 
-      <ListToolbar value={query} onChange={setQuery} placeholder="Search products…" />
+      <ListToolbar value={search} onChange={setSearch} placeholder="Search products…">
+        <Select value={activeFilter} onValueChange={v => setView(v as ProductView)}>
+          <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="active">Active only</SelectItem>
+            <SelectItem value="inactive">Inactive only</SelectItem>
+            <SelectItem value="all">All</SelectItem>
+          </SelectContent>
+        </Select>
+      </ListToolbar>
+
+      <FilterChips chips={chips} />
 
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Unit</TableHead>
-                <TableHead>Price</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-20"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pageItems.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-gray-400">
-                    {query ? 'No products match your search' : 'No products yet'}
-                  </TableCell>
-                </TableRow>
-              )}
-              {pageItems.map(p => (
-                <TableRow key={p.id} className={p.active ? '' : 'opacity-50'}>
-                  <TableCell className="font-medium">{p.name}</TableCell>
-                  <TableCell className="text-gray-500 text-sm">{p.description ?? '—'}</TableCell>
-                  <TableCell className="text-gray-500 text-sm">per {p.unit}</TableCell>
-                  <TableCell className="font-medium">
-                    {p.min_unit_price != null && p.max_unit_price != null
-                      ? `${formatCurrency(p.min_unit_price)} – ${formatCurrency(p.max_unit_price)}`
-                      : formatCurrency(p.unit_price)}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={p.active ? 'success' : 'secondary'}>{p.active ? 'Active' : 'Inactive'}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    {canEdit && (
-                      <div className="flex gap-1">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Edit product" onClick={() => openEdit(p)}>
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Edit product</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              aria-label={p.active ? 'Deactivate product' : 'Activate product'}
-                              onClick={() => toggleActive(p)}
-                            >
-                              {p.active ? <ToggleRight className="h-4 w-4 text-green-600" /> : <ToggleLeft className="h-4 w-4 text-gray-400" />}
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {p.active ? 'Active — click to deactivate (hides from new invoices)' : 'Inactive — click to activate'}
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-        <div className="border-t px-4 py-3">
-          <Pagination
-            page={page}
-            totalPages={totalPages}
-            filteredCount={filteredCount}
-            pageStart={pageStart}
-            pageEnd={pageEnd}
-            onPageChange={setPage}
-            itemLabel="products"
+          <DataTable
+            columns={columns}
+            rows={page.rows}
+            rowKey={p => p.id}
+            rowClassName={p => (p.active ? '' : 'opacity-50')}
+            empty={emptyState}
+            sort={sort}
+            onSort={toggleSort}
+            footer={
+              <Pagination
+                page={page.page}
+                totalPages={page.totalPages}
+                filteredCount={page.total}
+                pageStart={page.pageStart}
+                pageEnd={page.pageEnd}
+                onPageChange={setPage}
+                itemLabel="products"
+              />
+            }
           />
-        </div>
+        </CardContent>
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -304,7 +339,7 @@ export function ProductsClient({ products, units }: { products: Product[]; units
                 </div>
               </div>
             )}
-            <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer select-none">
+            <label className="flex items-start gap-2 text-sm text-muted-foreground cursor-pointer select-none">
               <input
                 type="checkbox"
                 className="h-4 w-4 mt-0.5 rounded border-gray-300"
@@ -312,13 +347,13 @@ export function ProductsClient({ products, units }: { products: Product[]; units
               />
               <span>
                 Enable price range
-                <span className="block text-xs text-gray-400 font-normal">Lets invoices use any price between a min and a max for this product.</span>
+                <span className="block text-xs text-muted-foreground font-normal">Lets invoices use any price between a min and a max for this product.</span>
               </span>
             </label>
             <div className="space-y-2">
               <Label>Unit *</Label>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-500">per</span>
+                <span className="text-sm text-muted-foreground">per</span>
                 <div className="flex-1">
                   <Controller
                     control={control}

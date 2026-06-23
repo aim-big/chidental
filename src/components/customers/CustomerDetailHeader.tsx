@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Edit, Plus } from 'lucide-react'
+import { ArrowLeft, Edit, Plus, FileText } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 
 // Interactive header for the customer detail page: browser-back, the
@@ -28,8 +28,8 @@ export function CustomerDetailHeader({
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{clinicName}</h1>
-          {contactPerson && <p className="text-sm text-gray-500 mt-0.5">{contactPerson}</p>}
+          <h1 className="text-2xl font-bold text-foreground">{clinicName}</h1>
+          {contactPerson && <p className="text-sm text-muted-foreground mt-0.5">{contactPerson}</p>}
         </div>
       </div>
       <div className="flex gap-2">
@@ -38,6 +38,9 @@ export function CustomerDetailHeader({
             <Link href={`/customers/${id}/edit`}><Edit className="h-4 w-4 mr-2" />Edit</Link>
           </Button>
         )}
+        <Button variant="outline" size="sm" asChild>
+          <Link href={`/customers/${id}/statement`}><FileText className="h-4 w-4 mr-2" />Statement</Link>
+        </Button>
         <Button size="sm" asChild>
           <Link href={`/invoices/new?customer=${id}`}><Plus className="h-4 w-4 mr-2" />New Invoice</Link>
         </Button>

@@ -1,159 +1,166 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+// Client island for the invoices list. URL-DRIVEN: the Server Component
+// (`invoices/page.tsx`) reads `searchParams`, fetches the matching page via
+// `getInvoicesPage`, and passes it down. This island only MUTATES the URL
+// (search, saved-view tab, page, sort) through `useListUrlState` — it never
+// filters in-browser, so reloads / back-forward / shared links all reproduce
+// the same view.
+
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { formatCurrency, formatDate, todayISODate } from '@/lib/utils'
-import { Plus, Search } from 'lucide-react'
-import type { WorkStatus } from '@/lib/database.types'
-import {
-  WORK_STATUSES,
-  WORK_STATUS_LABELS,
-  dominantWorkStatus,
-} from '@/lib/work-status'
+import { DataTable } from '@/components/ui/data-table'
+import type { Column } from '@/lib/data-table'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Pagination } from '@/components/ui/pagination'
+import { FilterChips, type FilterChip } from '@/components/ui/filter-chips'
+import { listViewState } from '@/lib/list-view-state'
+import { statusBadgeVariant } from '@/lib/status-badge'
+import { FileText, Plus, Search } from 'lucide-react'
+import { cn, formatCurrency, formatDate, todayISODate } from '@/lib/utils'
+import { dominantWorkStatus } from '@/lib/work-status'
 import { WorkStatusBadge } from '@/components/work-status-badge'
-import { DEFAULT_COLOR } from '@/lib/service-status'
-import { cn } from '@/lib/utils'
 import { isVoided, isOverdue } from '@/lib/invoice-status'
-import type { InvoiceListRow } from '@/data/invoices'
+import { useListUrlState, type ListUrlState } from '@/lib/use-list-url-state'
+import type { InvoiceListRow, InvoiceListPage, InvoiceView } from '@/data/invoices'
 
-const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'info'> = {
-  draft: 'secondary', sent: 'info', partial: 'warning', paid: 'success', overdue: 'destructive',
-}
+const VIEWS: { key: InvoiceView; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'drafts', label: 'Drafts' },
+  { key: 'unpaid', label: 'Awaiting payment' },
+  { key: 'overdue', label: 'Overdue' },
+  { key: 'in_production', label: 'In production' },
+  { key: 'ready', label: 'Ready to deliver' },
+  { key: 'voided', label: 'Voided' },
+]
 
-export function InvoiceListClient({ invoices }: { invoices: InvoiceListRow[] }) {
+export function InvoiceListClient({
+  page,
+  counts,
+  state,
+}: {
+  page: InvoiceListPage
+  counts: Record<InvoiceView, number>
+  state: ListUrlState
+}) {
   const router = useRouter()
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [workFilter, setWorkFilter] = useState<'all' | WorkStatus>('all')
   const today = todayISODate()
+  const { search, setSearch, setView, setPage, toggleSort, sort, clearSearch, clearView } =
+    useListUrlState(state, 'all')
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase()
-    return invoices.filter(inv => {
-      const matchSearch =
-        inv.invoice_number.toLowerCase().includes(q) ||
-        (inv.customers?.clinic_name ?? '').toLowerCase().includes(q)
-      const matchStatus =
-        statusFilter === 'all' ? true :
-        statusFilter === 'void' ? isVoided(inv) :
-        statusFilter === 'overdue' ? isOverdue(inv, today) :
-        (!isVoided(inv) && inv.status === statusFilter)
-      const matchWork =
-        workFilter === 'all' ||
-        (inv.invoice_items ?? []).some(it => it.work_status === workFilter)
-      return matchSearch && matchStatus && matchWork
-    })
-  }, [search, statusFilter, workFilter, invoices, today])
+  const viewKey = state.view as InvoiceView
+  const rows = page.rows
+
+  const columns: Column<InvoiceListRow>[] = [
+    { key: 'number', header: 'Invoice #', sortKey: 'number', cell: inv => <span className="font-medium text-primary">{inv.invoice_number}</span> },
+    { key: 'customer', header: 'Clinic', sortKey: 'customer', cell: inv => <span className="text-muted-foreground">{inv.customers?.clinic_name ?? '—'}</span> },
+    { key: 'patient', header: 'Patient', sortKey: 'patient', cell: inv => <span className="text-muted-foreground">{inv.patient ?? '—'}</span> },
+    { key: 'date', header: 'Date', sortKey: 'date', cell: inv => <span className="text-sm text-muted-foreground">{formatDate(inv.invoice_date)}</span> },
+    { key: 'amount', header: 'Amount', align: 'right', sortKey: 'amount', cell: inv => <span className="font-medium tabular-nums">{formatCurrency(inv.total)}</span> },
+    {
+      key: 'payment',
+      header: 'Payment',
+      cell: inv =>
+        isVoided(inv) ? (
+          <Badge variant="destructive" className="uppercase">Voided</Badge>
+        ) : isOverdue(inv, today) ? (
+          <Badge variant="destructive" className="capitalize">Overdue</Badge>
+        ) : (
+          <Badge variant={statusBadgeVariant('payment', inv.status)} className="capitalize">{inv.status}</Badge>
+        ),
+    },
+    {
+      key: 'work',
+      header: 'Work',
+      cell: inv => {
+        const dominant = dominantWorkStatus((inv.invoice_items ?? []).map(it => it.work_status))
+        return dominant ? <WorkStatusBadge status={dominant} /> : <span className="text-xs text-muted-foreground">—</span>
+      },
+    },
+  ]
+
+  const hasQuery = state.q.trim() !== '' || viewKey !== 'all'
+  const viewState = listViewState({ loading: false, total: counts.all, filtered: page.total, hasQuery })
+  const activeViewLabel = VIEWS.find(v => v.key === viewKey)?.label ?? 'All'
+
+  // Removable chips for the active search / non-default view.
+  const chips: FilterChip[] = []
+  if (viewKey !== 'all') chips.push({ key: 'view', label: `View: ${activeViewLabel}`, onRemove: clearView })
+  if (state.q.trim() !== '') chips.push({ key: 'search', label: `Search: ${state.q.trim()}`, onRemove: clearSearch })
+
+  const emptyState = (
+    <EmptyState
+      icon={<FileText className="h-8 w-8" />}
+      title={viewState === 'empty-no-results' ? `No invoices in "${activeViewLabel}"` : 'No invoices yet'}
+      description={viewState === 'empty-no-results' ? 'Try a different search or view.' : 'Create your first invoice to get started.'}
+    />
+  )
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Invoices</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{invoices.length} total</p>
+          <h1 className="text-2xl font-bold text-foreground">Invoices</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{counts.all} total</p>
         </div>
         <Button asChild>
           <Link href="/invoices/new"><Plus className="h-4 w-4 mr-2" />New Invoice</Link>
         </Button>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input placeholder="Search invoice # or customer…" value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
-        </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="All statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All payment</SelectItem>
-            <SelectItem value="draft">Draft</SelectItem>
-            <SelectItem value="sent">Sent</SelectItem>
-            <SelectItem value="partial">Partial</SelectItem>
-            <SelectItem value="paid">Paid</SelectItem>
-            <SelectItem value="overdue">Overdue</SelectItem>
-            <SelectItem value="void">Voided</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={workFilter} onValueChange={v => setWorkFilter(v as 'all' | WorkStatus)}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="All work" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All work</SelectItem>
-            {WORK_STATUSES.map(s => (
-              <SelectItem key={s} value={s}>{WORK_STATUS_LABELS[s]}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        {VIEWS.map(v => {
+          const active = v.key === viewKey
+          return (
+            <button
+              key={v.key}
+              type="button"
+              onClick={() => setView(v.key)}
+              className={cn(
+                'shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
+                active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted',
+              )}
+            >
+              {v.label}
+              <span className={cn('ml-1.5 text-xs', active ? 'text-primary-foreground/70' : 'text-muted-foreground/60')}>{counts[v.key]}</span>
+            </button>
+          )
+        })}
       </div>
+
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input placeholder="Search invoice #, clinic, or patient…" value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+      </div>
+
+      <FilterChips chips={chips} />
 
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Invoice #</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Patient</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Due Date</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Payment</TableHead>
-                <TableHead>Work</TableHead>
-                <TableHead>Service</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 && <TableRow><TableCell colSpan={9} className="text-center py-8 text-gray-400">No invoices found</TableCell></TableRow>}
-              {filtered.map(inv => {
-                const dominant = dominantWorkStatus((inv.invoice_items ?? []).map(it => it.work_status))
-                const service = inv.service_statuses
-                const overdue = isOverdue(inv, today)
-                return (
-                  <TableRow key={inv.id} className="cursor-pointer" onClick={() => router.push(`/invoices/${inv.id}`)}>
-                    <TableCell className="font-medium text-primary">{inv.invoice_number}</TableCell>
-                    <TableCell className="text-gray-700">{inv.customers?.clinic_name ?? '—'}</TableCell>
-                    <TableCell className="text-gray-700">{inv.patient ?? '—'}</TableCell>
-                    <TableCell className="text-gray-500 text-sm">{formatDate(inv.invoice_date)}</TableCell>
-                    <TableCell className="text-gray-500 text-sm">{formatDate(inv.due_date)}</TableCell>
-                    <TableCell className="font-medium">{formatCurrency(inv.total)}</TableCell>
-                    <TableCell>
-                      {isVoided(inv)
-                        ? <Badge variant="destructive" className="uppercase">Voided</Badge>
-                        : overdue
-                          ? <Badge variant="destructive" className="capitalize">Overdue</Badge>
-                          : <Badge variant={STATUS_VARIANT[inv.status] ?? 'secondary'} className="capitalize">{inv.status}</Badge>}
-                    </TableCell>
-                    <TableCell>
-                      {dominant ? (
-                        <WorkStatusBadge status={dominant} />
-                      ) : (
-                        <span className="text-xs text-gray-400">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {service ? (
-                        <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', service.color ?? DEFAULT_COLOR)}>
-                          {service.label}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-400">—</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
+          <DataTable
+            columns={columns}
+            rows={rows}
+            rowKey={inv => inv.id}
+            onRowClick={inv => router.push(`/invoices/${inv.id}`)}
+            empty={emptyState}
+            sort={sort}
+            onSort={toggleSort}
+            footer={
+              <Pagination
+                page={page.page}
+                totalPages={page.totalPages}
+                filteredCount={page.total}
+                pageStart={page.pageStart}
+                pageEnd={page.pageEnd}
+                onPageChange={setPage}
+                itemLabel="invoices"
+              />
+            }
+          />
         </CardContent>
       </Card>
     </div>

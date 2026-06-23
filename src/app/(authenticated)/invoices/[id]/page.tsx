@@ -3,13 +3,23 @@
 // sections (printable document chrome + payment history) server-side. Every
 // interactive section is a client island under `@/components/invoices/detail/`
 // that receives its data slice and calls a Server Action.
+//
+// Layout is editors-first: the at-a-glance status strip and the daily editors
+// (work status, service status, case details) render between the actions bar and
+// the printable document, so staff no longer scroll past the whole invoice to
+// update a case.
 
 import { notFound } from 'next/navigation'
 import { getInvoiceDetail } from '@/data/invoices'
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table'
-import { formatCurrency, formatDate } from '@/lib/utils'
-import { isVoided } from '@/lib/invoice-status'
+import { cn, formatCurrency, formatDate, todayISODate } from '@/lib/utils'
+import { isVoided, isOverdue } from '@/lib/invoice-status'
+import { statusBadgeVariant } from '@/lib/status-badge'
+import { dominantWorkStatus } from '@/lib/work-status'
+import { WorkStatusBadge } from '@/components/work-status-badge'
+import { DEFAULT_COLOR } from '@/lib/service-status'
 import { InvoiceDetailClient } from '@/components/invoices/detail/InvoiceDetailClient'
 import { CaseDetailsEditor } from '@/components/invoices/detail/CaseDetailsEditor'
 import { ServiceStatusSelector } from '@/components/invoices/detail/ServiceStatusSelector'
@@ -38,37 +48,95 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
     serviceStatuses.find(s => s.id === invoice.service_status_id) ?? invoice.service_statuses ?? null
 
   const voided = isVoided(invoice)
+  const today = todayISODate()
+  const overdue = !voided && isOverdue(invoice, today)
+  // One representative production status across the case's line items.
+  const dominantWork = dominantWorkStatus(items.map(it => it.work_status))
 
   return (
     <div className="max-w-4xl space-y-6">
-      {/* Actions bar + printable document (coupled interactive chrome). */}
+      {/* Actions bar → [status strip + editors] → printable document. The editors
+          are passed as children so they sit between the actions bar and the doc
+          without breaking the ActionsBar↔InvoiceDocument print-ref coupling. */}
       <InvoiceDetailClient
         invoice={invoice}
         items={items}
         products={products}
         serviceStatuses={serviceStatuses}
         currentServiceStatus={currentServiceStatus}
+        stages={stages}
         customerName={customer?.clinic_name ?? null}
         totalPaid={totalPaid}
-        outstanding={outstanding}
         unrecorded={unrecorded}
-      />
+        dominantWork={dominantWork}
+      >
+        {/* Unified case-status strip — payment · work · service + money, at a glance */}
+        <Card className="print:hidden">
+          <CardContent className="flex flex-wrap items-center gap-x-8 gap-y-3 py-4">
+            <div className="space-y-1">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Payment</p>
+              {voided ? (
+                <Badge variant="destructive" className="uppercase">Voided</Badge>
+              ) : overdue ? (
+                <Badge variant="destructive">Overdue</Badge>
+              ) : (
+                <Badge variant={statusBadgeVariant('payment', invoice.status)} className="capitalize">{invoice.status}</Badge>
+              )}
+            </div>
+            <div className="space-y-1">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Work</p>
+              {dominantWork ? <WorkStatusBadge status={dominantWork} /> : <span className="text-sm text-muted-foreground">—</span>}
+            </div>
+            <div className="space-y-1">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Service</p>
+              {currentServiceStatus ? (
+                <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', currentServiceStatus.color ?? DEFAULT_COLOR)}>
+                  {currentServiceStatus.label}
+                </span>
+              ) : (
+                <span className="text-sm text-muted-foreground">—</span>
+              )}
+            </div>
+            <div className="ml-auto flex items-center gap-6">
+              <div className="text-right">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Total</p>
+                <p className="font-semibold tabular-nums">{formatCurrency(Number(invoice.total))}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Paid</p>
+                <p className="font-semibold tabular-nums text-green-600">{formatCurrency(totalPaid)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Outstanding</p>
+                <p className="font-semibold tabular-nums text-red-600">{formatCurrency(outstanding)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-      {/* Case details — editable island, hidden on print */}
-      {!voided && <CaseDetailsEditor invoice={invoice} />}
+        {/* Daily work — above the printable document */}
+        {!voided && items.length > 0 && <WorkStatusEditor items={items} history={history} stages={stages} />}
+        {!voided && (
+          <ServiceStatusSelector
+            invoiceId={invoice.id}
+            serviceStatusId={invoice.service_status_id}
+            serviceStatuses={serviceStatuses}
+          />
+        )}
+        {!voided && <CaseDetailsEditor invoice={invoice} />}
+      </InvoiceDetailClient>
 
-      {/* Service status — editable island, hidden on print */}
-      {!voided && (
-        <ServiceStatusSelector
-          invoiceId={invoice.id}
-          serviceStatusId={invoice.service_status_id}
-          serviceStatuses={serviceStatuses}
-        />
-      )}
-
-      {/* Work status — editable island, hidden on print */}
-      {!voided && items.length > 0 && (
-        <WorkStatusEditor items={items} history={history} stages={stages} />
+      {/* Internal remarks — staff-only, never printed. Stored in invoices.notes. */}
+      {invoice.notes?.trim() && (
+        <Card className="print:hidden">
+          <CardHeader>
+            <CardTitle className="text-base">Remarks</CardTitle>
+            <p className="text-xs text-muted-foreground">Internal only — not shown to the clinic.</p>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-foreground whitespace-pre-line">{invoice.notes}</p>
+          </CardContent>
+        </Card>
       )}
 
       {/* Payment history — read-only, server-rendered, hidden on print */}
@@ -90,7 +158,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                   <TableRow key={p.id}>
                     <TableCell className="text-sm">{formatDate(p.payment_date)}</TableCell>
                     <TableCell className="text-sm font-mono">{p.reference_number ?? '—'}</TableCell>
-                    <TableCell className="text-sm text-gray-500">{p.notes ?? '—'}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{p.notes ?? '—'}</TableCell>
                     <TableCell className="text-right font-medium text-green-600">{formatCurrency(p.amount)}</TableCell>
                   </TableRow>
                 ))}

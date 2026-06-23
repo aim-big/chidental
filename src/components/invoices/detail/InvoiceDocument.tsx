@@ -21,12 +21,15 @@ import { formatCurrency, formatDate, cn } from '@/lib/utils'
 import { Printer, Pencil } from 'lucide-react'
 import { isVoided } from '@/lib/invoice-status'
 import { saveRecipientAction } from '@/data/invoice-actions'
-import type { InvoiceItem, Product, ServiceStatus } from '@/lib/database.types'
+import type { InvoiceItem, Product, ServiceStatus, WorkStage } from '@/lib/database.types'
 import type { InvoiceDetail } from '@/data/invoices'
 import { COMPANY, BANK } from '@/lib/config'
 import { DEFAULT_COLOR } from '@/lib/service-status'
+import { workLabel, workColor } from '@/lib/work-stages'
 
-type PrintMode = 'invoice' | 'delivery'
+// 'invoice' / 'delivery' go through the print-preview override dialog; the bench
+// 'work_ticket' is internal and prints directly (no overrides — see openPrintDialog).
+type PrintMode = 'invoice' | 'delivery' | 'work_ticket'
 
 type ItemOverride = {
   description: string
@@ -47,7 +50,6 @@ type PrintOverrides = {
   patient: string
   doctor: string
   serviceStatusId: string | null
-  notes: string
   instructions: string
   itemOverrides: Record<string, ItemOverride>
 }
@@ -58,6 +60,8 @@ export type InvoiceDocumentProps = {
   products: Product[]
   serviceStatuses: ServiceStatus[]
   currentServiceStatus: ServiceStatus | null
+  /** Work stages — used to label per-item production status on the work ticket. */
+  stages: WorkStage[]
   totalPaid: number
   /** Whether the recipient edit pencil is interactive (canEdit && !voided). */
   canEdit: boolean
@@ -71,6 +75,7 @@ export function InvoiceDocument({
   products,
   serviceStatuses,
   currentServiceStatus,
+  stages,
   totalPaid,
   canEdit,
   onPrintReady,
@@ -78,6 +83,8 @@ export function InvoiceDocument({
   const router = useRouter()
   const { show } = useToast()
   const printRef = useRef<HTMLDivElement>(null)
+  // Labels per-item work status on the work ticket (handles in-progress stages).
+  const stagesById = new Map(stages.map(s => [s.id, s]))
 
   // Print state (no persistence — overrides apply to the printout only).
   const [printMode, setPrintMode] = useState<PrintMode>('invoice')
@@ -100,6 +107,15 @@ export function InvoiceDocument({
   const [savingRecipient, setSavingRecipient] = useState(false)
 
   const openPrintDialog = (mode: PrintMode) => {
+    // The bench work ticket has no money/recipient fields to override, so it
+    // skips the preview-and-edit dialog and prints the case as-is. The override
+    // editor only makes sense for the customer-facing invoice / delivery note.
+    if (mode === 'work_ticket') {
+      setPrintOverrides(null)
+      setPrintMode('work_ticket')
+      setPrintNonce(n => n + 1)
+      return
+    }
     setDialogMode(mode)
     setPrintDraft({
       date: invoice.invoice_date,
@@ -114,7 +130,6 @@ export function InvoiceDocument({
       patient: invoice.patient ?? '',
       doctor: invoice.doctor ?? '',
       serviceStatusId: invoice.service_status_id,
-      notes: invoice.notes ?? '',
       instructions: '',
       itemOverrides: Object.fromEntries(items.map(it => [it.id, {
         description: it.description,
@@ -193,9 +208,26 @@ export function InvoiceDocument({
       const unitPrice = ov ? ov.unitPrice : Number(it.unit_price)
       return { description, quantity, unitPrice, amount: quantity * unitPrice }
     }
-    const previewTotal = o
+    // Subtotal = sum of (possibly overridden) line amounts. Apply the saved
+    // invoice discount_pct to keep the printed Subtotal / Discount / Total
+    // consistent when line items are overridden in the print dialog. With no
+    // overrides we use the stored values verbatim.
+    const discountPct = Number(invoice.discount_pct ?? 0)
+    const taxRate = Number(invoice.tax_rate ?? 0)
+    const previewSubtotal = o
       ? items.reduce((sum, it) => sum + itemResolve(it).amount, 0)
-      : Number(invoice.total)
+      : Number(invoice.subtotal ?? invoice.total)
+    const previewDiscount = o
+      ? Math.round(previewSubtotal * discountPct) / 100
+      : Number(invoice.discount_amount ?? 0)
+    // SST tax (Wave 5) applies AFTER discount, on the discounted (taxable) amount —
+    // same subtotal→discount→tax→total order as the invoice form. With no overrides
+    // we use the stored tax_amount verbatim.
+    const previewTaxable = previewSubtotal - previewDiscount
+    const previewTax = o
+      ? Math.round(previewTaxable * taxRate) / 100
+      : Number(invoice.tax_amount ?? 0)
+    const previewTotal = o ? previewTaxable + previewTax : Number(invoice.total)
     return {
       field: {
         date:            o ? o.date            : invoice.invoice_date,
@@ -209,12 +241,16 @@ export function InvoiceDocument({
         deliveryAddress: o ? o.deliveryAddress : invoice.delivery_address,
         patient:         o ? o.patient         : invoice.patient,
         doctor:          o ? o.doctor          : invoice.doctor,
-        notes:           o ? o.notes           : invoice.notes,
       },
       serviceStatusForPrint: o
         ? (serviceStatuses.find(s => s.id === o.serviceStatusId) ?? null)
         : currentServiceStatus,
       itemResolve,
+      previewSubtotal,
+      previewDiscount,
+      previewDiscountPct: discountPct,
+      previewTax,
+      previewTaxRate: taxRate,
       previewTotal,
       instructions: o?.instructions ?? '',
     }
@@ -226,7 +262,10 @@ export function InvoiceDocument({
     showInlineEdit: boolean
   }) => {
     const { mode, resolved, showInlineEdit } = opts
-    const { field, serviceStatusForPrint, itemResolve, previewTotal, instructions } = resolved
+    const { field, serviceStatusForPrint, itemResolve, previewSubtotal, previewDiscount, previewDiscountPct, previewTax, previewTaxRate, previewTotal, instructions } = resolved
+    // Subtotal breakdown prints when EITHER a discount or tax applies; an invoice
+    // with neither keeps the original single Total row.
+    const hasAdjustments = previewDiscount > 0 || previewTax > 0
     const isDelivery = mode === 'delivery'
     return (
       <>
@@ -244,7 +283,7 @@ export function InvoiceDocument({
             {/* Plain <img>: this is a printable invoice document header, where
                 next/image's lazy-loading and srcset rewriting render unreliably. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt={COMPANY.name} className="max-h-10 max-w-[200px] object-contain object-left mb-2" />
+            <img src="/chidental-rectangle.png" alt={COMPANY.name} className="max-h-12 max-w-[220px] object-contain object-left mb-2" />
             <div className="text-sm text-gray-500 whitespace-pre-line">{COMPANY.address}</div>
             {COMPANY.phone && <div className="text-sm text-gray-500">Tel: {COMPANY.phone}</div>}
             {COMPANY.email && <div className="text-sm text-gray-500">{COMPANY.email}</div>}
@@ -287,6 +326,9 @@ export function InvoiceDocument({
               {field.billToContact && <div className="text-sm text-gray-600">{field.billToContact}</div>}
               {field.billingAddress && <div className="text-sm text-gray-500 whitespace-pre-line">{field.billingAddress}</div>}
               {field.billToPhone && <div className="text-sm text-gray-500">Tel: {field.billToPhone}</div>}
+              {/* Clinic TIN (Wave 4) — printed beside the clinic's registration
+                  identity when set on the customer master. */}
+              {invoice.customers?.tin && <div className="text-sm text-gray-500">TIN: {invoice.customers.tin}</div>}
             </div>
             {field.deliveryAddress && (
               <div>
@@ -365,9 +407,37 @@ export function InvoiceDocument({
           </tbody>
           {!isDelivery && (
             <tfoot>
+              {/* Subtotal / Discount / Tax rows print only when an adjustment
+                  applies; an invoice with neither discount nor tax keeps the
+                  original single Total row. */}
+              {hasAdjustments && (
+                <>
+                  <tr>
+                    <td colSpan={3} className="pt-4 text-right text-gray-500">Subtotal</td>
+                    <td className="pt-4 text-right text-gray-700">{formatCurrency(previewSubtotal)}</td>
+                  </tr>
+                  {previewDiscount > 0 && (
+                    <tr>
+                      <td colSpan={3} className="pt-1 text-right text-gray-500">
+                        Discount{previewDiscountPct > 0 ? ` (${previewDiscountPct}%)` : ''}
+                      </td>
+                      <td className="pt-1 text-right text-gray-700">({formatCurrency(previewDiscount)})</td>
+                    </tr>
+                  )}
+                  {/* SST tax row (Wave 5) — between Discount and Total, only when tax applies. */}
+                  {previewTax > 0 && (
+                    <tr>
+                      <td colSpan={3} className="pt-1 text-right text-gray-500">
+                        SST{previewTaxRate > 0 ? ` (${previewTaxRate}%)` : ''}
+                      </td>
+                      <td className="pt-1 text-right text-gray-700">{formatCurrency(previewTax)}</td>
+                    </tr>
+                  )}
+                </>
+              )}
               <tr>
-                <td colSpan={3} className="pt-4 text-right font-semibold text-gray-700">Total</td>
-                <td className="pt-4 text-right text-lg font-bold text-gray-900">{formatCurrency(previewTotal)}</td>
+                <td colSpan={3} className={cn('text-right font-semibold text-gray-700', hasAdjustments ? 'pt-1' : 'pt-4')}>Total</td>
+                <td className={cn('text-right text-lg font-bold text-gray-900', hasAdjustments ? 'pt-1' : 'pt-4')}>{formatCurrency(previewTotal)}</td>
               </tr>
               {totalPaid > 0 && (
                 <>
@@ -384,12 +454,6 @@ export function InvoiceDocument({
             </tfoot>
           )}
         </table>
-
-        {field.notes && (
-          <div className="mb-6 p-3 bg-gray-50 rounded text-sm text-gray-600">
-            <span className="font-medium text-gray-700">Notes: </span>{field.notes}
-          </div>
-        )}
 
         {!isDelivery && (
           <>
@@ -425,6 +489,132 @@ export function InvoiceDocument({
     )
   }
 
+  // Internal bench work ticket — NO prices, totals, payment status or bank
+  // details. Reuses the same document chrome/branding/print CSS as the invoice
+  // so it prints cleanly, but shows what the bench needs: case ref + dates,
+  // clinic / patient / doctor, service status, and per-item work status + the
+  // internal work_note (the bench instructions). Always renders saved data —
+  // the work ticket has no override editor (see openPrintDialog).
+  const renderWorkTicketBody = () => {
+    const clinicName = invoice.bill_to_name ?? invoice.customers?.clinic_name ?? null
+    return (
+      <>
+        {isVoided(invoice) && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 rounded-lg overflow-hidden">
+            <span className="text-red-200 text-[120px] font-black uppercase tracking-widest rotate-[-30deg] select-none opacity-60">
+              VOID
+            </span>
+          </div>
+        )}
+
+        {/* Header */}
+        <div className="flex justify-between items-start mb-8">
+          <div>
+            {/* Plain <img>: see renderDocBody for why next/image isn't used here. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/chidental-rectangle.png" alt={COMPANY.name} className="max-h-12 max-w-[220px] object-contain object-left mb-2" />
+            <div className="text-sm text-gray-500 whitespace-pre-line">{COMPANY.address}</div>
+            {COMPANY.phone && <div className="text-sm text-gray-500">Tel: {COMPANY.phone}</div>}
+          </div>
+          <div className="text-right">
+            <div className="text-3xl font-bold text-gray-200 uppercase tracking-widest mb-2">Work Ticket</div>
+            <div className="text-sm space-y-1">
+              <div>
+                <span className="text-gray-400">Case #: </span>
+                <span className="font-semibold">{invoice.invoice_number}</span>
+              </div>
+              <div><span className="text-gray-400">Date: </span>{formatDate(invoice.invoice_date)}</div>
+              {invoice.due_date && (
+                <div><span className="text-gray-400">Due: </span>{formatDate(invoice.due_date)}</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Clinic + Case details — no addresses, no money */}
+        <div className="mb-8 flex flex-wrap gap-6 justify-between">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Clinic</div>
+            {clinicName && <div className="font-semibold text-gray-900">{clinicName}</div>}
+          </div>
+          {(invoice.patient || invoice.doctor || currentServiceStatus) && (
+            <div className="min-w-[160px] text-right">
+              <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Case Details</div>
+              {invoice.patient && (
+                <div className="text-sm">
+                  <span className="text-gray-400">Patient: </span>
+                  <span className="font-medium text-gray-900">{invoice.patient}</span>
+                </div>
+              )}
+              {invoice.doctor && (
+                <div className="text-sm">
+                  <span className="text-gray-400">Doctor: </span>
+                  <span className="font-medium text-gray-900">{invoice.doctor}</span>
+                </div>
+              )}
+              {currentServiceStatus && (
+                <div className="text-sm mt-1">
+                  <span className="text-gray-400">Service Status: </span>
+                  <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', currentServiceStatus.color ?? DEFAULT_COLOR)}>
+                    {currentServiceStatus.label}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Line items — description, qty, work status, work note. No prices. */}
+        <table className="w-full text-sm mb-6">
+          <thead>
+            <tr className="border-b-2 border-gray-200">
+              <th className="text-left py-2 text-gray-500 font-medium w-1/2">Item</th>
+              <th className="text-right py-2 text-gray-500 font-medium">Qty</th>
+              <th className="text-left py-2 text-gray-500 font-medium pl-4">Work Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map(item => {
+              const productDescription = item.product_id
+                ? products.find(p => p.id === item.product_id)?.description
+                : null
+              return (
+                <tr key={item.id} className="border-b border-gray-100 align-top">
+                  <td className="py-2.5">
+                    <div>{item.description}</div>
+                    {productDescription && (
+                      <div className="text-xs text-gray-400 mt-0.5">{productDescription}</div>
+                    )}
+                    {item.work_note && (
+                      <div className="text-xs text-gray-600 mt-1">
+                        <span className="text-gray-400">Note: </span>{item.work_note}
+                      </div>
+                    )}
+                  </td>
+                  <td className="py-2.5 text-right text-gray-600">{Number(item.quantity)}</td>
+                  <td className="py-2.5 pl-4">
+                    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', workColor(item.work_status, item.stage_id, stagesById))}>
+                      {workLabel(item.work_status, item.stage_id, stagesById)}
+                    </span>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+
+        {/* Checked-by / signature — bench sign-off */}
+        <div className="mt-16 flex justify-end text-sm">
+          <div className="w-64">
+            <div className="text-gray-700 mb-1">Checked by</div>
+            <div className="border-b border-gray-400 h-20" />
+            <div className="mt-2 text-xs text-gray-500">Name / Signature / Date</div>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   const printResolved = resolveFields(printOverrides)
   const draftResolved = printDraft ? resolveFields(printDraft) : null
 
@@ -432,7 +622,9 @@ export function InvoiceDocument({
     <>
       {/* Invoice document — also used for printing */}
       <div ref={printRef} className="relative bg-white border rounded-lg p-8 print:border-0 print:p-6 print:shadow-none" id="invoice-print">
-        {renderDocBody({ mode: printMode, resolved: printResolved, showInlineEdit: true })}
+        {printMode === 'work_ticket'
+          ? renderWorkTicketBody()
+          : renderDocBody({ mode: printMode, resolved: printResolved, showInlineEdit: true })}
       </div>
 
       {/* Unified print dialog — preview on left, editor on right */}
@@ -621,11 +813,6 @@ export function InvoiceDocument({
                     </fieldset>
                   )}
 
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-gray-500">Notes</Label>
-                    <Textarea rows={2} value={printDraft.notes} onChange={e => setPrintDraft(d => d && ({ ...d, notes: e.target.value }))} />
-                  </div>
-
                   {dialogMode === 'delivery' && (
                     <div className="space-y-1.5">
                       <Label className="text-xs text-gray-500">
@@ -704,9 +891,9 @@ export function InvoiceDocument({
                 onChange={e => setAlsoSaveToCustomer(e.target.checked)}
               />
               <span>
-                Also save to customer record
+                Also save to clinic record
                 <span className="block text-xs text-gray-500">
-                  Updates the master customer with the Bill To values, plus both addresses. Future invoices use these defaults.
+                  Updates the master clinic with the Bill To values, plus both addresses. Future invoices use these defaults.
                 </span>
               </span>
             </label>
