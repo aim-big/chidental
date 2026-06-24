@@ -67,6 +67,7 @@ export type Database = {
       }
       customers: {
         Row: {
+          archived_at: string | null
           billing_address: string | null
           clinic_name: string
           contact_person: string | null
@@ -79,6 +80,7 @@ export type Database = {
           ssm_no: string | null
         }
         Insert: {
+          archived_at?: string | null
           billing_address?: string | null
           clinic_name: string
           contact_person?: string | null
@@ -91,6 +93,7 @@ export type Database = {
           ssm_no?: string | null
         }
         Update: {
+          archived_at?: string | null
           billing_address?: string | null
           clinic_name?: string
           contact_person?: string | null
@@ -235,8 +238,8 @@ export type Database = {
           created_by: string
           customer_id: string
           delivery_address: string | null
-          doctor: string | null
           delivery_order_number: string
+          doctor: string | null
           due_date: string
           id: string
           invoice_date: string
@@ -267,7 +270,7 @@ export type Database = {
           created_by: string
           customer_id: string
           delivery_address?: string | null
-          delivery_order_number?: string
+          delivery_order_number: string
           doctor?: string | null
           due_date: string
           id?: string
@@ -599,30 +602,6 @@ export type Database = {
         }
         Relationships: []
       }
-      work_status_configs: {
-        Row: {
-          color: string | null
-          created_at: string
-          label: string
-          sort_order: number
-          status: Database["public"]["Enums"]["work_status"]
-        }
-        Insert: {
-          color?: string | null
-          created_at?: string
-          label: string
-          sort_order: number
-          status: Database["public"]["Enums"]["work_status"]
-        }
-        Update: {
-          color?: string | null
-          created_at?: string
-          label?: string
-          sort_order?: number
-          status?: Database["public"]["Enums"]["work_status"]
-        }
-        Relationships: []
-      }
       work_stages: {
         Row: {
           color: string | null
@@ -647,6 +626,30 @@ export type Database = {
           is_active?: boolean
           label?: string
           sort_order?: number
+        }
+        Relationships: []
+      }
+      work_status_configs: {
+        Row: {
+          color: string | null
+          created_at: string
+          label: string
+          sort_order: number
+          status: Database["public"]["Enums"]["work_status"]
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          label: string
+          sort_order: number
+          status: Database["public"]["Enums"]["work_status"]
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          label?: string
+          sort_order?: number
+          status?: Database["public"]["Enums"]["work_status"]
         }
         Relationships: []
       }
