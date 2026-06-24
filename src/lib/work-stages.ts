@@ -176,3 +176,18 @@ export function nextWorkStep(
       return null
   }
 }
+
+// Label for the trigger pill / badge: appends the stepper position to a staged
+// in-progress item (e.g. "Try In · 2/4"); the plain work label otherwise.
+export function workLabelWithPosition(
+  activeStages: WorkStage[],
+  work_status: WorkStatus,
+  stage_id: string | null,
+  stagesById: Map<string, WorkStage>,
+  statusConfigs?: WorkStatusDisplay[],
+): string {
+  const base = workLabel(work_status, stage_id, stagesById, statusConfigs)
+  const p = stageProgress(activeStages, work_status, stage_id)
+  if (p && p.index >= 0) return `${base} · ${p.index + 1}/${p.total}`
+  return base
+}

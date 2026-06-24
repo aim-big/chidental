@@ -4,7 +4,7 @@ import {
   encodeWork, decodeWork, workOptions, workOptionsForItem,
   workLabel, workColor, labelForValue, colorForValue,
   orderedGroupKeys, STAGE_DEFAULT_COLOR,
-  stageProgress, dotColorClass, nextWorkStep,
+  stageProgress, dotColorClass, nextWorkStep, workLabelWithPosition,
 } from '@/lib/work-stages'
 import { WORK_STATUS_LABELS, WORK_STATUS_COLORS } from '@/lib/work-status'
 
@@ -171,5 +171,18 @@ describe('nextWorkStep', () => {
   })
   it('on_hold -> null (Resume handles it)', () => {
     expect(nextWorkStep(active, 'on_hold', null)).toBeNull()
+  })
+})
+
+describe('workLabelWithPosition', () => {
+  it('appends the 1-based position for a staged in-progress item', () => {
+    expect(workLabelWithPosition(active, 'in_progress', 's1', byId)).toBe('Custom Tray · 1/2')
+    expect(workLabelWithPosition(active, 'in_progress', 's2', byId)).toBe('Try-in · 2/2')
+  })
+  it('shows the plain In Progress label for a bare in-progress item', () => {
+    expect(workLabelWithPosition(active, 'in_progress', null, byId)).toBe(WORK_STATUS_LABELS.in_progress)
+  })
+  it('shows the plain label for non-in-progress statuses', () => {
+    expect(workLabelWithPosition(active, 'ready', null, byId)).toBe(WORK_STATUS_LABELS.ready)
   })
 })
