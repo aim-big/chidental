@@ -77,6 +77,7 @@ stage pills — **no numbering, no connector tree, no advance-stage row**:
  ──────────────────────────────────
   ● Received
   IN PROGRESS                          ← section header (muted, uppercase)
+   No sub-status                        ← clears the stage → bare in_progress
    Custom Tray
    Try In                     ✓        ← stage-colored pill; ✓ = current sub-status
    Finalize Mill Design
@@ -87,10 +88,18 @@ stage pills — **no numbering, no connector tree, no advance-stage row**:
 ```
 
 - Each stage row is its stage-colored pill; a ✓ marks the current sub-status.
+- A leading **"No sub-status"** row (neutral/muted, encodes to bare `in_progress`) lets a user
+  put an item *in* In Progress without committing to a stage, and lets them **clear** a stage
+  back to bare in-progress. ✓ marks it when the item is bare in-progress. This is the only way
+  today to remove a sub-status once set.
 - The `IN PROGRESS` header stays so the rows clearly read as sub-statuses *of* In Progress.
 - The `leadingItems` prop (the on-hold **Resume** row) is preserved, still above Received.
 - The `ADVANCE_VALUE` sentinel + the "Advance to <next stage>" primary row are **removed**
   from this control (see §4 for what replaces the advance action).
+
+> **Bare in-progress is a first-class state.** Its label is the plain `In Progress` (never a
+> blank pill); its chip row renders with no chip highlighted. It is what `received → advance`
+> lands on, and what the board "Set stage" prompt then resolves.
 
 ### 4. `nextWorkStep` — top-level transitions only
 
@@ -112,11 +121,25 @@ nextWorkStep(work_status): { work_status; stage_id } | null
 - Wherever a one-click advance is surfaced (board card action), it advances the top-level
   status using this helper. Setting a specific sub-stage is always done via the dropdown.
 
-### 5. Settings copy
+### 5. Settings config — `/settings/work-stages`
 
-`/settings/work-stages` keeps drag-reorder, but the helper text reframes `sort_order` as
-**display order** (how stages list in menus and chip rows), not a workflow sequence. No
-schema change.
+The page stays (CRUD + reorder + activate/retire), but its copy is reframed from
+"steps/sub-steps in a sequence" to "sub-statuses with a display order." The noun **Work
+stages** is kept (it's the established term in `docs/CONVENTIONS.md`).
+
+- **Subtitle:** `Sub-steps shown inside the In Progress work status.` →
+  `Sub-statuses of "In Progress". The order here is display order only — it does not mean a case must move through them in sequence.`
+- **"Order" column:** keep the up/down reorder controls, but its meaning is *display order*
+  (how stages list in the dropdown, chip rows, and filter). Add a small `Display order`
+  hint (column header tooltip or a one-line caption) so admins don't read it as a workflow
+  sequence.
+- **Dialog placeholder:** `e.g. Try-in` → `e.g. Try In` (matches the relabel).
+- Reorder/activate/retire behavior, the color presets, and the `work_stages` schema are all
+  unchanged. `sort_order` continues to drive list order everywhere via `fetchWorkStages()`.
+
+Also update `docs/CONVENTIONS.md` §5: the line "In Progress has sub-stages" should clarify
+that stages are **sub-statuses with a display order, not a required sequence**, and that an
+in-progress item may sit on **no** sub-status (bare `in_progress`).
 
 ### Unchanged from the prior spec
 
@@ -142,6 +165,8 @@ schema change.
 | `src/components/work/KanbanBoard.tsx` | Use `WorkStageChips`; advance button uses simplified `nextWorkStep`; "Set stage" prompt unchanged |
 | `src/components/work/WorkQueueClient.tsx` | Swap stepper → chips on rows + group headers; group-header caption uses `workSubStatusLabel` |
 | `src/components/invoices/detail/WorkStatusEditor.tsx` | Inherits shared control + chips automatically; verify spacing |
+| `src/app/(authenticated)/settings/work-stages/page.tsx` | Reframe subtitle + "Order" column copy to display-order; `Try-in` → `Try In` placeholder |
+| `docs/CONVENTIONS.md` (§5) | Clarify stages are sub-statuses w/ display order, not a sequence; bare in-progress is valid |
 | Callers of `workLabelWithPosition` / `WorkStageStepper` / `ADVANCE_VALUE` | Update imports/usages to the renamed/replaced symbols |
 
 No schema / RLS / permission / server-action contract changes.
