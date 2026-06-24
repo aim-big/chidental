@@ -10,6 +10,12 @@
 > invoice-level roll-ups have been removed (see the revised Section 5). Per-item
 > work status lives on the board, the work list, and the invoice-detail Work
 > Status editor.
+> **Superseded 2026-06-24 (later):** §1 (trigger/menu), §2 (stepper), and §4
+> (`nextWorkStep`) — the numbered `X/4` pipeline framing — are replaced by
+> [`2026-06-24-work-substatus-not-sequence-design.md`](./2026-06-24-work-substatus-not-sequence-design.md).
+> Stages are now labeled **sub-statuses** ("In Progress · Try In"), not ordered steps.
+> §3 (drill-down filter) and §5 (invoice-level removal) below still stand.
+
 **Scope:** Make the in-progress sub-stage a first-class, visible, filterable, and easily-changeable concept across every surface — and make it unmistakable that work status is tracked **per work item, not per invoice**.
 
 ---
