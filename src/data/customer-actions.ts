@@ -67,3 +67,38 @@ export async function updateCustomerAction(id: string, input: CustomerInput): Pr
   revalidatePath(`/customers/${id}`)
   return { ok: true }
 }
+
+// Soft-delete: archive hides a clinic from the directory, global search, and the
+// new-invoice picker, but keeps all historical invoices/statements intact. Gated
+// on customers.edit (same as create/update) — no separate delete permission.
+export async function archiveCustomerAction(id: string): Promise<ActionResult> {
+  const gate = await requirePermission('customers.edit')
+  if (gate.ok === false) return gate
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('customers')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/customers')
+  revalidatePath(`/customers/${id}`)
+  return { ok: true }
+}
+
+export async function restoreCustomerAction(id: string): Promise<ActionResult> {
+  const gate = await requirePermission('customers.edit')
+  if (gate.ok === false) return gate
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('customers')
+    .update({ archived_at: null })
+    .eq('id', id)
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/customers')
+  revalidatePath(`/customers/${id}`)
+  return { ok: true }
+}
