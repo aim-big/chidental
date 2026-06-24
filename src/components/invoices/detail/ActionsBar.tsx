@@ -1,6 +1,6 @@
 'use client'
 
-// Header (number + status/overdue/voided/locked badges) and the workflow action
+// Header (number + payment-status / voided badges) and the workflow action
 // bar: Issue Invoice, Record Payment (dialog), Edit link, Print Invoice / Delivery,
 // and Void (dialog). Each mutation calls a Server Action and reports
 // through the toast; success triggers `router.refresh()` so the server re-renders
@@ -24,7 +24,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { cn, formatCurrency, todayISODate } from '@/lib/utils'
-import { ArrowLeft, Printer, CreditCard, Ban, Pencil, Lock, ChevronDown, FileText, Truck, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Printer, CreditCard, Ban, Pencil, ChevronDown, FileText, Truck, CheckCircle2, Trash2, ArchiveRestore } from 'lucide-react'
 import { canEditInvoice } from '@/lib/invoice-permissions'
 import { isVoided } from '@/lib/invoice-status'
 import { statusBadgeVariant, paymentStatusLabel } from '@/lib/status-badge'
@@ -33,6 +33,7 @@ import {
   recordPaymentAction,
 } from '@/data/invoice-actions'
 import { voidInvoice as voidInvoiceAction } from '@/lib/invoices/void-actions'
+import { softDeleteInvoiceAction, restoreVoidedInvoiceAction } from '@/lib/admin/admin-actions'
 import type { InvoiceDetail } from '@/data/invoices'
 
 const paymentSchema = z.object({
@@ -138,7 +139,7 @@ function PrintMenu({ onPrint, className }: { onPrint: (mode: PrintMode) => void;
 
 export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: ActionsBarProps) {
   const router = useRouter()
-  const { hasPermission } = useAuth()
+  const { hasPermission, isSuperadmin } = useAuth()
   const { show } = useToast()
 
   const [paymentOpen, setPaymentOpen] = useState(false)
@@ -146,6 +147,10 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
   const [voidOpen, setVoidOpen] = useState(false)
   const [voiding, setVoiding] = useState(false)
   const [voidReason, setVoidReason] = useState('')
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteReason, setDeleteReason] = useState('')
+  const [restoringVoid, setRestoringVoid] = useState(false)
 
   const { register, handleSubmit, reset } = useForm<PaymentForm>({
     // Cast keeps RHF's Resolver generics aligned with the zod schema's inferred type.
@@ -201,6 +206,34 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
     }
   }
 
+  // Super Admin: soft-delete hides the invoice everywhere (recoverable from the
+  // Admin Console recycle bin). The detail page would 404 afterward, so navigate
+  // back to the list on success.
+  const deleteInvoice = async () => {
+    setDeleting(true)
+    try {
+      const res = await softDeleteInvoiceAction({ id: invoice.id, reason: deleteReason })
+      if (res.ok === false) { show({ variant: 'error', title: res.error }); return }
+      show({ variant: 'success', title: 'Invoice deleted' })
+      router.push('/invoices')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  // Super Admin: undo a wrongful void (the trigger blocks this for everyone else).
+  const restoreVoid = async () => {
+    setRestoringVoid(true)
+    try {
+      const res = await restoreVoidedInvoiceAction({ id: invoice.id })
+      if (res.ok === false) { show({ variant: 'error', title: res.error }); return }
+      show({ variant: 'success', title: 'Invoice restored from void' })
+      router.refresh()
+    } finally {
+      setRestoringVoid(false)
+    }
+  }
+
   return (
     <div className="print:hidden">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -214,14 +247,6 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
               <Badge variant={statusBadgeVariant('payment', invoice.status)}>{paymentStatusLabel(invoice.status)}</Badge>
               {voided && (
                 <Badge variant="destructive" className="uppercase">Voided</Badge>
-              )}
-              {!voided && !canEdit && (
-                <span
-                  className="inline-flex items-center gap-1 text-xs text-muted-foreground"
-                  title="This invoice has been sent. You don't have permission to edit it."
-                >
-                  <Lock className="h-3 w-3" />Locked
-                </span>
               )}
             </div>
             <Link href={`/customers/${invoice.customer_id}`} className="text-sm text-primary hover:underline">
@@ -270,6 +295,23 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
               <Ban className="h-4 w-4 mr-2" />Void
             </Button>
           )}
+          {/* Super Admin restore-from-void: only shown on a voided invoice. */}
+          {isSuperadmin && voided && (
+            <Button className="w-full sm:w-auto" variant="outline" size="sm" onClick={restoreVoid} disabled={restoringVoid}>
+              <ArchiveRestore className="h-4 w-4 mr-2" />{restoringVoid ? 'Restoring…' : 'Restore from void'}
+            </Button>
+          )}
+          {/* Super Admin delete: hides the invoice (recoverable in Admin Console). */}
+          {isSuperadmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full border-red-200 text-red-600 hover:border-red-300 hover:bg-red-50 sm:w-auto"
+              onClick={() => { setDeleteReason(''); setDeleteOpen(true) }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />Delete
+            </Button>
+          )}
           {/* Print is kept apart from the workflow actions: a single entry point on
               the right that reveals the printable documents on hover or click. */}
           <PrintMenu onPrint={onPrint} className="w-full sm:w-auto" />
@@ -300,6 +342,31 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
               disabled={voiding}
             >
               {voiding ? 'Voiding…' : 'Yes, Void Invoice'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Super Admin delete (soft-delete) dialog */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" /> Delete Invoice
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Delete <span className="font-semibold">{invoice.invoice_number}</span>? It will be hidden
+            from all lists and reports. You can restore it from the Admin Console recycle bin.
+          </p>
+          <div className="space-y-2">
+            <Label>Reason (optional)</Label>
+            <Input value={deleteReason} onChange={e => setDeleteReason(e.target.value)} placeholder="e.g. test data, created in error" />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>
+            <Button variant="destructive" onClick={deleteInvoice} disabled={deleting}>
+              {deleting ? 'Deleting…' : 'Yes, Delete'}
             </Button>
           </DialogFooter>
         </DialogContent>
