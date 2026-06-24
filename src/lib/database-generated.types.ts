@@ -75,7 +75,6 @@ export type Database = {
           email: string | null
           id: string
           notes: string | null
-          payment_terms_days: number
           phone: string | null
           ssm_no: string | null
         }
@@ -88,7 +87,6 @@ export type Database = {
           email?: string | null
           id?: string
           notes?: string | null
-          payment_terms_days?: number
           phone?: string | null
           ssm_no?: string | null
         }
@@ -98,15 +96,11 @@ export type Database = {
           contact_person?: string | null
           created_at?: string
           delivery_address?: string | null
-          discount_pct?: number
           email?: string | null
           id?: string
           notes?: string | null
-          payment_terms_days?: number
           phone?: string | null
           ssm_no?: string | null
-          tin?: string | null
-          whatsapp_optin?: boolean
         }
         Relationships: []
       }

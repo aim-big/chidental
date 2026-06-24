@@ -28,7 +28,7 @@ Status is stored **per invoice line item** (each line item = one "work"/service)
 1. **Sub-stages are hard to *see*.** On the board the in-progress column flattens all stages into one; a drop silently clears `stage_id`. The stepper only renders on the invoice-detail page.
 2. **Sub-stages can't be *filtered*.** The work-queue filter chips only filter the 5 top-level statuses.
 3. **The *change* control is cramped and ambiguous.** The dropdown is a small `h-8 w-44 text-xs` pill; sub-stages are buried under a plain "In Progress" group label and don't read as ordered steps.
-4. **Invoice-level status is misleading.** Three places collapse all of an invoice's works into one `dominantWorkStatus` badge, implying the invoice has a single status. *(Resolved by removing invoice-level work status outright — see Section 5.)*
+4. **Per-work, not per-invoice.** Status is per work item. Invoice-level rollups were already **removed** in prior redesign work (`production.ts`: "dominantWorkStatus … intentionally omitted"; the list column, detail header chip, and calendar badge no longer aggregate). This redesign must **preserve** that — it must not re-introduce a single invoice-level status — and keep per-work presentation unambiguous. *(Resolved by removing invoice-level work status outright — see Section 5.)*
 
 ---
 

@@ -10,7 +10,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard, Users, FileText, Wrench, Package, BarChart3,
-  ClipboardList, ListChecks, UserCog, ShieldCheck, Ruler,
+  ClipboardList, ListChecks, UserCog, ShieldCheck, Ruler, SlidersHorizontal,
 } from 'lucide-react'
 import type { Permission } from '@/domain/permissions'
 
@@ -37,12 +37,13 @@ export const NAV: NavEntry[] = [
   { href: '/customers', label: 'Clinics', icon: Users, area: 'main', permission: 'customers.view' },
   { href: '/invoices', label: 'Invoices', icon: FileText, area: 'main', permission: 'invoices.view' },
   { href: '/work', label: 'Work', icon: Wrench, area: 'main', permission: 'invoices.view' },
-  { href: '/products', label: 'Products', icon: Package, area: 'main', permission: 'products.view' },
+  { href: '/products', label: 'Service', icon: Package, area: 'main', permission: 'products.view' },
   { href: '/reports', label: 'Reports', icon: BarChart3, area: 'main', permission: 'reports.view' },
 
   // Configuration & administration — inside Settings.
   { href: '/settings/service-statuses', label: 'Service Statuses', icon: ClipboardList, area: 'settings', group: 'Lab Setup', permission: 'settings.manage' },
-  { href: '/settings/work-stages', label: 'Work Stages', icon: ListChecks, area: 'settings', group: 'Lab Setup', permission: 'settings.manage' },
+  { href: '/settings/work-statuses', label: 'Work Statuses', icon: SlidersHorizontal, area: 'settings', group: 'Lab Setup', permission: 'settings.manage' },
+  { href: '/settings/work-stages', label: 'In-Progress Stages', icon: ListChecks, area: 'settings', group: 'Lab Setup', permission: 'settings.manage' },
   { href: '/settings/units', label: 'Units', icon: Ruler, area: 'settings', group: 'Lab Setup', permission: 'settings.manage' },
   { href: '/settings/employees', label: 'Employees', icon: UserCog, area: 'settings', group: 'Team & Access', permission: 'staff.manage' },
   { href: '/settings/roles', label: 'Roles & Permissions', icon: ShieldCheck, area: 'settings', group: 'Team & Access', superadminOnly: true },

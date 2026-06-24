@@ -41,8 +41,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-dvh overflow-x-hidden bg-background text-foreground lg:grid lg:grid-cols-[minmax(0,1fr)_430px]">
-      <section className="hidden bg-primary p-10 text-primary-foreground lg:flex lg:min-h-dvh lg:flex-col lg:justify-between">
+    <div className="min-h-dvh overflow-x-hidden bg-background text-foreground lg:grid lg:grid-cols-2">
+      <section className="hidden bg-primary p-10 text-primary-foreground lg:flex lg:min-h-dvh lg:flex-col lg:justify-between xl:p-12">
         <div className="flex flex-1 items-center">
           <Image
             src="/chidental-rectangle.png"
@@ -50,7 +50,7 @@ export default function LoginPage() {
             width={680}
             height={183}
             priority
-            className="h-auto w-full max-w-2xl object-contain object-left"
+            className="h-auto w-full max-w-xl object-contain object-left"
           />
         </div>
         <div className="border-t border-white/15 pt-6">

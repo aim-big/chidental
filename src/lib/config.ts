@@ -17,3 +17,15 @@ export const BANK = {
   accountNumber: '3249402703',
   paymentNote: 'Please use invoice number as payment reference',
 }
+
+// The lab's standard payment terms (days). Auto-fills a new invoice's due date
+// (invoice date + this), and is the fallback the printed invoice shows when an
+// invoice has no due date to derive the term from. Per-invoice exceptions are
+// handled by editing the due date directly — terms aren't stored per clinic.
+export const DEFAULT_PAYMENT_TERMS_DAYS = 30
+
+// Standing notes printed at the foot of every invoice (right of the bank
+// details). Numbered in render order.
+export const INVOICE_NOTES = [
+  'Goods sold are neither returnable nor refundable.',
+]

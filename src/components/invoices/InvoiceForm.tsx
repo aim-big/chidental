@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/components/feedback/toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -18,12 +19,13 @@ import type { InvoiceStatus, Product } from '@/lib/database.types'
 import { addDays, format } from 'date-fns'
 import { DEFAULT_COLOR } from '@/lib/service-status'
 import { canEditInvoice } from '@/lib/invoice-permissions'
-import { DEFAULT_TAX_RATE } from '@/lib/config'
+import { DEFAULT_TAX_RATE, DEFAULT_PAYMENT_TERMS_DAYS } from '@/lib/config'
 import { useUnsavedChangesGuard } from '@/lib/use-unsaved-changes-guard'
 import { createInvoiceAction, updateInvoiceAction } from '@/data/invoice-actions'
 import type { InvoicePayload, InvoiceItemPayload } from '@/data/invoice-actions'
 import type { InvoiceFormData, InvoiceForEdit } from '@/data/invoices'
 import { ProductSearchAdd } from './ProductSearchAdd'
+import { ServiceStatusSelectItem } from './ServiceStatusSelectItem'
 
 interface LineItem {
   id: string | null            // existing invoice_items.id, or null for a new row
@@ -83,8 +85,8 @@ export default function InvoiceForm({
       unit_price: Number(r.unit_price),
     })),
   )
-  // Per-invoice discount (Wave 4). Defaults from the selected clinic on a new
-  // invoice; loaded from the saved invoice in edit mode. Editable on the invoice.
+  // Per-invoice discount (Wave 4). New invoices start at 0; edit mode loads the
+  // saved invoice's value. Editable on the invoice.
   const [discountPct, setDiscountPct] = useState<number>(
     editInvoice ? Number(editInvoice.discount_pct ?? 0) : 0,
   )
@@ -126,8 +128,6 @@ export default function InvoiceForm({
   // auto-fill never clobbers a hand-picked date. Pre-seeded true in edit mode so
   // a saved invoice's due date is treated as already-set and is never recomputed.
   const dueDateTouchedRef = useRef<boolean>(Boolean(editInvoice))
-  // Mirrors recipientSyncRef for the clinic-discount pre-fill (new invoices only).
-  const discountSyncRef = useRef<string | null>(editInvoice?.customer_id ?? null)
 
   const selectedCustomer = customers.find(c => c.id === customerId) ?? null
 
@@ -168,32 +168,18 @@ export default function InvoiceForm({
   }, [customerId, customers])
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Auto due-date from the clinic's payment terms (Wave 4): due = invoice date +
-  // payment_terms_days. Recomputes on a (different) clinic pick or an invoice-date
-  // change, but only while the user hasn't manually overridden the due date — and
-  // never in edit mode (dueDateTouchedRef is pre-seeded true), so a manually-set
-  // saved date is preserved. Same external-sync shape as the recipient effect.
+  // Auto due-date from the lab's standard payment terms: due = invoice date +
+  // DEFAULT_PAYMENT_TERMS_DAYS. Recomputes on an invoice-date change, but only
+  // while the user hasn't manually overridden the due date — and never in edit
+  // mode (dueDateTouchedRef is pre-seeded true), so a manually-set saved date is
+  // preserved. Per-invoice terms are set by editing the due date directly.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (dueDateTouchedRef.current) return
-    const c = customers.find(x => x.id === customerId) ?? null
-    if (!c || !invoiceDate) return
-    const days = Number(c.payment_terms_days ?? 30)
-    setDueDate(format(addDays(new Date(invoiceDate), days), 'yyyy-MM-dd'))
-  }, [customerId, invoiceDate, customers])
+    if (!invoiceDate) return
+    setDueDate(format(addDays(new Date(invoiceDate), DEFAULT_PAYMENT_TERMS_DAYS), 'yyyy-MM-dd'))
+  }, [invoiceDate])
   /* eslint-enable react-hooks/set-state-in-effect */
-
-  // Pre-fill the invoice discount from the selected clinic's default discount_pct
-  // (Wave 4) — new invoices only. The clinic value is just a starting point; the
-  // user can override it on the invoice. The ref guard skips the initial edit-mode
-  // load so a saved discount survives.
-  useEffect(() => {
-    if (customers.length === 0 && customerId) return
-    if (discountSyncRef.current === customerId) return
-    discountSyncRef.current = customerId
-    const c = customers.find(x => x.id === customerId) ?? null
-    setDiscountPct(c ? Number(c.discount_pct ?? 0) : 0)
-  }, [customerId, customers])
 
   const recipientDirty = selectedCustomer
     ? billToName !== (selectedCustomer.clinic_name ?? '')
@@ -485,8 +471,8 @@ export default function InvoiceForm({
                     <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">Bill To</div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <Label className="text-xs">Name</Label>
-                        <Input className="bg-white" value={billToName} onChange={e => setBillToName(e.target.value)} placeholder="Recipient name" />
+                        <Label className="text-xs">Clinic</Label>
+                        <Input className="bg-white" value={billToName} onChange={e => setBillToName(e.target.value)} placeholder="Clinic name" />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Contact person</Label>
@@ -494,7 +480,7 @@ export default function InvoiceForm({
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Phone</Label>
-                        <Input className="bg-white" value={billToPhone} onChange={e => setBillToPhone(e.target.value)} placeholder="Optional" />
+                        <PhoneInput value={billToPhone} onChange={setBillToPhone} />
                       </div>
                       <div className="space-y-1.5 sm:col-span-2">
                         <Label className="text-xs">Address</Label>
@@ -515,8 +501,8 @@ export default function InvoiceForm({
                       <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">Deliver To</div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                          <Label className="text-xs">Name</Label>
-                          <Input className="bg-white" value={shipToName} onChange={e => setShipToName(e.target.value)} placeholder="Recipient name" />
+                          <Label className="text-xs">Clinic</Label>
+                          <Input className="bg-white" value={shipToName} onChange={e => setShipToName(e.target.value)} placeholder="Clinic name" />
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-xs">Contact person</Label>
@@ -559,7 +545,8 @@ export default function InvoiceForm({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* Patient / Doctor / Service Status — one grouped row */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="space-y-2">
               <Label>Patient *</Label>
               <Input placeholder="Patient name" value={patient} onChange={e => setPatient(e.target.value)} aria-required />
@@ -568,29 +555,28 @@ export default function InvoiceForm({
               <Label>Doctor *</Label>
               <Input placeholder="Doctor name" value={doctor} onChange={e => setDoctor(e.target.value)} aria-required />
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Service Status</Label>
-            <Select
-              value={serviceStatusId ?? '__none__'}
-              onValueChange={v => setServiceStatusId(v === '__none__' ? null : v)}
-            >
-              <SelectTrigger
-                className={cn(
-                  'h-9 w-56 text-sm font-medium',
-                  currentServiceStatus ? cn('border-transparent', currentServiceStatus.color ?? DEFAULT_COLOR) : '',
-                )}
+            <div className="space-y-2">
+              <Label>Service Status</Label>
+              <Select
+                value={serviceStatusId ?? '__none__'}
+                onValueChange={v => setServiceStatusId(v === '__none__' ? null : v)}
               >
-                <SelectValue placeholder="No status set" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">No status</SelectItem>
-                {serviceStatuses.map(s => (
-                  <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <SelectTrigger
+                  className={cn(
+                    'h-10 w-full text-sm font-medium',
+                    currentServiceStatus ? cn('border-transparent', currentServiceStatus.color ?? DEFAULT_COLOR) : '',
+                  )}
+                >
+                  <SelectValue placeholder="No status set" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No status</SelectItem>
+                  {serviceStatuses.map(s => (
+                    <ServiceStatusSelectItem key={s.id} status={s} />
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>

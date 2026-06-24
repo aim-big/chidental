@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/input'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Checkbox } from '@/components/ui/checkbox'
 import { ArrowLeft } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/components/feedback/toast'
@@ -41,11 +40,6 @@ export default function CustomerForm({ initialData }: { initialData?: Customer }
       billing_address: initialData?.billing_address ?? '',
       delivery_address: initialData?.delivery_address ?? '',
       notes: initialData?.notes ?? '',
-      // Wave 4 clinic economics — fall back to the DB defaults for new clinics.
-      payment_terms_days: initialData?.payment_terms_days ?? 30,
-      discount_pct: initialData?.discount_pct ?? 0,
-      tin: initialData?.tin ?? '',
-      whatsapp_optin: initialData?.whatsapp_optin ?? false,
     },
   })
 
@@ -157,52 +151,6 @@ export default function CustomerForm({ initialData }: { initialData?: Customer }
             />
           </div>
         </div>
-
-        {/* Billing terms — Wave 4 clinic economics. Defaults apply to every new
-            invoice for this clinic (terms → due date, discount % → invoice). */}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="payment_terms_days">Payment Terms (days)</Label>
-            <Input
-              id="payment_terms_days"
-              type="number"
-              min={0}
-              step={1}
-              placeholder="30"
-              {...register('payment_terms_days', { valueAsNumber: true })}
-            />
-            {errors.payment_terms_days && <p className="text-xs text-destructive">{errors.payment_terms_days.message}</p>}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="discount_pct">Default Discount (%)</Label>
-            <Input
-              id="discount_pct"
-              type="number"
-              min={0}
-              max={100}
-              step="0.01"
-              placeholder="0"
-              {...register('discount_pct', { valueAsNumber: true })}
-            />
-            {errors.discount_pct && <p className="text-xs text-destructive">{errors.discount_pct.message}</p>}
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="tin">TIN (Tax ID)</Label>
-          <Input id="tin" placeholder="e.g. C12345678901" {...register('tin')} />
-        </div>
-
-        <Controller
-          name="whatsapp_optin"
-          control={control}
-          render={({ field }) => (
-            <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
-              <Checkbox checked={field.value} onCheckedChange={v => field.onChange(v === true)} />
-              WhatsApp opt-in (clinic agrees to receive WhatsApp messages)
-            </label>
-          )}
-        />
 
         <div className="space-y-2">
           <Label htmlFor="notes">Notes</Label>

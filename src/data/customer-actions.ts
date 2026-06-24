@@ -34,12 +34,6 @@ function toRow(input: CustomerInput) {
     billing_address: input.billing_address || null,
     delivery_address: input.delivery_address || null,
     notes: input.notes || null,
-    // Wave 4 clinic economics. Numbers/booleans always have a value (zod
-    // defaults), so they pass through directly; tin collapses to null when blank.
-    payment_terms_days: input.payment_terms_days,
-    discount_pct: input.discount_pct,
-    tin: input.tin || null,
-    whatsapp_optin: input.whatsapp_optin,
   }
 }
 

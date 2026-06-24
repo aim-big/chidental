@@ -1,8 +1,7 @@
 'use client'
 
-// Patient / Doctor card. Editable only when `canEdit` (canEditInvoice + !voided,
-// decided server-side and passed down). On blur, if either field changed, calls
-// updateCaseDetailsAction and refreshes the server data.
+// Case details card. Patient / Doctor are content-edit gated; Service Status is
+// kept in the same visual container and still writes through the server action.
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -11,15 +10,22 @@ import { useToast } from '@/components/feedback/toast'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ServiceStatusSelectItem } from '@/components/invoices/ServiceStatusSelectItem'
 import { canEditInvoice } from '@/lib/invoice-permissions'
-import { updateCaseDetailsAction } from '@/data/invoice-actions'
+import { DEFAULT_COLOR } from '@/lib/service-status'
+import { cn } from '@/lib/utils'
+import { updateCaseDetailsAction, updateServiceStatusAction } from '@/data/invoice-actions'
+import type { ServiceStatus } from '@/lib/database.types'
 import type { InvoiceDetail } from '@/data/invoices'
 
 export type CaseDetailsEditorProps = {
   invoice: Pick<InvoiceDetail, 'id' | 'status' | 'voided_at' | 'patient' | 'doctor'>
+  serviceStatusId: string | null
+  serviceStatuses: ServiceStatus[]
 }
 
-export function CaseDetailsEditor({ invoice }: CaseDetailsEditorProps) {
+export function CaseDetailsEditor({ invoice, serviceStatusId: initialServiceStatusId, serviceStatuses }: CaseDetailsEditorProps) {
   const router = useRouter()
   const { hasPermission } = useAuth()
   const { show } = useToast()
@@ -28,9 +34,11 @@ export function CaseDetailsEditor({ invoice }: CaseDetailsEditorProps) {
   const doctorProp = invoice.doctor
   const [patient, setPatient] = useState(patientProp ?? '')
   const [doctor, setDoctor] = useState(doctorProp ?? '')
+  const [serviceStatusId, setServiceStatusId] = useState<string | null>(initialServiceStatusId)
   // Inputs are editable only when content-edit gating allows it (matches the
   // original page's `canEdit = canEditInvoice(invoice, hasPermission)`).
   const canEdit = canEditInvoice(invoice, hasPermission)
+  const currentServiceStatus = serviceStatuses.find(s => s.id === serviceStatusId)
 
   const save = async () => {
     const next = { patient: patient || null, doctor: doctor || null }
@@ -41,11 +49,20 @@ export function CaseDetailsEditor({ invoice }: CaseDetailsEditorProps) {
     router.refresh()
   }
 
+  const updateServiceStatus = async (nextId: string | null) => {
+    const prev = serviceStatusId
+    setServiceStatusId(nextId)
+    const res = await updateServiceStatusAction(invoiceId, nextId)
+    if (res.ok === false) { setServiceStatusId(prev); show({ variant: 'error', title: res.error }); return }
+    show({ variant: 'success', title: 'Service status updated' })
+    router.refresh()
+  }
+
   return (
     <Card className="print:hidden">
       <CardHeader><CardTitle className="text-base">Case Details</CardTitle></CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="space-y-2">
             <Label>Patient</Label>
             {canEdit ? (
@@ -56,7 +73,7 @@ export function CaseDetailsEditor({ invoice }: CaseDetailsEditorProps) {
                 onBlur={save}
               />
             ) : (
-              <p className="py-2 text-sm text-gray-900">{patient || '—'}</p>
+              <p className="flex h-10 items-center text-sm text-gray-900">{patient || '—'}</p>
             )}
           </div>
           <div className="space-y-2">
@@ -69,8 +86,30 @@ export function CaseDetailsEditor({ invoice }: CaseDetailsEditorProps) {
                 onBlur={save}
               />
             ) : (
-              <p className="py-2 text-sm text-gray-900">{doctor || '—'}</p>
+              <p className="flex h-10 items-center text-sm text-gray-900">{doctor || '—'}</p>
             )}
+          </div>
+          <div className="space-y-2">
+            <Label>Service Status</Label>
+            <Select
+              value={serviceStatusId ?? '__none__'}
+              onValueChange={v => updateServiceStatus(v === '__none__' ? null : v)}
+            >
+              <SelectTrigger
+                className={cn(
+                  'h-10 w-full text-sm font-medium',
+                  currentServiceStatus ? cn('border-transparent', currentServiceStatus.color ?? DEFAULT_COLOR) : '',
+                )}
+              >
+                <SelectValue placeholder="No status set" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">No status</SelectItem>
+                {serviceStatuses.map(s => (
+                  <ServiceStatusSelectItem key={s.id} status={s} />
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </CardContent>

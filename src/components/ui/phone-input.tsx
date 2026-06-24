@@ -6,7 +6,7 @@
 // Malaysia; the searchable Combobox covers every country so staff can always
 // find the right code.
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
 import {
@@ -38,9 +38,23 @@ export function PhoneInput({ value, onChange, id, placeholder = '12-345 6789' }:
   const initial = splitInternational(value)
   const [iso2, setIso2] = useState(initial.iso2)
   const [national, setNational] = useState(initial.national)
+  const lastEmittedRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (value === lastEmittedRef.current) {
+      lastEmittedRef.current = null
+      return
+    }
+    lastEmittedRef.current = null
+    const next = splitInternational(value)
+    setIso2(next.iso2)
+    setNational(next.national)
+  }, [value])
 
   function emit(nextIso2: string, nextNational: string) {
-    onChange(combineInternational(nextIso2, nextNational))
+    const nextValue = combineInternational(nextIso2, nextNational)
+    lastEmittedRef.current = nextValue
+    onChange(nextValue)
   }
 
   return (

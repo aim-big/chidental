@@ -5,8 +5,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  Settings, LogOut, Menu, X, ChevronRight, Search,
-  PanelLeftClose, PanelLeftOpen, UserRound,
+  Settings, LogOut, Menu, X, ChevronLeft, ChevronRight, Search, UserRound,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -69,7 +68,7 @@ function SidebarContent({
     <TooltipProvider delayDuration={150}>
       <div className="relative flex h-full flex-col">
         <div className={cn('px-5 pt-5 pb-4', collapsed && 'px-3')}>
-          <div className={cn('flex items-center', collapsed ? 'flex-col gap-2' : 'justify-start')}>
+          <div className={cn('flex items-center', collapsed ? 'justify-center' : 'justify-start')}>
             {collapsed ? (
               <Image
                 src="/chidental-square.png"
@@ -88,23 +87,6 @@ function SidebarContent({
                 priority
                 className="h-auto w-full max-w-[188px] object-contain object-left"
               />
-            )}
-            {onToggleCollapsed && (
-              <SidebarTooltip label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} collapsed={collapsed}>
-                <button
-                  type="button"
-                  onClick={onToggleCollapsed}
-                  aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                  className={cn(
-                    'inline-flex shrink-0 items-center justify-center rounded-md text-primary-foreground/60 transition-colors hover:bg-white/10 hover:text-primary-foreground',
-                    collapsed
-                      ? 'h-7 w-7'
-                      : 'absolute right-2 top-5 h-7 w-7',
-                  )}
-                >
-                  {collapsed ? <PanelLeftOpen className="h-3.5 w-3.5" /> : <PanelLeftClose className="h-3.5 w-3.5" />}
-                </button>
-              </SidebarTooltip>
             )}
           </div>
         </div>
@@ -210,6 +192,24 @@ function SidebarContent({
             </Button>
           </SidebarTooltip>
         </div>
+
+        {onToggleCollapsed && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onToggleCollapsed}
+                aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                className="absolute bottom-5 -right-3 z-20 inline-flex h-7 w-7 items-center justify-center rounded-full border border-primary/20 bg-card text-primary shadow-md transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              >
+                {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              {collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            </TooltipContent>
+          </Tooltip>
+        )}
       </div>
     </TooltipProvider>
   )

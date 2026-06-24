@@ -49,10 +49,10 @@ export const PERMISSION_GROUPS: {
     ],
   },
   {
-    label: 'Customers',
+    label: 'Clinics',
     permissions: [
-      { key: 'customers.view', label: 'View customers', description: 'See the customer/clinic directory.' },
-      { key: 'customers.edit', label: 'Add & edit customers', description: 'Create and update customer records.' },
+      { key: 'customers.view', label: 'View clinics', description: 'See the clinic directory.' },
+      { key: 'customers.edit', label: 'Add & edit clinics', description: 'Create and update clinic records.' },
     ],
   },
   {
