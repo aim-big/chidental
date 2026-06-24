@@ -23,7 +23,7 @@ import type { WorkStatus, WorkStage, WorkStatusConfig } from '@/lib/database.typ
 import { WORK_STATUSES } from '@/lib/work-status'
 import { workStatusColor, workStatusLabel, type WorkStatusDisplay } from '@/lib/work-status-config'
 import {
-  encodeWork, decodeWork, nextWorkStep,
+  encodeWork, decodeWork, nextWorkStep, matchesWorkFilter,
   labelForValue, colorForValue, orderedGroupKeys,
 } from '@/lib/work-stages'
 import { WorkStageStepper } from '@/components/work/WorkStageStepper'
@@ -31,7 +31,7 @@ import { resume } from '@/domain/production'
 import { updateWorkStatusAction } from '@/data/invoice-actions'
 import type { WorkQueueRow } from '@/data/work'
 
-type FilterMode = 'active' | 'all' | WorkStatus
+type FilterMode = 'active' | 'all' | WorkStatus | `stage:${string}`
 
 // Encoded value sentinel for the "Resume" option offered on on_hold rows. It is
 // never persisted — selecting it routes to `resume(resume_status)` instead.
@@ -229,15 +229,20 @@ export function WorkQueueClient({
     [optimisticRows]
   )
 
+  const stageCounts = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const r of optimisticRows) {
+      if (r.work_status === 'in_progress' && r.stage_id) m.set(r.stage_id, (m.get(r.stage_id) ?? 0) + 1)
+    }
+    return m
+  }, [optimisticRows])
+
   const visible = useMemo(() => {
     const q = search.toLowerCase().trim()
     return optimisticRows.filter(r => {
       const isRecentlyMoved = recentlyMoved.has(r.id)
       // Stage filter — recently-moved rows bypass it so the user sees confirmation
-      if (!isRecentlyMoved) {
-        if (filter === 'active' && r.work_status === 'delivered') return false
-        if (filter !== 'active' && filter !== 'all' && r.work_status !== filter) return false
-      }
+      if (!isRecentlyMoved && !matchesWorkFilter(filter, r.work_status, r.stage_id)) return false
       if (!q) return true
       return (
         r.description.toLowerCase().includes(q) ||
@@ -303,6 +308,31 @@ export function WorkQueueClient({
           )
         })}
       </div>
+      {(filter === 'in_progress' || (typeof filter === 'string' && filter.startsWith('stage:'))) && activeStages.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 pl-1">
+          <span className="text-xs text-muted-foreground">Stage:</span>
+          {activeStages.map(s => {
+            const key: FilterMode = `stage:${s.id}`
+            const isSelected = filter === key
+            return (
+              <button
+                key={s.id}
+                onClick={() => setFilter(isSelected ? 'in_progress' : key)}
+                className={cn(
+                  'inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium transition-colors',
+                  s.color ?? 'bg-gray-100 text-gray-700',
+                  isSelected ? 'ring-1 ring-inset ring-current' : 'opacity-75 hover:opacity-100',
+                )}
+              >
+                {s.label}
+                <span className="inline-flex items-center justify-center min-w-[18px] h-4 rounded-full px-1 text-[10px] font-semibold bg-white/40">
+                  {stageCounts.get(s.id) ?? 0}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       <div className="relative w-full sm:max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

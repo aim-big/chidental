@@ -191,3 +191,11 @@ export function workLabelWithPosition(
   if (p && p.index >= 0) return `${base} · ${p.index + 1}/${p.total}`
   return base
 }
+
+// Work-queue filter predicate. `filter` is 'all' | 'active' | a WorkStatus | "stage:<id>".
+export function matchesWorkFilter(filter: string, work_status: WorkStatus, stage_id: string | null): boolean {
+  if (filter === 'all') return true
+  if (filter === 'active') return work_status !== 'delivered'
+  if (filter.startsWith('stage:')) return work_status === 'in_progress' && stage_id === filter.slice('stage:'.length)
+  return work_status === filter
+}

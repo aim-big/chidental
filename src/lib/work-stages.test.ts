@@ -5,6 +5,7 @@ import {
   workLabel, workColor, labelForValue, colorForValue,
   orderedGroupKeys, STAGE_DEFAULT_COLOR,
   stageProgress, dotColorClass, nextWorkStep, workLabelWithPosition,
+  matchesWorkFilter,
 } from '@/lib/work-stages'
 import { WORK_STATUS_LABELS, WORK_STATUS_COLORS } from '@/lib/work-status'
 
@@ -184,5 +185,24 @@ describe('workLabelWithPosition', () => {
   })
   it('shows the plain label for non-in-progress statuses', () => {
     expect(workLabelWithPosition(active, 'ready', null, byId)).toBe(WORK_STATUS_LABELS.ready)
+  })
+})
+
+describe('matchesWorkFilter', () => {
+  it('all matches everything', () => {
+    expect(matchesWorkFilter('all', 'delivered', null)).toBe(true)
+  })
+  it('active excludes delivered only', () => {
+    expect(matchesWorkFilter('active', 'in_progress', 's1')).toBe(true)
+    expect(matchesWorkFilter('active', 'delivered', null)).toBe(false)
+  })
+  it('a bare status matches that status', () => {
+    expect(matchesWorkFilter('in_progress', 'in_progress', null)).toBe(true)
+    expect(matchesWorkFilter('in_progress', 'ready', null)).toBe(false)
+  })
+  it('a stage filter matches only that in-progress stage', () => {
+    expect(matchesWorkFilter('stage:s1', 'in_progress', 's1')).toBe(true)
+    expect(matchesWorkFilter('stage:s1', 'in_progress', 's2')).toBe(false)
+    expect(matchesWorkFilter('stage:s1', 'ready', null)).toBe(false)
   })
 })
