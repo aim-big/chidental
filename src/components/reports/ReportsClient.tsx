@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { statusBadgeVariant } from '@/lib/status-badge'
+import { statusBadgeVariant, paymentStatusLabel } from '@/lib/status-badge'
 import type { ReportSummary } from '@/lib/reports'
 
 const BRAND_CHART = '#766254'
@@ -33,19 +33,19 @@ export function ReportsClient({ from, to, summary }: { from: string; to: string;
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Sales Reports</h1>
+        <h1 className="text-xl font-bold text-foreground sm:text-2xl">Sales Reports</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Revenue and outstanding analysis</p>
       </div>
 
       {/* Date range */}
-      <div className="flex gap-4 items-end">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
         <div className="space-y-2">
           <Label>From</Label>
-          <Input type="date" value={from} onChange={e => setRange({ from: e.target.value })} className="w-40" />
+          <Input type="date" value={from} onChange={e => setRange({ from: e.target.value })} className="w-full sm:w-40" />
         </div>
         <div className="space-y-2">
           <Label>To</Label>
-          <Input type="date" value={to} onChange={e => setRange({ to: e.target.value })} className="w-40" />
+          <Input type="date" value={to} onChange={e => setRange({ to: e.target.value })} className="w-full sm:w-40" />
         </div>
         {isPending && <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary mb-2" />}
       </div>
@@ -78,7 +78,7 @@ export function ReportsClient({ from, to, summary }: { from: string; to: string;
           <Card>
             <CardHeader><CardTitle className="text-base">Outstanding Invoices</CardTitle></CardHeader>
             <CardContent className="p-0">
-              <Table>
+              <Table className="min-w-[48rem]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Invoice #</TableHead>
@@ -107,7 +107,7 @@ export function ReportsClient({ from, to, summary }: { from: string; to: string;
                       </TableCell>
                       <TableCell className="font-medium">{formatCurrency(inv.total)}</TableCell>
                       <TableCell>
-                        <Badge variant={statusBadgeVariant('payment', inv.status)} className="capitalize">{inv.status}</Badge>
+                        <Badge variant={statusBadgeVariant('payment', inv.status)}>{paymentStatusLabel(inv.status)}</Badge>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -121,7 +121,7 @@ export function ReportsClient({ from, to, summary }: { from: string; to: string;
           <Card>
             <CardHeader><CardTitle className="text-base">Paid Invoices</CardTitle></CardHeader>
             <CardContent className="p-0">
-              <Table>
+              <Table className="min-w-[42rem]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Invoice #</TableHead>
@@ -140,7 +140,7 @@ export function ReportsClient({ from, to, summary }: { from: string; to: string;
                       <TableCell className="text-sm">{formatDate(inv.invoice_date)}</TableCell>
                       <TableCell className="font-medium">{formatCurrency(inv.total)}</TableCell>
                       <TableCell>
-                        <Badge variant={statusBadgeVariant('payment', inv.status)} className="capitalize">{inv.status}</Badge>
+                        <Badge variant={statusBadgeVariant('payment', inv.status)}>{paymentStatusLabel(inv.status)}</Badge>
                       </TableCell>
                     </TableRow>
                   ))}

@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Combobox } from '@/components/ui/combobox'
@@ -19,13 +18,13 @@ import type { InvoiceStatus, Product } from '@/lib/database.types'
 import { addDays, format } from 'date-fns'
 import { DEFAULT_COLOR } from '@/lib/service-status'
 import { canEditInvoice } from '@/lib/invoice-permissions'
-import { DEFAULT_TAX_RATE, DEFAULT_PAYMENT_TERMS_DAYS } from '@/lib/config'
 import { useUnsavedChangesGuard } from '@/lib/use-unsaved-changes-guard'
 import { createInvoiceAction, updateInvoiceAction } from '@/data/invoice-actions'
 import type { InvoicePayload, InvoiceItemPayload } from '@/data/invoice-actions'
 import type { InvoiceFormData, InvoiceForEdit } from '@/data/invoices'
 import { ProductSearchAdd } from './ProductSearchAdd'
 import { ServiceStatusSelectItem } from './ServiceStatusSelectItem'
+import { ManageOptionsLink } from '@/components/ui/manage-options-link'
 
 interface LineItem {
   id: string | null            // existing invoice_items.id, or null for a new row
@@ -35,16 +34,14 @@ interface LineItem {
   unit_price: number
 }
 
-// A customer's delivery address is "different" only when it is present AND not
-// identical to the billing address — drives the default state of the toggle.
-function deliveryDiffersFromBilling(delivery: string | null | undefined, billing: string | null | undefined): boolean {
-  const d = (delivery ?? '').trim()
-  return d !== '' && d !== (billing ?? '').trim()
-}
-
 // Hide the native number-input spin buttons (qty / unit price are typed, not stepped).
 const noSpin =
   '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
+
+function formatPriceRange(min: number, max: number): string {
+  const maxWithoutCurrency = formatCurrency(max).replace(/^RM[\s\u00a0]*/, '')
+  return `${formatCurrency(min)} - ${maxWithoutCurrency}`
+}
 
 export default function InvoiceForm({
   invoiceId,
@@ -67,9 +64,10 @@ export default function InvoiceForm({
 
   const [customerId, setCustomerId] = useState(editInvoice?.customer_id ?? searchParams.get('customer') ?? '')
   const [invoiceDate, setInvoiceDate] = useState(editInvoice?.invoice_date ?? format(new Date(), 'yyyy-MM-dd'))
-  const [dueDate, setDueDate] = useState(
-    editInvoice ? (editInvoice.due_date ?? '') : format(addDays(new Date(), 30), 'yyyy-MM-dd'),
-  )
+  // Due date is no longer captured in the UI. It's still stored (the column is
+  // NOT NULL and drives A/R aging) but always derived as invoice date +
+  // DEFAULT_PAYMENT_TERMS_DAYS — see invoicePayload(). A configurable term can
+  // replace the constant later without bringing the field back.
   // Single invoice-level remark. Internal only — never printed or shown to the
   // customer. Persisted to invoices.notes (the column kept its name).
   const [remarks, setRemarks] = useState(editInvoice?.notes ?? '')
@@ -85,16 +83,6 @@ export default function InvoiceForm({
       unit_price: Number(r.unit_price),
     })),
   )
-  // Per-invoice discount (Wave 4). New invoices start at 0; edit mode loads the
-  // saved invoice's value. Editable on the invoice.
-  const [discountPct, setDiscountPct] = useState<number>(
-    editInvoice ? Number(editInvoice.discount_pct ?? 0) : 0,
-  )
-  // Per-invoice SST tax (Wave 5). New invoices prefill from DEFAULT_TAX_RATE
-  // (ships at 0%); edit mode loads the saved invoice rate. Editable on the invoice.
-  const [taxRate, setTaxRate] = useState<number>(
-    editInvoice ? Number(editInvoice.tax_rate ?? 0) : DEFAULT_TAX_RATE,
-  )
   const [billToName, setBillToName] = useState(editInvoice?.bill_to_name ?? '')
   const [billToContact, setBillToContact] = useState(editInvoice?.bill_to_contact ?? '')
   const [billToPhone, setBillToPhone] = useState(editInvoice?.bill_to_phone ?? '')
@@ -102,9 +90,6 @@ export default function InvoiceForm({
   const [shipToName, setShipToName] = useState(editInvoice?.ship_to_name ?? '')
   const [shipToContact, setShipToContact] = useState(editInvoice?.ship_to_contact ?? '')
   const [deliveryAddress, setDeliveryAddress] = useState(editInvoice?.delivery_address ?? '')
-  // When unchecked, deliver-to == bill-to: the Deliver To fields are hidden and
-  // persisted as null, which the invoice document renders as a single Bill-To column.
-  const [shipDifferent, setShipDifferent] = useState<boolean>(Boolean(editInvoice?.delivery_address?.trim()))
   const [showRecipient, setShowRecipient] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -123,11 +108,6 @@ export default function InvoiceForm({
   // In edit mode we pre-seed it with the loaded invoice's customer so the saved
   // recipient values survive the initial render of the auto-fill effect.
   const recipientSyncRef = useRef<string | null>(editInvoice?.customer_id ?? null)
-
-  // True once the user manually edits the due date, so the payment-terms
-  // auto-fill never clobbers a hand-picked date. Pre-seeded true in edit mode so
-  // a saved invoice's due date is treated as already-set and is never recomputed.
-  const dueDateTouchedRef = useRef<boolean>(Boolean(editInvoice))
 
   const selectedCustomer = customers.find(c => c.id === customerId) ?? null
 
@@ -154,7 +134,7 @@ export default function InvoiceForm({
     const c = customers.find(x => x.id === customerId) ?? null
     if (!c) {
       setBillToName(''); setBillToContact(''); setBillToPhone(''); setBillingAddress('')
-      setShipToName(''); setShipToContact(''); setDeliveryAddress(''); setShipDifferent(false)
+      setShipToName(''); setShipToContact(''); setDeliveryAddress('')
       return
     }
     setBillToName(c.clinic_name ?? '')
@@ -164,21 +144,7 @@ export default function InvoiceForm({
     setShipToName(c.clinic_name ?? '')
     setShipToContact(c.contact_person ?? '')
     setDeliveryAddress(c.delivery_address ?? '')
-    setShipDifferent(deliveryDiffersFromBilling(c.delivery_address, c.billing_address))
   }, [customerId, customers])
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  // Auto due-date from the lab's standard payment terms: due = invoice date +
-  // DEFAULT_PAYMENT_TERMS_DAYS. Recomputes on an invoice-date change, but only
-  // while the user hasn't manually overridden the due date — and never in edit
-  // mode (dueDateTouchedRef is pre-seeded true), so a manually-set saved date is
-  // preserved. Per-invoice terms are set by editing the due date directly.
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (dueDateTouchedRef.current) return
-    if (!invoiceDate) return
-    setDueDate(format(addDays(new Date(invoiceDate), DEFAULT_PAYMENT_TERMS_DAYS), 'yyyy-MM-dd'))
-  }, [invoiceDate])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const recipientDirty = selectedCustomer
@@ -200,17 +166,6 @@ export default function InvoiceForm({
     setShipToName(selectedCustomer.clinic_name ?? '')
     setShipToContact(selectedCustomer.contact_person ?? '')
     setDeliveryAddress(selectedCustomer.delivery_address ?? '')
-    setShipDifferent(deliveryDiffersFromBilling(selectedCustomer.delivery_address, selectedCustomer.billing_address))
-  }
-
-  // Toggling "deliver to a different address" on: seed the recipient name/contact
-  // from Bill To so the user only has to type the new address.
-  const handleShipDifferentChange = (checked: boolean) => {
-    setShipDifferent(checked)
-    if (checked && !shipToName.trim() && !shipToContact.trim()) {
-      setShipToName(billToName)
-      setShipToContact(billToContact)
-    }
   }
 
   const currentServiceStatus = serviceStatuses.find(s => s.id === serviceStatusId) ?? null
@@ -235,24 +190,14 @@ export default function InvoiceForm({
   const removeItem = (i: number) => setItems(prev => prev.filter((_, idx) => idx !== i))
 
   const subtotal = items.reduce((s, item) => s + item.quantity * item.unit_price, 0)
-  // Per-invoice discount (Wave 4): clamp the % to 0–100, round the amount to 2dp,
-  // and derive the total. The client stays authoritative for these money values.
-  const clampedDiscountPct = Math.min(100, Math.max(0, discountPct || 0))
-  const discountAmount = Math.round(subtotal * clampedDiscountPct) / 100
-  // SST tax (Wave 5) applies AFTER discount: tax the discounted (taxable) amount,
-  // round to 2dp the same way, then add it back for the total. Clamp the rate to
-  // 0–100 to match the DB CHECK; the client stays authoritative for the math.
-  const taxable = subtotal - discountAmount
-  const clampedTaxRate = Math.min(100, Math.max(0, taxRate || 0))
-  const taxAmount = Math.round(taxable * clampedTaxRate) / 100
-  const total = taxable + taxAmount
+  const total = subtotal
 
   const itemPriceErrors = items.map(item => {
     if (!item.product_id) return null
     const p = products.find(x => x.id === item.product_id)
     if (!p || p.min_unit_price == null || p.max_unit_price == null) return null
     if (item.unit_price < p.min_unit_price || item.unit_price > p.max_unit_price) {
-      return `Allowed: ${formatCurrency(p.min_unit_price)} – ${formatCurrency(p.max_unit_price)}`
+      return formatPriceRange(p.min_unit_price, p.max_unit_price)
     }
     return null
   })
@@ -262,10 +207,9 @@ export default function InvoiceForm({
   // snapshot taken on first render. Cheap and exhaustive — any edit (header,
   // recipient, items) flips `dirty`, which arms the unsaved-changes guard.
   const snapshot = JSON.stringify({
-    customerId, invoiceDate, dueDate, remarks, patient, doctor, serviceStatusId,
-    discountPct, taxRate,
+    customerId, invoiceDate, remarks, patient, doctor, serviceStatusId,
     billToName, billToContact, billToPhone, billingAddress,
-    shipToName, shipToContact, deliveryAddress, shipDifferent, items,
+    shipToName, shipToContact, deliveryAddress, items,
   })
   // Lazy initializer captures the snapshot exactly once (first render).
   const [initialSnapshot] = useState(snapshot)
@@ -275,7 +219,10 @@ export default function InvoiceForm({
   const invoicePayload = (): InvoicePayload => ({
     customer_id: customerId,
     invoice_date: invoiceDate,
-    due_date: dueDate,
+    // Due date is derived, never entered: invoice date + the lab's standard
+    // payment terms (configured in Settings → Billing). The column is NOT NULL
+    // and feeds A/R aging.
+    due_date: format(addDays(new Date(invoiceDate), formData.paymentTermsDays), 'yyyy-MM-dd'),
     notes: remarks.trim() || null,
     patient: patient || null,
     doctor: doctor || null,
@@ -284,16 +231,12 @@ export default function InvoiceForm({
     bill_to_contact: billToContact.trim() || null,
     bill_to_phone: billToPhone.trim() || null,
     billing_address: billingAddress.trim() || null,
-    // When "deliver to a different address" is off, persist no ship-to: the
-    // invoice document then renders Bill To as a single full-width column.
-    ship_to_name: shipDifferent ? (shipToName.trim() || null) : null,
-    ship_to_contact: shipDifferent ? (shipToContact.trim() || null) : null,
-    delivery_address: shipDifferent ? (deliveryAddress.trim() || null) : null,
+    // Deliver-to is always captured; the invoice document decides whether to
+    // render a separate Deliver To column based on whether it differs from Bill To.
+    ship_to_name: shipToName.trim() || null,
+    ship_to_contact: shipToContact.trim() || null,
+    delivery_address: deliveryAddress.trim() || null,
     subtotal,
-    discount_pct: clampedDiscountPct,
-    discount_amount: discountAmount,
-    tax_rate: clampedTaxRate,
-    tax_amount: taxAmount,
     total,
   })
 
@@ -301,14 +244,11 @@ export default function InvoiceForm({
     if (!customerId) { setError('Please select a clinic.'); return false }
     if (!patient.trim()) { setError('Patient name is required.'); return false }
     if (!doctor.trim()) { setError('Doctor name is required.'); return false }
-    if (!invoiceDate || !dueDate) { setError('Invoice date and due date are required.'); return false }
+    if (!invoiceDate) { setError('Invoice date is required.'); return false }
     if (items.length === 0) { setError('Add at least one item.'); return false }
     if (items.some(i => !i.description.trim())) { setError('Every line needs a description.'); return false }
     if (items.some(i => !(i.quantity > 0))) { setError('Quantity must be greater than 0.'); return false }
     if (hasItemPriceErrors) { setError('Some line items are outside the allowed price range.'); return false }
-    // Tax rate must sit in 0–100 to match the DB CHECK (the input already clamps,
-    // this is the belt-and-braces guard).
-    if (taxRate < 0 || taxRate > 100) { setError('Tax rate must be between 0 and 100.'); return false }
     return true
   }
 
@@ -378,7 +318,7 @@ export default function InvoiceForm({
   }
 
   // Enter-to-save: the form's primary submit. Edit mode saves; create mode does
-  // the primary "Create & Send". Guarded so a save can't double-fire while one
+  // the primary "Create" (issues the invoice). Guarded so a save can't double-fire while one
   // is in flight or while line items have price errors.
   const onFormSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -411,13 +351,13 @@ export default function InvoiceForm({
   }
 
   return (
-    <form className="max-w-3xl space-y-6" onSubmit={onFormSubmit} onKeyDown={onFormKeyDown}>
+    <form className="w-full max-w-4xl space-y-6" onSubmit={onFormSubmit} onKeyDown={onFormKeyDown}>
       <div className="flex items-center gap-3">
         <Button type="button" variant="ghost" size="icon" onClick={() => router.back()}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{isEdit ? 'Edit Invoice' : 'New Invoice'}</h1>
+          <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">{isEdit ? 'Edit Invoice' : 'New Invoice'}</h1>
           <p className="text-sm text-gray-500 mt-0.5">{isEdit ? 'Update invoice details and items' : 'Create and send to clinic'}</p>
         </div>
       </div>
@@ -449,7 +389,7 @@ export default function InvoiceForm({
               <button
                 type="button"
                 onClick={() => setShowRecipient(s => !s)}
-                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-gray-100/50"
+                className="flex w-full items-start justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-gray-100/50 sm:items-center"
               >
                 <span className="flex items-center gap-2 text-gray-700">
                   {showRecipient ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -459,7 +399,7 @@ export default function InvoiceForm({
                   )}
                 </span>
                 {!showRecipient && (
-                  <span className="truncate max-w-[260px] text-xs text-gray-500">
+                  <span className="hidden max-w-[260px] truncate text-xs text-gray-500 sm:inline">
                     {billToName || 'No bill-to name'}
                   </span>
                 )}
@@ -489,37 +429,31 @@ export default function InvoiceForm({
                     </div>
                   </div>
 
-                  {/* Deliver-to toggle */}
-                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
-                    <Checkbox checked={shipDifferent} onCheckedChange={v => handleShipDifferentChange(v === true)} />
-                    Deliver to a different address
-                  </label>
-
-                  {/* Deliver To (only when it differs from billing) */}
-                  {shipDifferent && (
-                    <div className="space-y-2 rounded-md border border-dashed border-gray-300 p-3">
-                      <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">Deliver To</div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Clinic</Label>
-                          <Input className="bg-white" value={shipToName} onChange={e => setShipToName(e.target.value)} placeholder="Clinic name" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Contact person</Label>
-                          <Input className="bg-white" value={shipToContact} onChange={e => setShipToContact(e.target.value)} placeholder="Optional" />
-                        </div>
-                        <div className="space-y-1.5 sm:col-span-2">
-                          <Label className="text-xs">Address</Label>
-                          <Textarea className="bg-white" value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)} rows={2} placeholder="Delivery address" />
-                        </div>
+                  {/* Deliver To — auto-filled from the clinic, overridable per invoice.
+                      The printed document shows a separate Deliver To column only when
+                      these values differ from Bill To. */}
+                  <div className="space-y-2 rounded-md border border-dashed border-gray-300 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">Deliver To</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Clinic</Label>
+                        <Input className="bg-white" value={shipToName} onChange={e => setShipToName(e.target.value)} placeholder="Clinic name" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Contact person</Label>
+                        <Input className="bg-white" value={shipToContact} onChange={e => setShipToContact(e.target.value)} placeholder="Optional" />
+                      </div>
+                      <div className="space-y-1.5 sm:col-span-2">
+                        <Label className="text-xs">Address</Label>
+                        <Textarea className="bg-white" value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)} rows={2} placeholder="Delivery address" />
                       </div>
                     </div>
-                  )}
+                  </div>
 
-                  <div className="flex items-center justify-between pt-1">
+                  <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-xs text-gray-500">Edits apply to this invoice only.</p>
                     {recipientDirty && (
-                      <Button type="button" variant="ghost" size="sm" onClick={restoreFromCustomer} className="h-7 text-xs">
+                      <Button type="button" variant="ghost" size="sm" onClick={restoreFromCustomer} className="h-7 w-full text-xs sm:w-auto">
                         <RotateCcw className="h-3 w-3 mr-1" />
                         Restore from clinic
                       </Button>
@@ -530,18 +464,10 @@ export default function InvoiceForm({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Invoice Date</Label>
               <Input type="date" value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Due Date</Label>
-              <Input
-                type="date"
-                value={dueDate}
-                onChange={e => { dueDateTouchedRef.current = true; setDueDate(e.target.value) }}
-              />
             </div>
           </div>
 
@@ -549,11 +475,11 @@ export default function InvoiceForm({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="space-y-2">
               <Label>Patient *</Label>
-              <Input placeholder="Patient name" value={patient} onChange={e => setPatient(e.target.value)} aria-required />
+              <Input placeholder="e.g. Tan Wei Ming" value={patient} onChange={e => setPatient(e.target.value)} aria-required />
             </div>
             <div className="space-y-2">
               <Label>Doctor *</Label>
-              <Input placeholder="Doctor name" value={doctor} onChange={e => setDoctor(e.target.value)} aria-required />
+              <Input placeholder="e.g. Dr. Lim Siew Hoon" value={doctor} onChange={e => setDoctor(e.target.value)} aria-required />
             </div>
             <div className="space-y-2">
               <Label>Service Status</Label>
@@ -574,6 +500,7 @@ export default function InvoiceForm({
                   {serviceStatuses.map(s => (
                     <ServiceStatusSelectItem key={s.id} status={s} />
                   ))}
+                  <ManageOptionsLink href="/settings/service-statuses" label="Manage service statuses" />
                 </SelectContent>
               </Select>
             </div>
@@ -592,14 +519,14 @@ export default function InvoiceForm({
               <p className="mx-auto mt-0.5 max-w-xs text-xs text-gray-400">
                 Add products from your catalogue to build this invoice.
               </p>
-              <div className="mx-auto mt-4 max-w-xs">
+              <div className="mt-4 w-full">
                 <ProductSearchAdd products={products} onAdd={addProduct} />
               </div>
             </div>
           ) : (
             <>
               {/* Column header */}
-              <div className="flex items-center gap-3 px-3 text-[11px] font-medium uppercase tracking-wide text-gray-400">
+              <div className="hidden items-center gap-3 px-3 text-[11px] font-medium uppercase tracking-wide text-gray-400 sm:flex">
                 <span className="flex-1">Item</span>
                 <span className="w-12 text-center">Qty</span>
                 <span className="w-7" />
@@ -623,10 +550,10 @@ export default function InvoiceForm({
                       className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 transition-colors hover:border-gray-300"
                     >
                       {/* Money row — the catalogue product is the anchor */}
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
                         <div className="min-w-0 flex-1">
                           {product ? (
-                            <div className="flex items-baseline gap-2">
+                            <div className="flex h-9 items-center gap-2">
                               <span className="truncate text-sm font-semibold text-gray-900">{product.name}</span>
                               <span className="shrink-0 text-xs text-gray-400">/{product.unit}</span>
                             </div>
@@ -641,52 +568,65 @@ export default function InvoiceForm({
                           )}
                         </div>
 
-                        <Input
-                          className={cn('h-9 w-12 px-1 text-center', noSpin)}
-                          type="number"
-                          inputMode="numeric"
-                          min="1"
-                          step="1"
-                          value={item.quantity}
-                          onChange={e => updateItem(i, 'quantity', Math.max(1, Math.floor(parseFloat(e.target.value) || 1)))}
-                          aria-label="Quantity"
-                        />
-                        <span className="w-7 shrink-0 text-center text-xs text-gray-300">×</span>
-
-                        {isFixed ? (
-                          <div className="flex h-9 w-24 items-center justify-end text-sm text-gray-500">
-                            {formatCurrency(item.unit_price)}
-                          </div>
-                        ) : (
+                        <div className="grid grid-cols-[3.25rem_0.75rem_minmax(5.5rem,1fr)_0.75rem_minmax(5rem,auto)_2rem] items-start gap-2 sm:flex sm:gap-3">
                           <Input
-                            className={cn('h-9 w-24 text-right', noSpin, priceError && 'border-destructive focus-visible:ring-destructive')}
+                            className={cn('h-9 w-full px-1 text-center sm:w-12', noSpin)}
                             type="number"
-                            inputMode="decimal"
-                            min={hasRange ? product!.min_unit_price! : 0}
-                            max={hasRange ? product!.max_unit_price! : undefined}
-                            step="0.01"
-                            value={item.unit_price}
-                            aria-invalid={priceError ? true : undefined}
-                            onChange={e => updateItem(i, 'unit_price', parseFloat(e.target.value) || 0)}
-                            aria-label="Unit price"
+                            inputMode="numeric"
+                            min="1"
+                            step="1"
+                            value={item.quantity}
+                            onChange={e => updateItem(i, 'quantity', Math.max(1, Math.floor(parseFloat(e.target.value) || 1)))}
+                            aria-label="Quantity"
                           />
-                        )}
-                        <span className="w-7 shrink-0 text-center text-xs text-gray-300">=</span>
+                          <span className="flex h-9 shrink-0 items-center justify-center text-xs text-gray-300 sm:w-7">×</span>
 
-                        <span className="w-20 shrink-0 text-right text-sm font-semibold text-gray-900">
-                          {formatCurrency(lineTotal)}
-                        </span>
+                          <div className="w-full sm:w-24">
+                            {isFixed ? (
+                              <div className="flex h-9 w-full items-center justify-end text-sm text-gray-500">
+                                {formatCurrency(item.unit_price)}
+                              </div>
+                            ) : (
+                              <>
+                                <Input
+                                  className={cn('h-9 w-full text-right', noSpin, priceError && 'border-destructive focus-visible:ring-destructive')}
+                                  type="number"
+                                  inputMode="decimal"
+                                  min={hasRange ? product!.min_unit_price! : 0}
+                                  max={hasRange ? product!.max_unit_price! : undefined}
+                                  step="0.01"
+                                  value={item.unit_price}
+                                  aria-invalid={priceError ? true : undefined}
+                                  onChange={e => updateItem(i, 'unit_price', parseFloat(e.target.value) || 0)}
+                                  aria-label="Unit price"
+                                />
+                                {priceError ? (
+                                  <p className="mt-1 text-right text-xs leading-tight text-destructive">{priceError}</p>
+                                ) : hasRange ? (
+                                  <p className="mt-1 text-right text-xs leading-tight text-gray-400">
+                                    {formatPriceRange(product!.min_unit_price!, product!.max_unit_price!)}
+                                  </p>
+                                ) : null}
+                              </>
+                            )}
+                          </div>
+                          <span className="flex h-9 shrink-0 items-center justify-center text-xs text-gray-300 sm:w-7">=</span>
 
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 shrink-0 text-gray-300 hover:text-red-500"
-                          onClick={() => removeItem(i)}
-                          aria-label="Remove line"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                          <span className="flex h-9 shrink-0 items-center justify-end text-right text-sm font-semibold text-gray-900 sm:w-20">
+                            {formatCurrency(lineTotal)}
+                          </span>
+
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-8 shrink-0 text-gray-300 hover:text-red-500"
+                            onClick={() => removeItem(i)}
+                            aria-label="Remove line"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
 
                       {/* Secondary, de-emphasised: editable printed description for catalogue products */}
@@ -702,14 +642,6 @@ export default function InvoiceForm({
                         </div>
                       )}
 
-                      {/* Price guidance / validation — only when it matters */}
-                      {priceError ? (
-                        <p className="mt-1 text-xs text-destructive">{priceError}</p>
-                      ) : hasRange ? (
-                        <p className="mt-1 text-xs text-gray-400">
-                          Allowed {formatCurrency(product!.min_unit_price!)} – {formatCurrency(product!.max_unit_price!)}
-                        </p>
-                      ) : null}
                     </div>
                   )
                 })}
@@ -718,54 +650,10 @@ export default function InvoiceForm({
               <ProductSearchAdd products={products} onAdd={addProduct} />
 
               <div className="flex justify-end border-t border-gray-200 pt-3">
-                <div className="w-64 space-y-1.5">
+                <div className="w-full space-y-1.5 sm:w-64">
                   <div className="flex items-baseline justify-between">
                     <span className="text-sm text-gray-500">Subtotal</span>
                     <span className="text-sm font-medium text-gray-900">{formatCurrency(subtotal)}</span>
-                  </div>
-                  {/* Discount % (Wave 4): pre-filled from the clinic default, editable
-                      per-invoice. The computed amount sits on the right. */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm text-gray-500">Discount</span>
-                      <Input
-                        className={cn('h-7 w-16 px-1.5 text-right text-sm', noSpin)}
-                        type="number"
-                        inputMode="decimal"
-                        min={0}
-                        max={100}
-                        step="0.01"
-                        value={discountPct}
-                        onChange={e => setDiscountPct(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
-                        aria-label="Discount percent"
-                      />
-                      <span className="text-sm text-gray-400">%</span>
-                    </div>
-                    <span className="text-sm font-medium text-gray-900">
-                      {discountAmount > 0 ? `(${formatCurrency(discountAmount)})` : formatCurrency(0)}
-                    </span>
-                  </div>
-                  {/* Tax % (Wave 5): SST on the discounted amount. The input stays
-                      visible (like the discount control) so the rate is always
-                      editable; the computed amount sits on the right. The printed
-                      invoice hides this row entirely when the rate is 0. */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm text-gray-500">Tax</span>
-                      <Input
-                        className={cn('h-7 w-16 px-1.5 text-right text-sm', noSpin)}
-                        type="number"
-                        inputMode="decimal"
-                        min={0}
-                        max={100}
-                        step="0.01"
-                        value={taxRate}
-                        onChange={e => setTaxRate(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
-                        aria-label="Tax percent"
-                      />
-                      <span className="text-sm text-gray-400">%</span>
-                    </div>
-                    <span className="text-sm font-medium text-gray-900">{formatCurrency(taxAmount)}</span>
                   </div>
                   <div className="flex items-baseline justify-between border-t border-gray-200 pt-1.5">
                     <span className="text-sm text-gray-500">Total</span>
@@ -795,24 +683,24 @@ export default function InvoiceForm({
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <div className="flex gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row">
         {isEdit ? (
           // type="submit" → Enter in a header field saves; the form's onSubmit is
           // the single save path (no onClick, so a click can't double-fire it).
-          <Button type="submit" disabled={saving || hasItemPriceErrors}>
+          <Button className="w-full sm:w-auto" type="submit" disabled={saving || hasItemPriceErrors}>
             {saving ? 'Saving…' : 'Save Changes'}
           </Button>
         ) : (
           <>
-            <Button type="submit" disabled={saving || hasItemPriceErrors}>
-              {saving ? 'Saving…' : 'Create & Send'}
+            <Button className="w-full sm:w-auto" type="submit" disabled={saving || hasItemPriceErrors}>
+              {saving ? 'Saving…' : 'Create'}
             </Button>
-            <Button type="button" variant="outline" onClick={() => handleCreate('draft')} disabled={saving || hasItemPriceErrors}>
+            <Button className="w-full sm:w-auto" type="button" variant="outline" onClick={() => handleCreate('draft')} disabled={saving || hasItemPriceErrors}>
               Save as Draft
             </Button>
           </>
         )}
-        <Button type="button" variant="ghost" onClick={() => router.back()} disabled={saving}>Cancel</Button>
+        <Button className="w-full sm:w-auto" type="button" variant="ghost" onClick={() => router.back()} disabled={saving}>Cancel</Button>
       </div>
     </form>
   )

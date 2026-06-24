@@ -1,8 +1,8 @@
 'use client'
 
 // Header (number + status/overdue/voided/locked badges) and the workflow action
-// bar: Mark Sent, Record Payment (dialog), Edit link, Print Invoice / Delivery,
-// Void (dialog) and Restore. Each mutation calls a Server Action and reports
+// bar: Issue Invoice, Record Payment (dialog), Edit link, Print Invoice / Delivery,
+// and Void (dialog). Each mutation calls a Server Action and reports
 // through the toast; success triggers `router.refresh()` so the server re-renders
 // with fresh data. Payment goes through the atomic `record_payment` RPC, which
 // records the full outstanding balance and advances status — we never recompute
@@ -21,17 +21,18 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { cn, formatCurrency, todayISODate } from '@/lib/utils'
-import { ArrowLeft, Printer, CreditCard, Ban, Pencil, Lock, ChevronDown, FileText, Truck } from 'lucide-react'
+import { ArrowLeft, Printer, CreditCard, Ban, Pencil, Lock, ChevronDown, FileText, Truck, CheckCircle2 } from 'lucide-react'
 import { canEditInvoice } from '@/lib/invoice-permissions'
-import { isVoided, isOverdue } from '@/lib/invoice-status'
-import { statusBadgeVariant } from '@/lib/status-badge'
+import { isVoided } from '@/lib/invoice-status'
+import { statusBadgeVariant, paymentStatusLabel } from '@/lib/status-badge'
 import {
   markSentAction,
   recordPaymentAction,
 } from '@/data/invoice-actions'
-import { voidInvoice as voidInvoiceAction, restoreInvoice } from '@/lib/invoices/void-actions'
+import { voidInvoice as voidInvoiceAction } from '@/lib/invoices/void-actions'
 import type { InvoiceDetail } from '@/data/invoices'
 
 const paymentSchema = z.object({
@@ -53,7 +54,7 @@ export type ActionsBarProps = {
 }
 
 // Single "Print" entry point that reveals the printable documents (Invoice and
-// Delivery Note) on hover or click — keeping print apart from the workflow
+// Delivery Order) on hover or click — keeping print apart from the workflow
 // actions. Work Ticket prints are still wired through `onPrint` in the document
 // island but are no longer surfaced here. Hover opens with a small close delay
 // so moving the cursor from the button onto the panel doesn't dismiss it;
@@ -93,7 +94,7 @@ function PrintMenu({ onPrint, className }: { onPrint: (mode: PrintMode) => void;
 
   const items: { mode: PrintMode; label: string; description: string; icon: typeof FileText }[] = [
     { mode: 'invoice', label: 'Invoice', description: 'Prices, totals & bank details', icon: FileText },
-    { mode: 'delivery', label: 'Delivery Note', description: 'Items & quantities, no prices', icon: Truck },
+    { mode: 'delivery', label: 'Delivery Order', description: 'Items & quantities, no prices', icon: Truck },
   ]
 
   return (
@@ -101,6 +102,7 @@ function PrintMenu({ onPrint, className }: { onPrint: (mode: PrintMode) => void;
       <Button
         variant="outline"
         size="sm"
+        className="w-full sm:w-auto"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen(o => !o)}
@@ -111,7 +113,7 @@ function PrintMenu({ onPrint, className }: { onPrint: (mode: PrintMode) => void;
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full z-50 mt-1 min-w-[14rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+          className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md sm:left-auto sm:min-w-[14rem]"
         >
           {items.map(({ mode, label, description, icon: Icon }) => (
             <button
@@ -144,7 +146,6 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
   const [voidOpen, setVoidOpen] = useState(false)
   const [voiding, setVoiding] = useState(false)
   const [voidReason, setVoidReason] = useState('')
-  const [restoring, setRestoring] = useState(false)
 
   const { register, handleSubmit, reset } = useForm<PaymentForm>({
     // Cast keeps RHF's Resolver generics aligned with the zod schema's inferred type.
@@ -154,8 +155,6 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
 
   const voided = isVoided(invoice)
   const canEdit = canEditInvoice(invoice, hasPermission)
-  // Overdue is derived (outstanding + past due), never a stored status value.
-  const overdue = !voided && isOverdue(invoice, todayISODate())
 
   const onRecordPayment = async (data: PaymentForm) => {
     setSavingPayment(true)
@@ -179,7 +178,7 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
   const markAsSent = async () => {
     const res = await markSentAction(invoice.id)
     if (res.ok === false) { show({ variant: 'error', title: res.error }); return }
-    show({ variant: 'success', title: 'Invoice marked as sent' })
+    show({ variant: 'success', title: 'Invoice issued' })
     router.refresh()
   }
 
@@ -202,86 +201,79 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
     }
   }
 
-  const restore = async () => {
-    setRestoring(true)
-    try {
-      const res = await restoreInvoice({ id: invoice.id })
-      if (res.ok === false) { show({ variant: 'error', title: res.error }); return }
-      show({ variant: 'success', title: 'Invoice restored' })
-      router.refresh()
-    } catch {
-      show({ variant: 'error', title: 'Could not restore the invoice. Please try again.' })
-    } finally {
-      setRestoring(false)
-    }
-  }
-
   return (
-    <div className="space-y-4 print:hidden">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-foreground">{invoice.invoice_number}</h1>
-            {overdue
-              ? <Badge variant="destructive" className="capitalize">Overdue</Badge>
-              : <Badge variant={statusBadgeVariant('payment', invoice.status)} className="capitalize">{invoice.status}</Badge>}
-            {voided && (
-              <Badge variant="destructive" className="uppercase">Voided</Badge>
-            )}
-            {!voided && !canEdit && (
-              <span
-                className="inline-flex items-center gap-1 text-xs text-muted-foreground"
-                title="This invoice has been sent. You don't have permission to edit it."
-              >
-                <Lock className="h-3 w-3" />Locked
-              </span>
-            )}
-          </div>
-          <Link href={`/customers/${invoice.customer_id}`} className="text-sm text-primary hover:underline">
-            {customerName}
-          </Link>
-        </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        {!voided && invoice.status === 'draft' && (
-          <Button variant="outline" size="sm" onClick={markAsSent}>Mark as Sent</Button>
-        )}
-        {/* Record Payment is the single settle action: it records the full
-            outstanding balance and marks the invoice paid. Hidden once paid so
-            a second full payment can't be recorded. */}
-        {!voided && ['sent', 'partial', 'overdue'].includes(invoice.status) && (
-          <Button variant="outline" size="sm" onClick={() => { reset({ payment_date: todayISODate() }); setPaymentOpen(true) }}>
-            <CreditCard className="h-4 w-4 mr-2" />Record Payment
+    <div className="print:hidden">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <Button variant="ghost" size="icon" className="shrink-0" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4" />
           </Button>
-        )}
-        {canEdit && (
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/invoices/${invoice.id}/edit`}>
-              <Pencil className="h-4 w-4 mr-2" />Edit
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <h1 className="text-xl font-bold text-foreground sm:text-2xl">{invoice.invoice_number}</h1>
+              <Badge variant={statusBadgeVariant('payment', invoice.status)}>{paymentStatusLabel(invoice.status)}</Badge>
+              {voided && (
+                <Badge variant="destructive" className="uppercase">Voided</Badge>
+              )}
+              {!voided && !canEdit && (
+                <span
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground"
+                  title="This invoice has been sent. You don't have permission to edit it."
+                >
+                  <Lock className="h-3 w-3" />Locked
+                </span>
+              )}
+            </div>
+            <Link href={`/customers/${invoice.customer_id}`} className="text-sm text-primary hover:underline">
+              {customerName}
             </Link>
-          </Button>
-        )}
-        {hasPermission('invoices.manage') && !voided && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
-            onClick={() => setVoidOpen(true)}
-          >
-            <Ban className="h-4 w-4 mr-2" />Void
-          </Button>
-        )}
-        {hasPermission('invoices.manage') && voided && (
-          <Button variant="outline" size="sm" onClick={restore} disabled={restoring}>
-            {restoring ? 'Restoring…' : 'Restore'}
-          </Button>
-        )}
-        {/* Print is kept apart from the workflow actions: a single entry point on
-            the right that reveals the printable documents on hover or click. */}
-        <PrintMenu onPrint={onPrint} className="ml-auto" />
+          </div>
+        </div>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
+          {/* Issuing is the key state transition for a draft, so it's the primary
+              (colored) CTA. The tooltip spells out the consequence — it finalizes
+              the invoice and locks it from staff editing. */}
+          {!voided && invoice.status === 'draft' && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button className="w-full sm:w-auto" size="sm" onClick={markAsSent}>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />Issue Invoice
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                Finalize this draft into an official invoice ready to bill. Staff can no longer edit it afterward.
+              </TooltipContent>
+            </Tooltip>
+          )}
+          {/* Record Payment is the single settle action: it records the full
+              outstanding balance and marks the invoice paid. Hidden once paid so
+              a second full payment can't be recorded. */}
+          {!voided && ['sent', 'partial', 'overdue'].includes(invoice.status) && (
+            <Button className="w-full sm:w-auto" variant="outline" size="sm" onClick={() => { reset({ payment_date: todayISODate() }); setPaymentOpen(true) }}>
+              <CreditCard className="h-4 w-4 mr-2" />Record Payment
+            </Button>
+          )}
+          {canEdit && (
+            <Button className="w-full sm:w-auto" variant="outline" size="sm" asChild>
+              <Link href={`/invoices/${invoice.id}/edit`}>
+                <Pencil className="h-4 w-4 mr-2" />Edit
+              </Link>
+            </Button>
+          )}
+          {hasPermission('invoices.manage') && !voided && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full border-red-200 text-red-600 hover:border-red-300 hover:bg-red-50 sm:w-auto"
+              onClick={() => setVoidOpen(true)}
+            >
+              <Ban className="h-4 w-4 mr-2" />Void
+            </Button>
+          )}
+          {/* Print is kept apart from the workflow actions: a single entry point on
+              the right that reveals the printable documents on hover or click. */}
+          <PrintMenu onPrint={onPrint} className="w-full sm:w-auto" />
+        </div>
       </div>
 
       {/* Void confirmation dialog */}
@@ -294,7 +286,7 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             Void <span className="font-semibold">{invoice.invoice_number}</span>? It will be excluded
-            from revenue and reports. You can restore it later.
+            from revenue and reports, and it cannot be restored.
           </p>
           <div className="space-y-2">
             <Label>Reason (optional)</Label>

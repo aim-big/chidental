@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { isVoided } from '@/lib/invoice-status'
-import { statusBadgeVariant } from '@/lib/status-badge'
+import { statusBadgeVariant, paymentStatusLabel } from '@/lib/status-badge'
 import type { DashboardRecentInvoice } from '@/data/dashboard'
 
 // Recent-invoices table for the dashboard. Client island only because the rows
@@ -39,7 +39,7 @@ export function DashboardRecentInvoices({ invoices }: { invoices: DashboardRecen
             <TableCell>
               {isVoided(inv)
                 ? <Badge variant="destructive" className="uppercase">Voided</Badge>
-                : <Badge variant={statusBadgeVariant('payment', inv.status)} className="capitalize">{inv.status}</Badge>}
+                : <Badge variant={statusBadgeVariant('payment', inv.status)}>{paymentStatusLabel(inv.status)}</Badge>}
             </TableCell>
           </TableRow>
         ))}

@@ -19,10 +19,10 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Pagination } from '@/components/ui/pagination'
 import { FilterChips, type FilterChip } from '@/components/ui/filter-chips'
 import { listViewState } from '@/lib/list-view-state'
-import { statusBadgeVariant } from '@/lib/status-badge'
+import { statusBadgeVariant, paymentStatusLabel } from '@/lib/status-badge'
 import { FileText, Plus, Search } from 'lucide-react'
-import { cn, formatCurrency, formatDate, todayISODate } from '@/lib/utils'
-import { isVoided, isOverdue } from '@/lib/invoice-status'
+import { cn, formatCurrency, formatDate } from '@/lib/utils'
+import { isVoided } from '@/lib/invoice-status'
 import { useListUrlState, type ListUrlState } from '@/lib/use-list-url-state'
 import type { InvoiceListRow, InvoiceListPage, InvoiceView } from '@/data/invoices'
 
@@ -30,7 +30,6 @@ const VIEWS: { key: InvoiceView; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'drafts', label: 'Drafts' },
   { key: 'unpaid', label: 'Awaiting payment' },
-  { key: 'overdue', label: 'Overdue' },
   { key: 'voided', label: 'Voided' },
 ]
 
@@ -44,7 +43,6 @@ export function InvoiceListClient({
   state: ListUrlState
 }) {
   const router = useRouter()
-  const today = todayISODate()
   const { search, setSearch, setView, setPage, toggleSort, sort, clearSearch, clearView } =
     useListUrlState(state, 'all')
 
@@ -63,10 +61,8 @@ export function InvoiceListClient({
       cell: inv =>
         isVoided(inv) ? (
           <Badge variant="destructive" className="uppercase">Voided</Badge>
-        ) : isOverdue(inv, today) ? (
-          <Badge variant="destructive" className="capitalize">Overdue</Badge>
         ) : (
-          <Badge variant={statusBadgeVariant('payment', inv.status)} className="capitalize">{inv.status}</Badge>
+          <Badge variant={statusBadgeVariant('payment', inv.status)}>{paymentStatusLabel(inv.status)}</Badge>
         ),
     },
   ]
@@ -90,42 +86,44 @@ export function InvoiceListClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Invoices</h1>
+          <h1 className="text-xl font-bold text-foreground sm:text-2xl">Invoices</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{counts.all} total</p>
         </div>
-        <Button asChild>
+        <Button className="w-full sm:w-auto" asChild>
           <Link href="/invoices/new"><Plus className="h-4 w-4 mr-2" />New Invoice</Link>
         </Button>
       </div>
 
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        {VIEWS.map(v => {
-          const active = v.key === viewKey
-          return (
-            <button
-              key={v.key}
-              type="button"
-              onClick={() => setView(v.key)}
-              className={cn(
-                'shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
-                active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted',
-              )}
-            >
-              {v.label}
-              <span className={cn('ml-1.5 text-xs', active ? 'text-primary-foreground/70' : 'text-muted-foreground/60')}>{counts[v.key]}</span>
-            </button>
-          )
-        })}
-      </div>
+      <div className="space-y-3">
+        <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+          {VIEWS.map(v => {
+            const active = v.key === viewKey
+            return (
+              <button
+                key={v.key}
+                type="button"
+                onClick={() => setView(v.key)}
+                className={cn(
+                  'shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
+                  active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted',
+                )}
+              >
+                {v.label}
+                <span className={cn('ml-1.5 text-xs', active ? 'text-primary-foreground/70' : 'text-muted-foreground/60')}>{counts[v.key]}</span>
+              </button>
+            )
+          })}
+        </div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Search invoice #, clinic, or patient…" value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
-      </div>
+        <div className="relative w-full sm:max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Search invoice #, clinic, or patient…" value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+        </div>
 
-      <FilterChips chips={chips} />
+        <FilterChips chips={chips} />
+      </div>
 
       <Card>
         <CardContent className="p-0">

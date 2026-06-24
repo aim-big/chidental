@@ -26,3 +26,15 @@ export function statusBadgeVariant(kind: StatusKind, value: string): BadgeVarian
   const table = kind === 'payment' ? PAYMENT : WORK
   return table[value] ?? 'secondary'
 }
+
+// User-facing label overrides. The DB value stays `sent`; the UI says "Issued"
+// (matches the Clinic-in-UI / customer-in-code convention). Unmapped values fall
+// back to capitalizing the raw status.
+const PAYMENT_LABELS: Record<string, string> = {
+  sent: 'Issued',
+}
+
+/** Human label for a payment status. Use this instead of rendering the raw value. */
+export function paymentStatusLabel(value: string): string {
+  return PAYMENT_LABELS[value] ?? value.charAt(0).toUpperCase() + value.slice(1)
+}

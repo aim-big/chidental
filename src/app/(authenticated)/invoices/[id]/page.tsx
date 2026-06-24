@@ -11,12 +11,13 @@
 
 import { notFound } from 'next/navigation'
 import { getInvoiceDetail } from '@/data/invoices'
+import { getBillingSettings } from '@/data/billing-settings'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table'
-import { cn, formatCurrency, formatDate, todayISODate } from '@/lib/utils'
-import { isVoided, isOverdue } from '@/lib/invoice-status'
-import { statusBadgeVariant } from '@/lib/status-badge'
+import { cn, formatCurrency, formatDate } from '@/lib/utils'
+import { isVoided } from '@/lib/invoice-status'
+import { statusBadgeVariant, paymentStatusLabel } from '@/lib/status-badge'
 import { DEFAULT_COLOR } from '@/lib/service-status'
 import { InvoiceDetailClient } from '@/components/invoices/detail/InvoiceDetailClient'
 import { CaseDetailsEditor } from '@/components/invoices/detail/CaseDetailsEditor'
@@ -24,7 +25,10 @@ import { WorkStatusEditor } from '@/components/invoices/detail/WorkStatusEditor'
 
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const data = await getInvoiceDetail(id)
+  const [data, billingSettings] = await Promise.all([
+    getInvoiceDetail(id),
+    getBillingSettings(),
+  ])
   if (!data) notFound()
 
   const { invoice, items, payments, history, products, stages, workStatusConfigs, serviceStatuses } = data
@@ -45,11 +49,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
     serviceStatuses.find(s => s.id === invoice.service_status_id) ?? invoice.service_statuses ?? null
 
   const voided = isVoided(invoice)
-  const today = todayISODate()
-  const overdue = !voided && isOverdue(invoice, today)
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="w-full max-w-5xl space-y-6">
       {/* Actions bar → [status strip + editors] → printable document. The editors
           are passed as children so they sit between the actions bar and the doc
           without breaking the ActionsBar↔InvoiceDocument print-ref coupling. */}
@@ -64,42 +66,43 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         customerName={customer?.clinic_name ?? null}
         totalPaid={totalPaid}
         unrecorded={unrecorded}
+        billingSettings={billingSettings}
       >
         {/* Case-status strip — payment · service + money, at a glance. Work status is
             tracked per service item (see the Work Status editor below), never rolled
             up to the invoice. */}
         <Card className="print:hidden">
-          <CardContent className="flex flex-wrap items-center gap-x-8 gap-y-3 py-4">
-            <div className="space-y-1">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Payment</p>
-              {voided ? (
-                <Badge variant="destructive" className="uppercase">Voided</Badge>
-              ) : overdue ? (
-                <Badge variant="destructive">Overdue</Badge>
-              ) : (
-                <Badge variant={statusBadgeVariant('payment', invoice.status)} className="capitalize">{invoice.status}</Badge>
-              )}
+          <CardContent className="flex flex-col gap-4 py-4 md:flex-row md:items-start md:justify-between">
+            <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+              <div className="space-y-1">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Payment</p>
+                {voided ? (
+                  <Badge variant="destructive" className="uppercase">Voided</Badge>
+                ) : (
+                  <Badge variant={statusBadgeVariant('payment', invoice.status)}>{paymentStatusLabel(invoice.status)}</Badge>
+                )}
+              </div>
+              <div className="space-y-1">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Service</p>
+                {currentServiceStatus ? (
+                  <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', currentServiceStatus.color ?? DEFAULT_COLOR)}>
+                    {currentServiceStatus.label}
+                  </span>
+                ) : (
+                  <span className="text-sm text-muted-foreground">—</span>
+                )}
+              </div>
             </div>
-            <div className="space-y-1">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Service</p>
-              {currentServiceStatus ? (
-                <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', currentServiceStatus.color ?? DEFAULT_COLOR)}>
-                  {currentServiceStatus.label}
-                </span>
-              ) : (
-                <span className="text-sm text-muted-foreground">—</span>
-              )}
-            </div>
-            <div className="ml-auto flex items-center gap-6">
-              <div className="text-right">
+            <div className="grid grid-cols-3 gap-x-5 gap-y-3 md:min-w-[28rem]">
+              <div className="text-left md:text-right">
                 <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Total</p>
                 <p className="font-semibold tabular-nums">{formatCurrency(Number(invoice.total))}</p>
               </div>
-              <div className="text-right">
+              <div className="text-left md:text-right">
                 <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Paid</p>
                 <p className="font-semibold tabular-nums text-green-600">{formatCurrency(totalPaid)}</p>
               </div>
-              <div className="text-right">
+              <div className="text-left md:text-right">
                 <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Outstanding</p>
                 <p className="font-semibold tabular-nums text-red-600">{formatCurrency(outstanding)}</p>
               </div>
@@ -130,7 +133,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         <Card className="print:hidden">
           <CardHeader><CardTitle className="text-base">Payment History</CardTitle></CardHeader>
           <CardContent className="p-0">
-            <Table>
+            <Table className="min-w-[42rem]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>

@@ -1,6 +1,6 @@
 // src/lib/status-badge.test.ts
 import { describe, it, expect } from 'vitest'
-import { statusBadgeVariant } from './status-badge'
+import { statusBadgeVariant, paymentStatusLabel } from './status-badge'
 
 describe('statusBadgeVariant', () => {
   it('maps payment statuses', () => {
@@ -22,5 +22,18 @@ describe('statusBadgeVariant', () => {
   it('falls back to secondary for unknown values', () => {
     expect(statusBadgeVariant('payment', 'mystery')).toBe('secondary')
     expect(statusBadgeVariant('work', '')).toBe('secondary')
+  })
+})
+
+describe('paymentStatusLabel', () => {
+  it('relabels the stored `sent` value as "Issued"', () => {
+    expect(paymentStatusLabel('sent')).toBe('Issued')
+  })
+
+  it('capitalizes other statuses by default', () => {
+    expect(paymentStatusLabel('draft')).toBe('Draft')
+    expect(paymentStatusLabel('partial')).toBe('Partial')
+    expect(paymentStatusLabel('paid')).toBe('Paid')
+    expect(paymentStatusLabel('overdue')).toBe('Overdue')
   })
 })
