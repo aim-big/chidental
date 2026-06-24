@@ -11,7 +11,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard, Users, FileText, Wrench, Package, BarChart3,
   ClipboardList, ListChecks, UserCog, ShieldCheck, Ruler, SlidersHorizontal,
-  Landmark,
+  Landmark, ShieldAlert,
 } from 'lucide-react'
 import type { Permission } from '@/domain/permissions'
 
@@ -49,6 +49,7 @@ export const NAV: NavEntry[] = [
   { href: '/settings/units', label: 'Units', icon: Ruler, area: 'settings', group: 'Lab Setup', permission: 'settings.manage' },
   { href: '/settings/employees', label: 'Employees', icon: UserCog, area: 'settings', group: 'Team & Access', permission: 'staff.manage' },
   { href: '/settings/roles', label: 'Roles & Permissions', icon: ShieldCheck, area: 'settings', group: 'Team & Access', superadminOnly: true },
+  { href: '/settings/admin', label: 'Admin Console', icon: ShieldAlert, area: 'settings', group: 'Administration', superadminOnly: true },
 ]
 
 export function canSee(entry: NavEntry, ctx: NavContext): boolean {
