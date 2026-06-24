@@ -149,3 +149,30 @@ export function dotColorClass(pillColor: string): string {
   const m = pillColor.match(/bg-([a-z]+)-\d+/)
   return m ? `bg-${m[1]}-500` : 'bg-gray-400'
 }
+
+// Forward "advance" target for the one-click Advance action. Returns the next
+// (work_status, stage_id) in the linear flow, or null when there is no next step
+// (delivered, or on_hold which uses Resume instead).
+export function nextWorkStep(
+  activeStages: WorkStage[],
+  work_status: WorkStatus,
+  stage_id: string | null,
+): { work_status: WorkStatus; stage_id: string | null } | null {
+  switch (work_status) {
+    case 'received':
+      return activeStages.length > 0
+        ? { work_status: 'in_progress', stage_id: activeStages[0].id }
+        : { work_status: 'in_progress', stage_id: null }
+    case 'in_progress': {
+      if (activeStages.length === 0) return { work_status: 'ready', stage_id: null }
+      const i = stage_id ? activeStages.findIndex(s => s.id === stage_id) : -1
+      if (i === -1) return { work_status: 'in_progress', stage_id: activeStages[0].id }
+      if (i >= activeStages.length - 1) return { work_status: 'ready', stage_id: null }
+      return { work_status: 'in_progress', stage_id: activeStages[i + 1].id }
+    }
+    case 'ready':
+      return { work_status: 'delivered', stage_id: null }
+    default: // delivered, on_hold
+      return null
+  }
+}

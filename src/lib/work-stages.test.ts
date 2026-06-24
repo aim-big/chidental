@@ -4,7 +4,7 @@ import {
   encodeWork, decodeWork, workOptions, workOptionsForItem,
   workLabel, workColor, labelForValue, colorForValue,
   orderedGroupKeys, STAGE_DEFAULT_COLOR,
-  stageProgress, dotColorClass,
+  stageProgress, dotColorClass, nextWorkStep,
 } from '@/lib/work-stages'
 import { WORK_STATUS_LABELS, WORK_STATUS_COLORS } from '@/lib/work-status'
 
@@ -138,5 +138,38 @@ describe('dotColorClass', () => {
   })
   it('falls back to a neutral dot when no bg color is found', () => {
     expect(dotColorClass('text-only-no-bg')).toBe('bg-gray-400')
+  })
+})
+
+describe('nextWorkStep', () => {
+  it('received -> first active stage', () => {
+    expect(nextWorkStep(active, 'received', null)).toEqual({ work_status: 'in_progress', stage_id: 's1' })
+  })
+  it('received with no stages -> bare in_progress', () => {
+    expect(nextWorkStep([], 'received', null)).toEqual({ work_status: 'in_progress', stage_id: null })
+  })
+  it('staged in_progress -> next stage', () => {
+    expect(nextWorkStep(active, 'in_progress', 's1')).toEqual({ work_status: 'in_progress', stage_id: 's2' })
+  })
+  it('last stage -> ready', () => {
+    expect(nextWorkStep(active, 'in_progress', 's2')).toEqual({ work_status: 'ready', stage_id: null })
+  })
+  it('bare in_progress -> first stage', () => {
+    expect(nextWorkStep(active, 'in_progress', null)).toEqual({ work_status: 'in_progress', stage_id: 's1' })
+  })
+  it('in_progress with no stages configured -> ready', () => {
+    expect(nextWorkStep([], 'in_progress', null)).toEqual({ work_status: 'ready', stage_id: null })
+  })
+  it('unknown/retired stage -> first stage', () => {
+    expect(nextWorkStep(active, 'in_progress', 'gone')).toEqual({ work_status: 'in_progress', stage_id: 's1' })
+  })
+  it('ready -> delivered', () => {
+    expect(nextWorkStep(active, 'ready', null)).toEqual({ work_status: 'delivered', stage_id: null })
+  })
+  it('delivered -> null', () => {
+    expect(nextWorkStep(active, 'delivered', null)).toBeNull()
+  })
+  it('on_hold -> null (Resume handles it)', () => {
+    expect(nextWorkStep(active, 'on_hold', null)).toBeNull()
   })
 })
