@@ -26,6 +26,7 @@ import {
   encodeWork, decodeWork, nextWorkStep,
   labelForValue, colorForValue, orderedGroupKeys,
 } from '@/lib/work-stages'
+import { WorkStageStepper } from '@/components/work/WorkStageStepper'
 import { resume } from '@/domain/production'
 import { updateWorkStatusAction } from '@/data/invoice-actions'
 import type { WorkQueueRow } from '@/data/work'
@@ -320,6 +321,7 @@ export function WorkQueueClient({
       <div className="space-y-4">
         {grouped.map(group => {
           const isCollapsed = collapsed.has(group.key)
+          const decoded = decodeWork(group.key)
           return (
             <Card key={group.key} className="overflow-hidden">
               <button
@@ -331,6 +333,12 @@ export function WorkQueueClient({
                   {isCollapsed ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                   <SlotBadge value={group.key} stagesById={allStagesById} statusConfigs={statusConfigs} />
                   <span className="text-sm text-muted-foreground">{group.items.length} item{group.items.length === 1 ? '' : 's'}</span>
+                  {decoded.work_status === 'in_progress' && decoded.stage_id && (() => {
+                    const i = activeStages.findIndex(s => s.id === decoded.stage_id)
+                    return i >= 0 ? (
+                      <span className="text-xs text-muted-foreground">Step {i + 1} of {activeStages.length}</span>
+                    ) : null
+                  })()}
                 </div>
               </button>
               {!isCollapsed && (
@@ -364,6 +372,13 @@ export function WorkQueueClient({
 
                         <div className="flex-1 min-w-0">
                           <div className="text-sm text-foreground truncate">{row.description}</div>
+                          {row.work_status === 'in_progress' && (
+                            <WorkStageStepper
+                              activeStages={activeStages}
+                              workStatus={row.work_status}
+                              stageId={row.stage_id}
+                            />
+                          )}
                           {isMoved ? (
                             <div className="text-xs text-green-700 mt-0.5 flex items-center gap-1">
                               <Check className="h-3 w-3" /> Moved to <SlotBadge value={movedTo!} stagesById={allStagesById} statusConfigs={statusConfigs} className="ml-0.5" />
