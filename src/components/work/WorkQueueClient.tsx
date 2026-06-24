@@ -16,14 +16,14 @@ import Link from 'next/link'
 import { useToast } from '@/components/feedback/toast'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
-import { WorkStatusSelect } from '@/components/work-status-select'
+import { WorkStatusSelect, ADVANCE_VALUE } from '@/components/work-status-select'
 import { Search, ChevronRight, ChevronDown, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { WorkStatus, WorkStage, WorkStatusConfig } from '@/lib/database.types'
 import { WORK_STATUSES } from '@/lib/work-status'
 import { workStatusColor, workStatusLabel, type WorkStatusDisplay } from '@/lib/work-status-config'
 import {
-  encodeWork, decodeWork,
+  encodeWork, decodeWork, nextWorkStep,
   labelForValue, colorForValue, orderedGroupKeys,
 } from '@/lib/work-stages'
 import { resume } from '@/domain/production'
@@ -161,10 +161,18 @@ export function WorkQueueClient({
   // router.refresh() re-syncs the server state either way. The "Resume" option
   // routes to the remembered status via resume(resume_status).
   const updateStatus = (id: string, value: string, resumeStatus: WorkStatus | null) => {
-    const { work_status, stage_id } =
-      value === RESUME_VALUE
-        ? { work_status: resume(resumeStatus), stage_id: null }
-        : decodeWork(value)
+    const row = optimisticRows.find(r => r.id === id)
+    let work_status: WorkStatus
+    let stage_id: string | null
+    if (value === RESUME_VALUE) {
+      ({ work_status, stage_id } = { work_status: resume(resumeStatus), stage_id: null })
+    } else if (value === ADVANCE_VALUE) {
+      const next = row ? nextWorkStep(activeStages, row.work_status, row.stage_id) : null
+      if (!next) return
+      ;({ work_status, stage_id } = next)
+    } else {
+      ({ work_status, stage_id } = decodeWork(value))
+    }
     const hintValue = encodeWork(work_status, stage_id)
 
     startTransition(async () => {
@@ -261,7 +269,7 @@ export function WorkQueueClient({
     <div className="space-y-6">
       {!hideHeader && (
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Work Queue</h1>
+          <h1 className="text-xl font-bold text-foreground sm:text-2xl">Work Queue</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {activeCount} active item{activeCount === 1 ? '' : 's'} across all invoices
           </p>
@@ -295,7 +303,7 @@ export function WorkQueueClient({
         })}
       </div>
 
-      <div className="relative max-w-sm">
+      <div className="relative w-full sm:max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Search item, invoice, clinic…"
@@ -317,7 +325,7 @@ export function WorkQueueClient({
               <button
                 type="button"
                 onClick={() => toggleCollapsed(group.key)}
-                className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted border-b"
+                className="flex w-full items-start justify-between gap-3 border-b px-4 py-3 text-left hover:bg-muted sm:items-center"
               >
                 <div className="flex items-center gap-3">
                   {isCollapsed ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
@@ -373,7 +381,7 @@ export function WorkQueueClient({
                           stageId={row.stage_id}
                           stagesById={allStagesById}
                           statusConfigs={statusConfigs}
-                          triggerClassName="w-40"
+                          triggerClassName="w-full md:w-40"
                           leadingItems={
                             row.work_status === 'on_hold'
                               ? resumeLeadingItem(row.resume_status, statusConfigs)

@@ -1,18 +1,26 @@
 'use client'
 
-// Shared work-status dropdown: a colored trigger pill plus colored option pills.
-// Configurable stages sit under an "In Progress" group header. Used by the
-// invoice-detail Work Status card and the work queue so both render identically.
+// Shared work-status dropdown: a colored trigger pill (with in-progress position)
+// plus colored option pills. Configurable stages render as numbered, indented
+// steps under an "In Progress" header; the current step is checked. A leading
+// "Advance to <next>" row performs the one-click forward move. Used by the
+// invoice-detail Work Status card and the work queue so all render identically.
 
 import {
-  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import {
-  encodeWork, workColor, workLabel, STAGE_DEFAULT_COLOR, type WorkOption,
+  encodeWork, nextWorkStep, workColor, workLabel, workLabelWithPosition,
+  STAGE_DEFAULT_COLOR, type WorkOption,
 } from '@/lib/work-stages'
 import { workStatusColor, workStatusLabel, type WorkStatusDisplay } from '@/lib/work-status-config'
+import { Check, ArrowRight } from 'lucide-react'
 import type { WorkStage, WorkStatus } from '@/lib/database.types'
+
+// Sentinel emitted by the "Advance to next" row. Parents resolve it with
+// nextWorkStep() against the item's current (work_status, stage_id).
+export const ADVANCE_VALUE = '__advance__'
 
 function OptionRow({ option }: { option: WorkOption }) {
   return (
@@ -55,9 +63,6 @@ export function WorkStatusSelect({
   stagesById: Map<string, WorkStage>
   statusConfigs?: WorkStatusDisplay[]
   triggerClassName?: string
-  // Extra action items rendered above "Received" (e.g. the work queue's
-  // "Resume" option for on-hold cards). Can carry a color when it points to a
-  // concrete work status.
   leadingItems?: Array<{ value: string; label: string; color?: string; colorLabel?: string }>
 }) {
   // In-Progress group: the active stages, plus the item's current value when it
@@ -77,18 +82,32 @@ export function WorkStatusSelect({
     })
   }
 
+  const next = nextWorkStep(activeStages, workStatus, stageId)
+  const triggerLabel = workLabelWithPosition(activeStages, workStatus, stageId, stagesById, statusConfigs)
+
   return (
     <Select value={value} onValueChange={onValueChange}>
       <SelectTrigger
         className={cn(
-          'h-8 w-44 text-xs font-medium border-transparent',
+          'h-9 min-w-44 text-sm font-medium border-transparent',
           workColor(workStatus, stageId, stagesById, statusConfigs),
           triggerClassName,
         )}
       >
-        <SelectValue />
+        <span className="truncate">{triggerLabel}</span>
       </SelectTrigger>
       <SelectContent>
+        {next && (
+          <>
+            <SelectItem value={ADVANCE_VALUE} textValue="Advance" className="py-2">
+              <span className="flex items-center gap-2 text-sm font-medium text-primary">
+                <ArrowRight className="h-3.5 w-3.5" />
+                Advance to {workLabel(next.work_status, next.stage_id, stagesById, statusConfigs)}
+              </span>
+            </SelectItem>
+            <SelectSeparator />
+          </>
+        )}
         {leadingItems && leadingItems.length > 0 && (
           <>
             {leadingItems.map(o => (
@@ -110,10 +129,18 @@ export function WorkStatusSelect({
         )}
         <WorkOptionItem option={fixed('received', statusConfigs)} />
         <SelectGroup>
-          <SelectLabel>In Progress</SelectLabel>
-          {inProgress.map(o => (
-            <WorkOptionItem key={o.value} option={o} />
-          ))}
+          <SelectLabel className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">In Progress</SelectLabel>
+          <div className="ml-3 border-l border-border pl-1">
+            {inProgress.map((o, i) => (
+              <SelectItem key={o.value} value={o.value} textValue={o.label} className="py-2">
+                <span className="flex w-full items-center gap-2">
+                  <span className="w-4 shrink-0 text-xs tabular-nums text-muted-foreground">{i + 1}</span>
+                  <OptionRow option={o} />
+                  {o.value === current && <Check className="ml-auto h-3.5 w-3.5 shrink-0 text-primary" />}
+                </span>
+              </SelectItem>
+            ))}
+          </div>
         </SelectGroup>
         <WorkOptionItem option={fixed('ready', statusConfigs)} />
         <WorkOptionItem option={fixed('delivered', statusConfigs)} />

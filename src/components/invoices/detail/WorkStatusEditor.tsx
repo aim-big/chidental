@@ -14,9 +14,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { formatDate, cn } from '@/lib/utils'
 import { ChevronRight } from 'lucide-react'
 import { WorkStatusBadge } from '@/components/work-status-badge'
-import { WorkStatusSelect } from '@/components/work-status-select'
+import { WorkStatusSelect, ADVANCE_VALUE } from '@/components/work-status-select'
 import { WorkStageStepper } from '@/components/work/WorkStageStepper'
-import { encodeWork, decodeWork, workLabel, workColor } from '@/lib/work-stages'
+import { encodeWork, decodeWork, nextWorkStep, workLabel, workColor } from '@/lib/work-stages'
 import { updateWorkStatusAction, updateWorkNoteAction } from '@/data/invoice-actions'
 import type { InvoiceItem, InvoiceItemStatusHistory, WorkStage, WorkStatusConfig } from '@/lib/database.types'
 
@@ -36,7 +36,13 @@ export function WorkStatusEditor({ items, history, stages, statusConfigs }: Work
   const activeStages = stages.filter(s => s.is_active)
 
   const updateWorkStatus = async (itemId: string, value: string) => {
-    const { work_status, stage_id } = decodeWork(value)
+    const item = items.find(i => i.id === itemId)
+    const resolved =
+      value === ADVANCE_VALUE
+        ? (item ? nextWorkStep(activeStages, item.work_status, item.stage_id) : null)
+        : decodeWork(value)
+    if (!resolved) return
+    const { work_status, stage_id } = resolved
     const res = await updateWorkStatusAction(itemId, { work_status, stage_id })
     if (res.ok === false) { show({ variant: 'error', title: res.error }); return }
     show({ variant: 'success', title: 'Work status updated' })
@@ -57,7 +63,7 @@ export function WorkStatusEditor({ items, history, stages, statusConfigs }: Work
         <CardTitle className="text-base">Work Status</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
-        <Table>
+        <Table className="min-w-[48rem]">
           <TableHeader>
             <TableRow>
               <TableHead>Item</TableHead>
@@ -113,7 +119,7 @@ export function WorkStatusEditor({ items, history, stages, statusConfigs }: Work
             </button>
             {historyOpen && (
               <div className="px-4 pb-4">
-                <Table>
+                <Table className="min-w-[42rem]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>When</TableHead>
