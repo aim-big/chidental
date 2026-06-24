@@ -25,6 +25,7 @@ export type WorkQueueRow = Pick<
     invoice_number: string
     status: string
     voided_at: string | null
+    deleted_at: string | null
     patient: string | null
     due_date: string
     customers: { clinic_name: string } | null
@@ -48,7 +49,7 @@ export async function getWorkQueue(): Promise<{ rows: WorkQueueRow[]; stages: Wo
     supabase
       .from('invoice_items')
       .select(
-        'id, description, work_status, stage_id, resume_status, work_status_updated_at, invoices(id, invoice_number, status, voided_at, patient, due_date, customers(clinic_name))',
+        'id, description, work_status, stage_id, resume_status, work_status_updated_at, invoices(id, invoice_number, status, voided_at, deleted_at, patient, due_date, customers(clinic_name))',
       )
       .order('work_status_updated_at', { ascending: false })
       .order('id', { ascending: true }),
@@ -57,7 +58,7 @@ export async function getWorkQueue(): Promise<{ rows: WorkQueueRow[]; stages: Wo
   ])
 
   const rows = ((itemsRes.data ?? []) as unknown as WorkQueueRow[]).filter(
-    r => r.invoices != null && r.invoices.voided_at == null,
+    r => r.invoices != null && r.invoices.voided_at == null && r.invoices.deleted_at == null,
   )
 
   return {

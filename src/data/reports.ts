@@ -9,6 +9,7 @@ export async function getReportInvoices(from: string, to: string): Promise<Repor
   const { data } = await supabase
     .from('invoices')
     .select('*, customers(clinic_name), invoice_items(*, products(name))')
+    .is('deleted_at', null)
     .gte('invoice_date', from)
     .lte('invoice_date', to)
   // The query selects narrowed projections (clinic_name, product name), so cast

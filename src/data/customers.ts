@@ -105,7 +105,7 @@ export async function getCustomerDetail(id: string): Promise<CustomerDetail | nu
   const supabase = await createClient()
   const [cRes, iRes] = await Promise.all([
     supabase.from('customers').select('*').eq('id', id).single(),
-    supabase.from('invoices').select('*').eq('customer_id', id).order('invoice_date', { ascending: false }),
+    supabase.from('invoices').select('*').eq('customer_id', id).is('deleted_at', null).order('invoice_date', { ascending: false }),
   ])
   if (!cRes.data) return null
   return {
@@ -135,6 +135,7 @@ export async function getClinicStatement(id: string): Promise<ClinicStatementBun
       .select('id, invoice_number, invoice_date, due_date, patient, total, status, voided_at')
       .eq('customer_id', id)
       .is('voided_at', null)
+      .is('deleted_at', null)
       .order('invoice_date', { ascending: true }),
     supabase
       .from('credits')

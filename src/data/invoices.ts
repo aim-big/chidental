@@ -75,6 +75,7 @@ export async function getInvoices(): Promise<InvoiceListRow[]> {
   const { data } = await supabase
     .from('invoices')
     .select('*, customers(clinic_name), service_statuses(*)')
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
   return (data ?? []) as InvoiceListRow[]
 }
@@ -128,6 +129,7 @@ export async function getInvoicesPage(params: InvoiceListParams = {}): Promise<I
   let query = supabase
     .from('invoices')
     .select('*, customers(clinic_name), service_statuses(*)')
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
   // Cheap status/voided filters → SQL.
@@ -197,6 +199,7 @@ export async function getInvoiceViewCounts(): Promise<Record<InvoiceView, number
   const { data } = await supabase
     .from('invoices')
     .select('*, customers(clinic_name), service_statuses(*)')
+    .is('deleted_at', null)
   const all = (data ?? []) as InvoiceListRow[]
   return {
     all: all.length,
@@ -213,7 +216,7 @@ export async function getInvoiceDetail(id: string): Promise<InvoiceDetailBundle 
   const supabase = await createClient()
 
   const [invRes, itemsRes, paymentsRes, ssRes, prodRes, stagesRes, statusConfigsRes] = await Promise.all([
-    supabase.from('invoices').select('*, customers(*), service_statuses(*)').eq('id', id).single(),
+    supabase.from('invoices').select('*, customers(*), service_statuses(*)').eq('id', id).is('deleted_at', null).single(),
     // sort_order preserves the order lines were entered and is stable across
     // work-status updates (created_at alone ties → heap order, which an UPDATE
     // relocates). created_at is a defensive tiebreaker for any pre-backfill rows.
@@ -297,7 +300,7 @@ export async function getInvoiceFormData(
 export async function getInvoiceForEdit(id: string): Promise<InvoiceForEdit | null> {
   const supabase = await createClient()
   const [invRes, itemsRes] = await Promise.all([
-    supabase.from('invoices').select('*').eq('id', id).single(),
+    supabase.from('invoices').select('*').eq('id', id).is('deleted_at', null).single(),
     // Match getInvoiceDetail: keep the edit form's rows in entered order.
     supabase.from('invoice_items').select('*').eq('invoice_id', id).order('sort_order').order('created_at'),
   ])
