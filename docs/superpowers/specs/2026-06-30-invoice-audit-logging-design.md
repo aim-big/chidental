@@ -60,14 +60,25 @@ semantic events and money-aware labels that triggers can't easily produce.
 ## Capture
 
 - Extend `src/lib/audit/audit-log.ts` with `logInvoiceActivity(entry)` writing to the new table
-  (best-effort, same as today's `writeAuditLog`).
-- Extend `requirePermission()` (`src/lib/auth/require-permission.ts`) to also return `actorName`
-  — it already joins `profiles` for the role check, so add `full_name`/`username` to that select
-  (no extra query per action).
+  (best-effort, same as today's `writeAuditLog`; reuses the `createAdminClient()` + try/catch +
+  `logServerError('audit', …)` pattern at `src/lib/audit/audit-log.ts:23-39`).
+- Extend `requirePermission()` (`src/lib/auth/require-permission.ts:19-23,43`) to also return
+  `actorName` — it already selects from `profiles` for the role check, so add `full_name` and
+  `username` to that same select and return `actorName = full_name ?? username` (no extra query).
+  Do the same for `requireSuperadmin()`. **Verified:** today both return only `{ ok, userId }`.
 - **Field diffs:** for edit actions, read the invoice's current row *before* the mutation,
   compare to the new input, emit `changes` for changed fields only. A diff helper
   (`src/lib/audit/diff.ts`) computes the changed-field set. **No-op saves (nothing changed)
   write no event** — avoids timeline noise.
+  - **Scope of diffing:** header/scalar fields are diffed field-by-field into `changes`
+    (`customer_id`, `invoice_date`, `due_date`, `notes`, `patient`, `doctor`,
+    `service_status_id`, `bill_to_*`, `ship_to_*`, `billing_address`, `delivery_address`).
+    For `updateInvoiceAction`, **line-item** changes are summarized in `metadata`
+    (`{added, removed, modified}` counts + per-item before/after for modified rows) rather than
+    flattened into `changes`, to bound complexity. `subtotal`/`total` deltas are included.
+- **Label rendering:** action keys are mapped to human labels in a new
+  `src/lib/audit/action-labels.ts` (Clinics-naming-safe), since there is no i18n system and the
+  existing `admin_audit_log` viewer renders raw keys.
 - **Work-status** changes are **not** written here — they keep their existing trigger →
   `invoice_item_status_history`, and are merged into the timeline at read time.
 
@@ -82,37 +93,54 @@ semantic events and money-aware labels that triggers can't easily produce.
 | `updateCaseDetailsAction` | `invoice.case_changed` | patient/doctor diffs |
 | `updateServiceStatusAction` | `invoice.service_status_changed` | from→to status |
 | `updateWorkNoteAction` | `invoice.work_note_changed` | item label + note diff |
-| `recordPaymentAction` | `payment.recorded` | amount, date, reference in metadata |
+| `recordPaymentAction` | `payment.recorded` | `metadata = {amount, payment_date, reference_number}` |
+| `createCreditAction` (src/data/credits.ts) | `credit.recorded` | `metadata = {amount, reason?}` |
 | `voidInvoice` | `invoice.voided` | reason |
 | `softDeleteInvoiceAction` (admin) | `invoice.soft_deleted` | reason |
 | `restoreInvoiceAction` (admin) | `invoice.restored` | — |
 | `restoreVoidedInvoiceAction` (admin) | `invoice.void_restored` | — |
-| `purgeInvoiceAction` (admin) | `invoice.purged` | row snapshot in metadata |
+| `purgeInvoiceAction` (admin) | `invoice.purged` | header snapshot in metadata |
+| _delete payment / delete credit (if such actions exist)_ | `payment.deleted` / `credit.deleted` | grep + wire during impl |
 
-Admin destructive actions move their logging to `logInvoiceActivity` (so they appear in the
-invoice timeline **and** the admin view). `admin_audit_log` stays for non-invoice entities
-(customer/product/employee).
+**Admin destructive actions are ADDITIVE, not moved:** they keep their existing
+`writeAuditLog()` → `admin_audit_log` calls (the `/settings/admin` "Activity" tab reads those via
+`getAuditFeed()` in `src/data/admin.ts`, and other entity types rely on that table) and **also**
+call `logInvoiceActivity()` so the event shows in the per-invoice timeline and the new invoice
+activity view. This is purely additive — no existing behavior changes.
+
+**Note (verified):** `createCreditAction` gates on `invoices.manage` and uses the admin client.
+The `AuditAction` union already references `payment.delete`/`credit.delete`, so delete actions
+exist; confirm their locations during implementation and wire `payment.deleted`/`credit.deleted`.
 
 ## Reads
 
 ### Per-invoice timeline
 
-- `getInvoiceActivity(invoiceId)` server function: after `requirePermission('invoices.view')`,
-  uses the admin client to:
+- `getInvoiceActivity(invoiceId)` server function (new file `src/data/invoice-activity.ts`):
+  after `requirePermission('invoices.view')`, uses the admin client to:
   - select `invoice_activity_log` where `invoice_id = id`;
-  - select `invoice_item_status_history` (join `invoice_items`) where `invoice_id = id`,
-    normalize to work-status events (uses `changed_by_name`);
-  - merge + sort `created_at`/`changed_at` desc → `TimelineEvent[]`.
-- UI: new **Activity** panel/section on the invoice detail page (server component). Each row:
-  actor name, action label (Clinic-naming-safe, i18n-friendly), relative timestamp, and
-  expandable field diffs for edits. Visible to `invoices.view`.
+  - select `invoice_item_status_history` joined to `invoice_items` (the history table has **no
+    `invoice_id`** — filter via `invoice_items.invoice_id = id`), normalize to work-status events
+    (uses `changed_by_name`, `changed_at`, `status`, `stage_id`);
+  - **merge + sort in TypeScript** by timestamp desc → `TimelineEvent[]`
+    (`{ at, actorName, action, changes?, reason?, metadata?, itemLabel? }`). No SQL view/RPC.
+- UI: new **Activity** panel on the invoice detail page, rendered as a server component child of
+  `InvoiceDetailClient` (`src/components/invoices/detail/InvoiceActivityPanel.tsx`, slotted among
+  the existing Card sections). Each row: actor name, action label (from `action-labels.ts`),
+  relative timestamp (new `formatRelativeTime` in `src/lib/utils.ts`, date-fns
+  `formatDistanceToNow`), and expandable field diffs for edits. Visible to `invoices.view`.
 
 ### Admin compliance view
 
-- Superadmin page (under the existing admin area) listing `invoice_activity_log` globally with
-  filters (actor, action type, date range, invoice). Reads via admin client after
-  `requireSuperadmin()`. If an `admin_audit_log` viewer already exists, mirror its pattern;
-  otherwise add an "Activity log" admin page. (Confirm existing admin UI during planning.)
+- **Verified:** a superadmin admin console already exists at
+  `src/app/(authenticated)/settings/admin/page.tsx` with an "Activity" tab in
+  `AdminConsoleClient.tsx` that renders `admin_audit_log` via `getAuditFeed()`
+  (`src/data/admin.ts`), using the admin client after `requireSuperadmin()` — the exact pattern
+  to mirror.
+- Add a new **"Invoice Activity"** view here (new tab in `AdminConsoleClient`, backed by a new
+  `getInvoiceActivityFeed(filters)` in `src/data/admin.ts`) listing `invoice_activity_log`
+  globally with filters (actor, action type, date range, invoice number). The existing "Activity"
+  tab (admin destructive log) is left unchanged.
 
 ## Error handling
 
@@ -123,25 +151,35 @@ RPC/transaction.)
 
 ## Testing (TDD)
 
-Run via `npm test` + `npm run build` (project verification gates; tsc/lint are unusable here).
+**Verified setup:** vitest, with unit tests `src/**/*.test.ts` (run by `npm test`, mocked Supabase)
+and integration tests `src/**/*.integration.test.ts` (run by `npm run test:integration`, real DB via
+`src/integration/db.ts` harness with `seedUser`/`seedInvoice`/`seedCustomer`). Existing examples:
+`src/lib/audit/audit-log.test.ts`, `src/integration/admin-actions.integration.test.ts`.
 
-- Diff helper: changed-field extraction, no-op detection, value formatting.
-- `logInvoiceActivity`: inserts the expected row shape per action.
-- Each wired action emits the right event (and no-op edits emit nothing).
-- Timeline aggregator merges + orders both sources correctly.
+- **Unit:** diff helper (changed-field extraction, no-op detection, value formatting); action-label
+  map; `getInvoiceActivity` merge/order logic (with mocked rows); `logInvoiceActivity` payload shape.
+- **Integration:** each wired action emits the right `invoice_activity_log` row (and no-op edits
+  emit nothing); timeline aggregator merges both sources for a seeded invoice.
+- Final gates: `npm test` + `npm run build` (tsc/lint are unusable here).
 
 ## Migration & backfill (MCP `apply_migration`)
 
-1. Create `invoice_activity_log` table + indexes + RLS (enabled, no policies) + append-only
-   `BEFORE UPDATE OR DELETE` trigger.
-2. One-time backfill from known columns:
+Applied via MCP `apply_migration`. New file sorts after the latest
+(`20260624145126_clinic_archived_at.sql`) — use e.g. `20260630000000_invoice_activity_log.sql`.
+
+1. Create `invoice_activity_log` table + indexes + RLS (enabled, no policies, mirroring
+   `admin_audit_log`) + append-only `BEFORE UPDATE OR DELETE` trigger that raises.
+   `actor_id` FK → `auth.users(id)` (no cascade); `invoice_id` FK → `invoices(id)` ON DELETE SET NULL.
+2. One-time backfill from known columns, **joining `profiles` for `actor_name`**
+   (`coalesce(full_name, username, '(unknown)')`):
    - `invoice.created` from `invoices.created_by` / `created_at`;
    - `payment.recorded` from `payments.created_by` / `created_at` / `amount`;
-   - `invoice.voided` from `invoices.voided_by` / `voided_at` / `void_reason`;
-   - `invoice.soft_deleted` from `invoices.deleted_by` / `deleted_at` / `delete_reason`.
-   Work-status history already exists in `invoice_item_status_history` (unioned at read, no
-   backfill).
-3. Regenerate TS types after migration.
+   - `invoice.voided` from `invoices.voided_by` / `voided_at` / `void_reason` (where voided);
+   - `invoice.soft_deleted` from `invoices.deleted_by` / `deleted_at` / `delete_reason` (where deleted).
+   Work-status history already exists in `invoice_item_status_history` (merged at read, no backfill).
+3. Regenerate TS types via MCP `generate_typescript_types` → `src/lib/database-generated.types.ts`,
+   then add a domain alias in `src/lib/database.types.ts`
+   (`export type InvoiceActivityLog = Tables<'invoice_activity_log'>`).
 
 ## Edge cases
 
