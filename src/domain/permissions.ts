@@ -3,8 +3,11 @@
 //
 // Two tiers:
 //  - Operational data modules (invoices, customers, products): `view` gates
-//    seeing the section, `edit` gates create/edit/delete. Invoices add `manage`
-//    for the powerful actions (void + editing already-sent invoices).
+//    seeing the section, `edit` gates create/edit/delete. Invoices split this
+//    finer: `create` gates making new invoices, `edit` gates changing existing
+//    drafts, and `manage` covers the powerful actions (void + editing
+//    already-issued invoices). A role can hold any combination — e.g. create
+//    without edit.
 //  - Administration toggles: `reports.view` (view-only), `staff.manage`
 //    (employees), and `settings.manage` (all lab configuration — Service
 //    Statuses, Work Stages, and future business settings). Role management is
@@ -12,6 +15,7 @@
 //    privilege escalation (a "manage roles" perm could grant itself anything).
 export const PERMISSIONS = {
   'invoices.view': 'invoices.view',
+  'invoices.create': 'invoices.create',
   'invoices.edit': 'invoices.edit',
   'invoices.manage': 'invoices.manage',
   'customers.view': 'customers.view',
@@ -29,6 +33,7 @@ export type Permission = keyof typeof PERMISSIONS
 // floor. The role editor uses this to keep selections coherent (checking edit
 // auto-checks view; unchecking view clears its dependents).
 export const PERMISSION_REQUIRES: Partial<Record<Permission, Permission>> = {
+  'invoices.create': 'invoices.view',
   'invoices.edit': 'invoices.view',
   'invoices.manage': 'invoices.view',
   'customers.edit': 'customers.view',
@@ -44,7 +49,8 @@ export const PERMISSION_GROUPS: {
     label: 'Invoices',
     permissions: [
       { key: 'invoices.view', label: 'View invoices', description: 'See invoices and their line items.' },
-      { key: 'invoices.edit', label: 'Create & edit draft invoices', description: 'Make new invoices and edit ones still in draft.' },
+      { key: 'invoices.create', label: 'Create invoices', description: 'Make new invoices.' },
+      { key: 'invoices.edit', label: 'Edit draft invoices', description: 'Change invoices that are still in draft.' },
       { key: 'invoices.manage', label: 'Void & edit sent invoices', description: 'Powerful actions on invoices already sent to a doctor.' },
     ],
   },

@@ -14,9 +14,10 @@
 // PERMISSION MAPPING — each action gates to the SAME permission the current UI
 // requires today (evidence in parentheses):
 //
-// - createInvoiceAction       → invoices.edit
-//     Plan Task 1; matches the "Create & edit draft invoices" capability. Form's
-//     Create buttons sit behind the route's `invoices.view`+edit affordance.
+// - createInvoiceAction       → invoices.create
+//     Making a new invoice. The New Invoice button (list) and the /invoices/new
+//     route both gate on invoices.create, so a role can create without holding
+//     invoices.edit (and vice versa).
 // - updateInvoiceAction       → canEditInvoice semantics: draft → invoices.edit,
 //     else → invoices.manage. (InvoiceForm edit-lock uses `canEditInvoice`, which
 //     is draft→edit / sent→manage — see src/lib/invoice-permissions.ts. We load
@@ -126,7 +127,7 @@ export async function createInvoiceAction(payload: {
   p_invoice: InvoicePayload & { status: 'draft' | 'sent' }
   p_items: InvoiceItemPayload[]
 }): Promise<CreateResult> {
-  const gate = await requirePermission('invoices.edit')
+  const gate = await requirePermission('invoices.create')
   if (gate.ok === false) return gate
 
   const admin = createAdminClient()

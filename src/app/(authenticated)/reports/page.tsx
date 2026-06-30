@@ -3,9 +3,11 @@
 // query + aggregation run on the server; changing the range re-navigates. The
 // interactive UI (date inputs, tabs, tables, charts) is a single client island.
 
+import { redirect } from 'next/navigation'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { getReportInvoices } from '@/data/reports'
 import { summarizeReports } from '@/lib/reports'
+import { requirePermission } from '@/lib/auth/require-permission'
 import { ReportsClient } from '@/components/reports/ReportsClient'
 
 export default async function ReportsPage({
@@ -13,6 +15,9 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>
 }) {
+  const gate = await requirePermission('reports.view')
+  if (gate.ok === false) redirect('/dashboard')
+
   const sp = await searchParams
   const now = new Date()
   const from = sp.from ?? format(startOfMonth(now), 'yyyy-MM-dd')

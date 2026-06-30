@@ -120,6 +120,14 @@ export default function InvoiceForm({
     }
   }, [isEdit, authLoading, loadedStatus, loadedVoidedAt, hasPermission, invoiceId, router])
 
+  // Create lock: making a new invoice needs invoices.create. The /invoices/new
+  // route already gates server-side; this redirects back if the form is reached
+  // without the permission (separate capability from invoices.edit).
+  useEffect(() => {
+    if (isEdit || authLoading) return
+    if (!hasPermission('invoices.create')) router.replace('/invoices')
+  }, [isEdit, authLoading, hasPermission, router])
+
   // When the user picks a (different) customer, fill the recipient block from that
   // customer's master record. Deliberate external-sync effect: it must also run
   // once `customers` finishes loading for a URL-preselected customer, so the logic

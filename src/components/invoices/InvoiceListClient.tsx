@@ -24,6 +24,7 @@ import { FileText, Plus, Search } from 'lucide-react'
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
 import { isVoided } from '@/lib/invoice-status'
 import { useListUrlState, type ListUrlState } from '@/lib/use-list-url-state'
+import { useAuth } from '@/contexts/AuthContext'
 import type { InvoiceListRow, InvoiceListPage, InvoiceView } from '@/data/invoices'
 
 const VIEWS: { key: InvoiceView; label: string }[] = [
@@ -43,6 +44,7 @@ export function InvoiceListClient({
   state: ListUrlState
 }) {
   const router = useRouter()
+  const { hasPermission } = useAuth()
   const { search, setSearch, setView, setPage, toggleSort, sort, clearSearch, clearView } =
     useListUrlState(state, 'all')
 
@@ -91,9 +93,11 @@ export function InvoiceListClient({
           <h1 className="text-xl font-bold text-foreground sm:text-2xl">Invoices</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{counts.all} total</p>
         </div>
-        <Button className="w-full sm:w-auto" asChild>
-          <Link href="/invoices/new"><Plus className="h-4 w-4 mr-2" />New Invoice</Link>
-        </Button>
+        {hasPermission('invoices.create') && (
+          <Button className="w-full sm:w-auto" asChild>
+            <Link href="/invoices/new"><Plus className="h-4 w-4 mr-2" />New Invoice</Link>
+          </Button>
+        )}
       </div>
 
       <div className="space-y-3">

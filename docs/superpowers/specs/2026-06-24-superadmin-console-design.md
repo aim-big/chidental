@@ -43,7 +43,7 @@ routes/types/permission keys stay `customer`.
 | Entity | Model | Notes |
 |---|---|---|
 | **Invoices** | Soft-delete → Recycle Bin (restore + permanent purge) | Carry payments/financial history; reversible |
-| **Clinics** (`customers`) | Soft-delete → Recycle Bin (restore + purge only when no dependents) | FK from invoices/credits; purge blocked while dependents exist |
+| **Clinics** (`customers`) | Soft-delete **already exists** (`archived_at`); console ADDS purge (hard-delete only when no dependents) | FK from invoices/credits; purge blocked while dependents exist |
 | **Payments** | Hard-delete + typed confirm + audit | Correction must truly leave so invoice balance is correct |
 | **Credits** | View + hard-delete + confirm + audit | No UI today; same financial-correction logic as payments |
 | **Products** | Keep `active` toggle; add hard-delete when unreferenced | Purge only if no `invoice_items` reference it |
@@ -87,15 +87,31 @@ a person to Super Admin via the UI** — that is code/DB-only. Creating a Super 
 *role* is already code-only (`is_system` hardcoded `false` in `role-actions.ts`).
 The existing `wouldRemoveLastSuperadmin` guard stays.
 
+## Existing infrastructure (reconciled with codebase)
+
+- **Clinics already soft-delete** via `customers.archived_at` (migration
+  `20260624120000_clinic_archived_at.sql`). `archiveCustomerAction` /
+  `restoreCustomerAction` exist (`customer-actions.ts`), reads filter on
+  `archived_at` (`src/data/customers.ts`), the clinics list already has an
+  "Archived" view, and `archive-clinics.integration.test.ts` covers it. **The
+  console reuses this — it does NOT add new clinic soft-delete columns.** It adds
+  only clinic **purge**.
+- **Invoices** have only `voided_at` (soft "void", still visible as voided).
+  Restore is blocked by the `prevent_invoice_restore` trigger
+  (`20260624104409_prevent_invoice_restore.sql`). The console adds invoice
+  soft-delete-to-hidden, restore, restore-from-void, and purge.
+- `requireSuperadmin()` already exists and returns `{ ok: true; userId }`
+  (`require-permission.ts`).
+
 ## Data model changes
 
-Three additive migrations (no destructive column drops):
+Two additive migrations (no destructive column drops):
 
-1. **Soft-delete columns** on `invoices` and `customers`:
+1. **Invoice soft-delete columns** on `invoices` (clinics already have theirs):
    - `deleted_at timestamptz null`
    - `deleted_by uuid null` (references `auth.users`)
    - `delete_reason text null`
-   - Partial index on `(deleted_at)` for fast "not deleted" filtering.
+   - Partial index `where deleted_at is null` for the hot "not deleted" path.
 
 2. **`admin_audit_log`** table:
    - `id uuid pk default gen_random_uuid()`

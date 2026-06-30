@@ -3,7 +3,7 @@
 // and renders a print-clean A4 document wrapped in #invoice-print
 // (picked up by the @media print rule in globals.css).
 
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -13,9 +13,13 @@ import { COMPANY } from '@/lib/config'
 import { formatCurrency, formatDate, todayISODate } from '@/lib/utils'
 import { CREDIT_REASON_LABELS } from '@/lib/credit'
 import { StatementPrintButton } from '@/components/StatementPrintButton'
+import { requirePermission } from '@/lib/auth/require-permission'
 
 export default async function StatementPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  const gate = await requirePermission('customers.view')
+  if (gate.ok === false) redirect('/dashboard')
+
   const bundle = await getClinicStatement(id)
   if (!bundle) notFound()
 

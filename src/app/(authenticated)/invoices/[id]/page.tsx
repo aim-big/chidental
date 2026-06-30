@@ -9,9 +9,10 @@
 // the printable document, so staff no longer scroll past the whole invoice to
 // update a case.
 
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { getInvoiceDetail } from '@/data/invoices'
 import { getBillingSettings } from '@/data/billing-settings'
+import { requirePermission } from '@/lib/auth/require-permission'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table'
@@ -24,6 +25,11 @@ import { CaseDetailsEditor } from '@/components/invoices/detail/CaseDetailsEdito
 import { WorkStatusEditor } from '@/components/invoices/detail/WorkStatusEditor'
 
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  // Hard gate: the invoice bundle is fetched and embedded server-side, so it must
+  // never render for a user lacking invoices.view (not even for the 1s flash).
+  const gate = await requirePermission('invoices.view')
+  if (gate.ok === false) redirect('/dashboard')
+
   const { id } = await params
   const [data, billingSettings] = await Promise.all([
     getInvoiceDetail(id),
@@ -72,7 +78,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             tracked per service item (see the Work Status editor below), never rolled
             up to the invoice. */}
         <Card className="print:hidden">
-          <CardContent className="flex flex-col gap-4 py-4 md:flex-row md:items-start md:justify-between">
+          <CardContent className="flex flex-col gap-4 p-4 sm:p-5 md:flex-row md:items-start md:justify-between">
             <div className="grid grid-cols-2 gap-x-8 gap-y-3">
               <div className="space-y-1">
                 <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Payment</p>
