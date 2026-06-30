@@ -1,36 +1,67 @@
 import { describe, it, expect, vi } from 'vitest'
 
-const activityRows = [
-  { id: 'a1', created_at: '2026-06-30T10:00:00Z', actor_name: 'Alice', action: 'invoice.issued', entity_label: 'INV-1', changes: null, reason: null, metadata: null },
-]
-const historyRows = [
-  { id: 'h1', changed_at: '2026-06-30T11:00:00Z', changed_by_name: 'Bob', status: 'in_progress', stage_id: null, invoice_items: { invoice_id: 'inv-1', description: 'Crown' } },
-]
+const byTable: Record<string, unknown[]> = {
+  invoice_activity_log: [
+    { id: 'a1', created_at: '2026-06-30T10:00:00Z', actor_name: 'Alice', action: 'invoice.issued', entity_label: 'INV-1', changes: null, reason: null, metadata: null },
+    { id: 'a2', created_at: '2026-06-30T09:00:00Z', actor_name: 'Alice', action: 'invoice.service_status_changed', entity_label: 'INV-1', changes: [{ field: 'service_status_id', label: 'Service status', from: 'svc-1', to: 'svc-2' }], reason: null, metadata: null },
+  ],
+  invoice_item_status_history: [
+    { id: 'h1', invoice_item_id: 'it1', changed_at: '2026-06-30T08:00:00Z', changed_by_name: 'Bob', status: 'received', stage_id: null, invoice_items: { invoice_id: 'inv-1', description: 'Crown' } },
+    { id: 'h2', invoice_item_id: 'it1', changed_at: '2026-06-30T11:00:00Z', changed_by_name: 'Bob', status: 'in_progress', stage_id: null, invoice_items: { invoice_id: 'inv-1', description: 'Crown' } },
+  ],
+  work_status_configs: [
+    { status: 'received', label: 'Received' },
+    { status: 'in_progress', label: 'In Progress' },
+  ],
+  service_statuses: [
+    { id: 'svc-1', label: 'Pending' },
+    { id: 'svc-2', label: 'Completed' },
+  ],
+}
 
 vi.mock('@/lib/auth/require-permission', () => ({
   requirePermission: async () => ({ ok: true, userId: 'u1', actorName: 'Alice' }),
 }))
 
-// Two sequential .from() calls: first the activity log, then the status history.
 vi.mock('@/lib/supabase/admin', () => {
-  const builder = (rows: unknown[]) => {
-    const b: Record<string, unknown> = {}
-    b.select = () => b
-    b.eq = () => b
-    b.order = () => Promise.resolve({ data: rows })
-    return b
+  const qb = (rows: unknown[]) => {
+    const result = { data: rows, error: null }
+    const o: Record<string, unknown> = {}
+    o.select = () => o
+    o.eq = () => o
+    o.order = () => Promise.resolve(result)
+    o.then = (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => Promise.resolve(result).then(res, rej)
+    return o
   }
-  let call = 0
-  return { createAdminClient: () => ({ from: () => (call++ === 0 ? builder(activityRows) : builder(historyRows)) }) }
+  return { createAdminClient: () => ({ from: (table: string) => qb(byTable[table] ?? []) }) }
 })
 
 import { getInvoiceActivity } from './invoice-activity'
 
 describe('getInvoiceActivity', () => {
-  it('merges both sources newest-first and normalizes shapes', async () => {
+  it('merges sources newest-first and enriches work + service status', async () => {
     const out = await getInvoiceActivity('inv-1')
-    expect(out.map(e => e.action)).toEqual(['work_status.changed', 'invoice.issued'])
-    expect(out[0]).toMatchObject({ actorName: 'Bob', action: 'work_status.changed' })
-    expect(out[1]).toMatchObject({ actorName: 'Alice', action: 'invoice.issued', entityLabel: 'INV-1' })
+    expect(out.map(e => e.action)).toEqual([
+      'work_status.changed',          // h2 @ 11:00
+      'invoice.issued',               // a1 @ 10:00
+      'invoice.service_status_changed', // a2 @ 09:00
+      'work_status.changed',          // h1 @ 08:00
+    ])
+  })
+
+  it('derives work-status from→to with labels (prev status per item)', async () => {
+    const out = await getInvoiceActivity('inv-1')
+    const newest = out[0] // h2: received -> in_progress
+    expect(newest.changes?.[0]).toEqual({ field: 'work_status', label: 'Work status', from: 'Received', to: 'In Progress' })
+    expect((newest.metadata as { item?: string }).item).toBe('Crown')
+
+    const oldest = out[3] // h1: first change for the item, no prior
+    expect(oldest.changes?.[0]).toEqual({ field: 'work_status', label: 'Work status', from: null, to: 'Received' })
+  })
+
+  it('resolves service-status UUIDs to labels', async () => {
+    const out = await getInvoiceActivity('inv-1')
+    const svc = out.find(e => e.action === 'invoice.service_status_changed')!
+    expect(svc.changes?.[0]).toMatchObject({ from: 'Pending', to: 'Completed' })
   })
 })
