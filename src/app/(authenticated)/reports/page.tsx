@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { getReportInvoices } from '@/data/reports'
 import { summarizeReports } from '@/lib/reports'
+import { buildPresets } from '@/lib/reports-presets'
 import { requirePermission } from '@/lib/auth/require-permission'
 import { ReportsClient } from '@/components/reports/ReportsClient'
 
@@ -25,6 +26,7 @@ export default async function ReportsPage({
 
   const invoices = await getReportInvoices(from, to)
   const summary = summarizeReports(invoices, now.getTime())
+  const presets = buildPresets(now)
 
-  return <ReportsClient from={from} to={to} summary={summary} />
+  return <ReportsClient from={from} to={to} summary={summary} presets={presets} />
 }

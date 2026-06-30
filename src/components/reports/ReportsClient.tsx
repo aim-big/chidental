@@ -11,10 +11,11 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, todayISODate } from '@/lib/utils'
 import { statusBadgeVariant, paymentStatusLabel } from '@/lib/status-badge'
 import type { ReportSummary } from '@/lib/reports'
 import { buildReportCsv, reportCsvFilename } from '@/lib/reports-csv'
+import { matchPreset, PRESET_LABELS, type PresetKind, type PresetMap } from '@/lib/reports-presets'
 
 const BRAND_CHART = '#766254'
 const BRAND_CHART_SOFT = '#9b8779'
@@ -22,7 +23,7 @@ const BRAND_CHART_SOFT = '#9b8779'
 // Interactive shell for the reports page. The Server Component fetches + computes
 // `summary`; this island renders it and drives the date range through the URL so
 // a change re-runs the server query. `isPending` shows the in-flight spinner.
-export function ReportsClient({ from, to, summary }: { from: string; to: string; summary: ReportSummary }) {
+export function ReportsClient({ from, to, summary, presets }: { from: string; to: string; summary: ReportSummary; presets: PresetMap }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -34,7 +35,7 @@ export function ReportsClient({ from, to, summary }: { from: string; to: string;
   // Download the whole report (all sections) for the selected range as one CSV.
   // The leading BOM makes Excel open the UTF-8 file with clinic names intact.
   const exportCsv = () => {
-    const csv = buildReportCsv(summary, { from, to })
+    const csv = buildReportCsv(summary, { from, to }, todayISODate())
     const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -47,12 +48,30 @@ export function ReportsClient({ from, to, summary }: { from: string; to: string;
   }
 
   const { totalInvoiced, totalPaidInvoices, totalOutstanding, invoiceCount, outstanding, paid, byCustomer, byProduct } = summary
+  const activeRange = matchPreset(from, to, presets)
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-foreground sm:text-2xl">Sales Reports</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Revenue and outstanding analysis</p>
+      </div>
+
+      {/* Quick range presets */}
+      <div className="flex flex-wrap gap-2">
+        {(Object.keys(PRESET_LABELS) as PresetKind[]).map(kind => (
+          <Button
+            key={kind}
+            size="sm"
+            variant={activeRange === kind ? 'default' : 'outline'}
+            onClick={() => setRange(presets[kind])}
+          >
+            {PRESET_LABELS[kind]}
+          </Button>
+        ))}
+        <Button size="sm" variant={activeRange === 'custom' ? 'default' : 'outline'} className="pointer-events-none">
+          Custom
+        </Button>
       </div>
 
       {/* Date range */}
@@ -182,15 +201,43 @@ export function ReportsClient({ from, to, summary }: { from: string; to: string;
             <CardHeader><CardTitle className="text-base">Revenue by Clinic (Top 10)</CardTitle></CardHeader>
             <CardContent>
               {byCustomer.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={byCustomer} layout="vertical" margin={{ left: 120 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                    <XAxis type="number" tickFormatter={v => `RM${(v/1000).toFixed(0)}k`} tick={{ fontSize: 12 }} />
-                    <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={120} />
-                    <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                    <Bar dataKey="total" fill={BRAND_CHART} radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={byCustomer.slice(0, 10)} layout="vertical" margin={{ left: 120 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" tickFormatter={v => `RM${(v/1000).toFixed(0)}k`} tick={{ fontSize: 12 }} />
+                      <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={120} />
+                      <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                      <Bar dataKey="total" fill={BRAND_CHART} radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <div className="mt-6 overflow-x-auto">
+                    <p className="text-sm font-medium text-muted-foreground mb-2">All clinics</p>
+                    <Table className="min-w-[28rem]">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Clinic</TableHead>
+                          <TableHead className="text-right">Invoices</TableHead>
+                          <TableHead className="text-right">Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {byCustomer.map(c => (
+                          <TableRow key={c.name}>
+                            <TableCell>{c.name}</TableCell>
+                            <TableCell className="text-right">{c.count}</TableCell>
+                            <TableCell className="text-right font-medium">{formatCurrency(c.total)}</TableCell>
+                          </TableRow>
+                        ))}
+                        <TableRow className="border-t-2 font-semibold">
+                          <TableCell>Total</TableCell>
+                          <TableCell className="text-right">{byCustomer.reduce((s, c) => s + c.count, 0)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(byCustomer.reduce((s, c) => s + c.total, 0))}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
               ) : <p className="text-center text-muted-foreground py-8">No data for this period</p>}
             </CardContent>
           </Card>
@@ -201,15 +248,43 @@ export function ReportsClient({ from, to, summary }: { from: string; to: string;
             <CardHeader><CardTitle className="text-base">Revenue by Product (Top 10)</CardTitle></CardHeader>
             <CardContent>
               {byProduct.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={byProduct} layout="vertical" margin={{ left: 160 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                    <XAxis type="number" tickFormatter={v => `RM${(v/1000).toFixed(0)}k`} tick={{ fontSize: 12 }} />
-                    <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={160} />
-                    <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                    <Bar dataKey="total" fill={BRAND_CHART_SOFT} radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={byProduct.slice(0, 10)} layout="vertical" margin={{ left: 160 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" tickFormatter={v => `RM${(v/1000).toFixed(0)}k`} tick={{ fontSize: 12 }} />
+                      <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={160} />
+                      <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                      <Bar dataKey="total" fill={BRAND_CHART_SOFT} radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <div className="mt-6 overflow-x-auto">
+                    <p className="text-sm font-medium text-muted-foreground mb-2">All products</p>
+                    <Table className="min-w-[28rem]">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Product</TableHead>
+                          <TableHead className="text-right">Quantity</TableHead>
+                          <TableHead className="text-right">Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {byProduct.map(p => (
+                          <TableRow key={p.name}>
+                            <TableCell>{p.name}</TableCell>
+                            <TableCell className="text-right">{p.qty}</TableCell>
+                            <TableCell className="text-right font-medium">{formatCurrency(p.total)}</TableCell>
+                          </TableRow>
+                        ))}
+                        <TableRow className="border-t-2 font-semibold">
+                          <TableCell>Total</TableCell>
+                          <TableCell className="text-right">{byProduct.reduce((s, p) => s + p.qty, 0)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(byProduct.reduce((s, p) => s + p.total, 0))}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
               ) : <p className="text-center text-muted-foreground py-8">No data for this period</p>}
             </CardContent>
           </Card>
