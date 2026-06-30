@@ -1,57 +1,92 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import {
+  FilePlus2, Send, Banknote, Coins, Ban, Trash2, RotateCcw, Pencil, Wrench,
+} from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { formatRelativeTime, formatDate, formatCurrency } from '@/lib/utils'
+import { cn, formatRelativeTime, formatDateTime, formatCurrency } from '@/lib/utils'
 import type { TimelineEvent } from '@/data/invoice-activity'
 
 const WORK_STATUS_ACTION = 'work_status.changed'
 const SHOW_WS_KEY = 'invoiceActivity.showWorkStatus'
+const PAGE_SIZE = 8
 
 // Actions whose field diffs are worth an expandable list (multi-field edits).
 const EXPANDABLE = new Set(['invoice.edited', 'invoice.recipient_changed', 'invoice.case_changed'])
+
+type Category = { icon: typeof FilePlus2; cls: string }
+const CATEGORIES: Record<string, Category> = {
+  created: { icon: FilePlus2, cls: 'bg-slate-100 text-slate-600' },
+  issued: { icon: Send, cls: 'bg-blue-100 text-blue-600' },
+  payment: { icon: Banknote, cls: 'bg-green-100 text-green-600' },
+  credit: { icon: Coins, cls: 'bg-amber-100 text-amber-600' },
+  void: { icon: Ban, cls: 'bg-red-100 text-red-600' },
+  deleted: { icon: Trash2, cls: 'bg-red-100 text-red-600' },
+  restored: { icon: RotateCcw, cls: 'bg-emerald-100 text-emerald-600' },
+  edit: { icon: Pencil, cls: 'bg-violet-100 text-violet-600' },
+  work: { icon: Wrench, cls: 'bg-cyan-100 text-cyan-600' },
+}
+
+function categoryOf(action: string): Category {
+  switch (action) {
+    case 'invoice.created': return CATEGORIES.created
+    case 'invoice.issued': return CATEGORIES.issued
+    case 'payment.recorded': return CATEGORIES.payment
+    case 'credit.recorded': return CATEGORIES.credit
+    case 'invoice.voided': return CATEGORIES.void
+    case 'invoice.soft_deleted':
+    case 'invoice.purged': return CATEGORIES.deleted
+    case 'invoice.restored':
+    case 'invoice.void_restored': return CATEGORIES.restored
+    case WORK_STATUS_ACTION: return CATEGORIES.work
+    default: return CATEGORIES.edit
+  }
+}
 
 function valueText(v: unknown): string {
   if (v === null || v === undefined || v === '') return '—'
   return String(v)
 }
-
 function money(v: unknown): string {
   return formatCurrency(Number(v ?? 0))
 }
-
-function fromTo(c: { from: unknown; to: unknown } | undefined): string {
-  if (!c) return ''
-  return c.from ? `from ${valueText(c.from)} → ${valueText(c.to)}` : `to ${valueText(c.to)}`
+function Strong({ children }: { children: ReactNode }) {
+  return <span className="font-medium text-foreground">{children}</span>
+}
+function fromTo(c: { from: unknown; to: unknown } | undefined): ReactNode {
+  if (!c) return null
+  return c.from
+    ? <>from <Strong>{valueText(c.from)}</Strong> → <Strong>{valueText(c.to)}</Strong></>
+    : <>to <Strong>{valueText(c.to)}</Strong></>
 }
 
-// A plain-language predicate that follows the actor's name, built from the
-// structured event data so the timeline reads meaningfully.
-function describe(e: TimelineEvent): string {
+// Plain-language predicate (with key values highlighted) that follows the actor name.
+function describe(e: TimelineEvent): ReactNode {
   const m = (e.metadata ?? {}) as Record<string, unknown>
   const c0 = Array.isArray(e.changes) ? e.changes[0] : undefined
   switch (e.action) {
-    case 'invoice.created': return `created invoice${m.status ? ` (${m.status})` : ''}`
-    case 'invoice.issued': return 'issued invoice'
-    case 'payment.recorded': return `recorded payment of ${money(m.amount)}${m.reference_number ? ` · ref ${m.reference_number}` : ''}`
-    case 'credit.recorded': return `issued ${money(m.amount)} credit${m.reason ? ` (${m.reason})` : ''}`
-    case 'invoice.voided': return 'voided invoice'
-    case 'invoice.soft_deleted': return 'deleted invoice'
-    case 'invoice.restored': return 'restored invoice'
-    case 'invoice.void_restored': return 'restored the voided invoice'
-    case 'invoice.purged': return 'permanently deleted invoice'
-    case 'invoice.work_note_changed': return `updated work note${m.item ? ` on ${m.item}` : ''}`
-    case 'invoice.service_status_changed': return `changed service status ${fromTo(c0)}`.trimEnd()
-    case WORK_STATUS_ACTION: return `changed work status${m.item ? ` of ${m.item}` : ''} ${fromTo(c0)}`.trimEnd()
-    case 'invoice.case_changed': return 'updated case details'
-    case 'invoice.recipient_changed': return 'updated recipient details'
+    case 'invoice.created': return <>created invoice{m.status ? <> ({String(m.status)})</> : null}</>
+    case 'invoice.issued': return <>issued invoice</>
+    case 'payment.recorded': return <>recorded payment of <Strong>{money(m.amount)}</Strong>{m.reference_number ? <> · ref {String(m.reference_number)}</> : null}</>
+    case 'credit.recorded': return <>issued <Strong>{money(m.amount)}</Strong> credit{m.reason ? <> ({String(m.reason)})</> : null}</>
+    case 'invoice.voided': return <>voided invoice</>
+    case 'invoice.soft_deleted': return <>deleted invoice</>
+    case 'invoice.restored': return <>restored invoice</>
+    case 'invoice.void_restored': return <>restored the voided invoice</>
+    case 'invoice.purged': return <>permanently deleted invoice</>
+    case 'invoice.work_note_changed': return <>updated work note{m.item ? <> on <Strong>{String(m.item)}</Strong></> : null}</>
+    case 'invoice.service_status_changed': return <>changed service status {fromTo(c0)}</>
+    case WORK_STATUS_ACTION: return <>changed work status{m.item ? <> of <Strong>{String(m.item)}</Strong></> : null} {fromTo(c0)}</>
+    case 'invoice.case_changed': return <>updated case details</>
+    case 'invoice.recipient_changed': return <>updated recipient details</>
     case 'invoice.edited': {
       const it = m.items as { added?: number; removed?: number } | undefined
       const parts: string[] = []
       if (it?.added) parts.push(`${it.added} item${it.added > 1 ? 's' : ''} added`)
       if (it?.removed) parts.push(`${it.removed} item${it.removed > 1 ? 's' : ''} removed`)
-      return `edited the invoice${parts.length ? ` (${parts.join(', ')})` : ''}`
+      return <>edited the invoice{parts.length ? <> ({parts.join(', ')})</> : null}</>
     }
     default: return e.action
   }
@@ -60,6 +95,7 @@ function describe(e: TimelineEvent): string {
 export function InvoiceActivityPanel({ events }: { events: TimelineEvent[] }) {
   const [open, setOpen] = useState<string | null>(null)
   const [showWorkStatus, setShowWorkStatus] = useState(false)
+  const [limit, setLimit] = useState(PAGE_SIZE)
 
   // Restore the persisted preference after mount (default stays hidden for SSR).
   useEffect(() => {
@@ -70,6 +106,7 @@ export function InvoiceActivityPanel({ events }: { events: TimelineEvent[] }) {
 
   function toggleWorkStatus(next: boolean) {
     setShowWorkStatus(next)
+    setLimit(PAGE_SIZE)
     if (typeof window !== 'undefined') window.localStorage.setItem(SHOW_WS_KEY, next ? '1' : '0')
   }
 
@@ -77,6 +114,8 @@ export function InvoiceActivityPanel({ events }: { events: TimelineEvent[] }) {
 
   const workStatusCount = events.filter(e => e.action === WORK_STATUS_ACTION).length
   const visible = showWorkStatus ? events : events.filter(e => e.action !== WORK_STATUS_ACTION)
+  const shown = visible.slice(0, limit)
+  const remaining = visible.length - shown.length
 
   return (
     <Card className="print:hidden">
@@ -104,46 +143,70 @@ export function InvoiceActivityPanel({ events }: { events: TimelineEvent[] }) {
             Only work-status changes so far — toggle “Show work status” to see them.
           </p>
         ) : (
-          <ul className="divide-y">
-            {visible.map(e => {
-              const hasDiff = EXPANDABLE.has(e.action) && Array.isArray(e.changes) && e.changes.length > 0
-              return (
-                <li key={e.id} className="px-4 py-3 sm:px-5">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <p className="text-sm">
-                      <span className="font-medium text-foreground">{e.actorName}</span>{' '}
-                      <span className="text-muted-foreground">{describe(e)}</span>
-                      {e.reason ? <span className="text-muted-foreground"> — {e.reason}</span> : null}
-                    </p>
-                    <time className="shrink-0 text-xs text-muted-foreground" title={formatDate(e.at)}>
-                      {formatRelativeTime(e.at)}
-                    </time>
-                  </div>
-                  {hasDiff && (
-                    <button
-                      type="button"
-                      className="mt-1 text-xs text-primary underline-offset-2 hover:underline"
-                      onClick={() => setOpen(open === e.id ? null : e.id)}
-                    >
-                      {open === e.id ? 'Hide changes' : `${e.changes!.length} field${e.changes!.length > 1 ? 's' : ''} changed`}
-                    </button>
-                  )}
-                  {hasDiff && open === e.id && (
-                    <ul className="mt-2 space-y-1 rounded-md bg-muted/40 p-2 text-xs">
-                      {e.changes!.map((c, i) => (
-                        <li key={i} className="flex flex-wrap gap-1">
-                          <span className="font-medium text-foreground">{c.label}:</span>
-                          <span className="text-muted-foreground line-through">{valueText(c.from)}</span>
-                          <span aria-hidden>→</span>
-                          <span className="text-foreground">{valueText(c.to)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
+          <>
+            <ul className="divide-y">
+              {shown.map(e => {
+                const cat = categoryOf(e.action)
+                const Icon = cat.icon
+                const hasDiff = EXPANDABLE.has(e.action) && Array.isArray(e.changes) && e.changes.length > 0
+                return (
+                  <li key={e.id} className="flex gap-3 px-4 py-3 sm:px-5">
+                    <span className={cn('mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full', cat.cls)}>
+                      <Icon className="h-3.5 w-3.5" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <p className="text-sm">
+                          <span className="font-medium text-foreground">{e.actorName}</span>{' '}
+                          <span className="text-muted-foreground">{describe(e)}</span>
+                          {e.reason ? <span className="text-muted-foreground"> — {e.reason}</span> : null}
+                        </p>
+                        <time className="shrink-0 text-xs text-muted-foreground" title={formatDateTime(e.at)}>
+                          {formatRelativeTime(e.at)}
+                        </time>
+                      </div>
+                      {hasDiff && (
+                        <button
+                          type="button"
+                          className="mt-1 text-xs text-primary underline-offset-2 hover:underline"
+                          onClick={() => setOpen(open === e.id ? null : e.id)}
+                        >
+                          {open === e.id ? 'Hide changes' : `${e.changes!.length} field${e.changes!.length > 1 ? 's' : ''} changed`}
+                        </button>
+                      )}
+                      {hasDiff && open === e.id && (
+                        <ul className="mt-2 space-y-1 rounded-md bg-muted/40 p-2 text-xs">
+                          {e.changes!.map((c, i) => (
+                            <li key={i} className="flex flex-wrap gap-1">
+                              <span className="font-medium text-foreground">{c.label}:</span>
+                              <span className="text-muted-foreground line-through">{valueText(c.from)}</span>
+                              <span aria-hidden>→</span>
+                              <span className="text-foreground">{valueText(c.to)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+            {(remaining > 0 || limit > PAGE_SIZE) && (
+              <div className="flex items-center justify-center gap-4 border-t px-4 py-2.5 text-xs">
+                {remaining > 0 && (
+                  <button type="button" className="text-primary hover:underline" onClick={() => setLimit(l => l + PAGE_SIZE)}>
+                    Show {Math.min(PAGE_SIZE, remaining)} more
+                  </button>
+                )}
+                {remaining > 0 && <span className="text-muted-foreground">{shown.length} of {visible.length}</span>}
+                {limit > PAGE_SIZE && (
+                  <button type="button" className="text-muted-foreground hover:underline" onClick={() => setLimit(PAGE_SIZE)}>
+                    Show less
+                  </button>
+                )}
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

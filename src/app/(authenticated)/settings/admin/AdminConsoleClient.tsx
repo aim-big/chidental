@@ -13,6 +13,7 @@ import { useToast } from '@/components/feedback/toast'
 import { ArchiveRestore, Trash2, RotateCcw } from 'lucide-react'
 import type { DeletedInvoiceRow, ArchivedClinicRow, AuditRow, InvoiceActivityFeedRow } from '@/data/admin'
 import { actionLabel } from '@/lib/audit/action-labels'
+import { formatDateTime } from '@/lib/utils'
 import {
   restoreInvoiceAction, purgeInvoiceAction, purgeCustomerAction,
 } from '@/lib/admin/admin-actions'
@@ -174,7 +175,7 @@ export function AdminConsoleClient({
                   <TableBody>
                     {audit.map(a => (
                       <TableRow key={a.id}>
-                        <TableCell className="whitespace-nowrap text-muted-foreground">{new Date(a.created_at).toLocaleString()}</TableCell>
+                        <TableCell className="whitespace-nowrap text-muted-foreground">{formatDateTime(a.created_at)}</TableCell>
                         <TableCell className="font-mono text-xs">{a.action}</TableCell>
                         <TableCell>{a.entity_label ?? a.entity_type}</TableCell>
                         <TableCell className="text-muted-foreground">{a.reason ?? '—'}</TableCell>
@@ -207,7 +208,7 @@ export function AdminConsoleClient({
                   <TableBody>
                     {invoiceActivity.map(a => (
                       <TableRow key={a.id}>
-                        <TableCell className="whitespace-nowrap text-muted-foreground">{new Date(a.created_at).toLocaleString()}</TableCell>
+                        <TableCell className="whitespace-nowrap text-muted-foreground">{formatDateTime(a.created_at)}</TableCell>
                         <TableCell className="font-medium">{a.actor_name}</TableCell>
                         <TableCell>{actionLabel(a.action)}</TableCell>
                         <TableCell className="font-mono text-xs">{a.entity_label ?? '—'}</TableCell>

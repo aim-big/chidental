@@ -41,3 +41,18 @@ export function todayISODate(): string {
 export function formatRelativeTime(date: string | Date, now: Date = new Date()): string {
   return formatDistance(new Date(date), now, { addSuffix: true })
 }
+
+// Absolute date + time pinned to Malaysia time (UTC+8), regardless of where the
+// code runs (server RSC or any browser). Use for audit/activity timestamps so a
+// stored UTC `timestamptz` always reads in the lab's local clock.
+export function formatDateTime(date: string | Date): string {
+  return new Intl.DateTimeFormat('en-MY', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Kuala_Lumpur',
+  }).format(new Date(date))
+}
