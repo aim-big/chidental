@@ -143,6 +143,45 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_activity_log: {
+        Row: {
+          action: string
+          actor_id: string
+          actor_name: string
+          changes: Json | null
+          created_at: string
+          entity_label: string | null
+          id: string
+          invoice_id: string | null
+          metadata: Json | null
+          reason: string | null
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          actor_name: string
+          changes?: Json | null
+          created_at?: string
+          entity_label?: string | null
+          id?: string
+          invoice_id?: string | null
+          metadata?: Json | null
+          reason?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          actor_name?: string
+          changes?: Json | null
+          created_at?: string
+          entity_label?: string | null
+          id?: string
+          invoice_id?: string | null
+          metadata?: Json | null
+          reason?: string | null
+        }
+        Relationships: []
+      }
       invoice_item_status_history: {
         Row: {
           changed_at: string
