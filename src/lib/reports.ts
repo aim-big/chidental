@@ -41,6 +41,40 @@ export type ReportSummary = {
 const DAY_MS = 86_400_000
 
 /**
+ * Revenue grouped by clinic, descending, top 10. Shared by the reports and
+ * dashboard summaries. `invoices` should already exclude voided rows.
+ */
+export function aggregateByCustomer(invoices: ReportInvoice[]): CustomerAgg[] {
+  return Object.values(
+    invoices.reduce<Record<string, CustomerAgg>>((acc, inv) => {
+      const name = inv.customers?.clinic_name ?? 'Unknown'
+      if (!acc[name]) acc[name] = { name, total: 0, count: 0 }
+      acc[name].total += Number(inv.total)
+      acc[name].count += 1
+      return acc
+    }, {}),
+  ).sort((a, b) => b.total - a.total).slice(0, 10)
+}
+
+/**
+ * Revenue grouped by product (falling back to the line description when a line
+ * has no linked product), descending, top 10. Shared by reports and dashboard.
+ * `invoices` should already exclude voided rows.
+ */
+export function aggregateByProduct(invoices: ReportInvoice[]): ProductAgg[] {
+  const map: Record<string, ProductAgg> = {}
+  invoices.forEach((inv) => {
+    ;(inv.invoice_items ?? []).forEach((item) => {
+      const name = item.products?.name ?? item.description
+      if (!map[name]) map[name] = { name, total: 0, qty: 0 }
+      map[name].total += Number(item.amount)
+      map[name].qty += Number(item.quantity)
+    })
+  })
+  return Object.values(map).sort((a, b) => b.total - a.total).slice(0, 10)
+}
+
+/**
  * Summarize a date-ranged set of invoices for the reports page. `nowMs` is the
  * reference time for aging (pass `Date.now()` at the call site so this stays
  * deterministic/testable). Voided invoices never count toward any total.
@@ -61,26 +95,8 @@ export function summarizeReports(invoices: ReportInvoice[], nowMs: number): Repo
     .filter((i) => i.status === 'paid')
     .sort((a, b) => (a.invoice_date < b.invoice_date ? 1 : -1))
 
-  const byCustomer = Object.values(
-    active.reduce<Record<string, CustomerAgg>>((acc, inv) => {
-      const name = inv.customers?.clinic_name ?? 'Unknown'
-      if (!acc[name]) acc[name] = { name, total: 0, count: 0 }
-      acc[name].total += Number(inv.total)
-      acc[name].count += 1
-      return acc
-    }, {}),
-  ).sort((a, b) => b.total - a.total).slice(0, 10)
-
-  const byProductMap: Record<string, ProductAgg> = {}
-  active.forEach((inv) => {
-    ;(inv.invoice_items ?? []).forEach((item) => {
-      const name = item.products?.name ?? item.description
-      if (!byProductMap[name]) byProductMap[name] = { name, total: 0, qty: 0 }
-      byProductMap[name].total += Number(item.amount)
-      byProductMap[name].qty += Number(item.quantity)
-    })
-  })
-  const byProduct = Object.values(byProductMap).sort((a, b) => b.total - a.total).slice(0, 10)
+  const byCustomer = aggregateByCustomer(active)
+  const byProduct = aggregateByProduct(active)
 
   return {
     totalInvoiced,
