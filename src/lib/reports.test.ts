@@ -8,6 +8,7 @@ const ri = (over: Partial<ReportInvoice> = {}): ReportInvoice => ({
   invoice_number: 'INV-1',
   status: 'sent',
   total: 100,
+  subtotal: 100,
   voided_at: null,
   invoice_date: '2026-06-01',
   due_date: '2026-06-10',
@@ -90,5 +91,25 @@ describe('aggregation limit', () => {
   it('summarizeReports returns full breakdowns, not just top 10', () => {
     const r = summarizeReports(clinics, NOW)
     expect(r.byCustomer).toHaveLength(15)
+  })
+})
+
+describe('summarizeReports sales list', () => {
+  it('returns active invoices ascending by invoice_date, excluding voided', () => {
+    const r = summarizeReports(
+      [
+        ri({ id: 'a', invoice_date: '2026-06-10' }),
+        ri({ id: 'b', invoice_date: '2026-06-02' }),
+        ri({ id: 'c', invoice_date: '2026-06-05', voided_at: '2026-06-06T00:00:00Z' }),
+      ],
+      NOW,
+    )
+    expect(r.sales.map((s) => s.id)).toEqual(['b', 'a'])
+  })
+
+  it('carries subtotal through on sales rows', () => {
+    const r = summarizeReports([ri({ subtotal: 80, total: 90 })], NOW)
+    expect(r.sales[0].subtotal).toBe(80)
+    expect(r.sales[0].total).toBe(90)
   })
 })

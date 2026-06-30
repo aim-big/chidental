@@ -17,7 +17,7 @@ export type ReportInvoiceItem = {
 // projections the query actually selects.
 export type ReportInvoice = Pick<
   Invoice,
-  'id' | 'invoice_number' | 'status' | 'total' | 'voided_at' | 'due_date' | 'invoice_date'
+  'id' | 'invoice_number' | 'status' | 'total' | 'subtotal' | 'voided_at' | 'due_date' | 'invoice_date'
 > & {
   customers?: { clinic_name: string } | null
   invoice_items?: ReportInvoiceItem[]
@@ -26,6 +26,13 @@ export type ReportInvoice = Pick<
 export type AgingInvoice = ReportInvoice & { daysOverdue: number }
 export type CustomerAgg = { name: string; total: number; count: number }
 export type ProductAgg = { name: string; total: number; qty: number }
+export type ReportPayment = {
+  amount: number
+  payment_date: string
+  reference_number: string | null
+  invoice_number: string | null
+  clinic_name: string | null
+}
 
 export type ReportSummary = {
   totalInvoiced: number
@@ -34,6 +41,7 @@ export type ReportSummary = {
   invoiceCount: number
   outstanding: AgingInvoice[]
   paid: ReportInvoice[]
+  sales: ReportInvoice[]
   byCustomer: CustomerAgg[]
   byProduct: ProductAgg[]
 }
@@ -95,6 +103,8 @@ export function summarizeReports(invoices: ReportInvoice[], nowMs: number): Repo
     .filter((i) => i.status === 'paid')
     .sort((a, b) => (a.invoice_date < b.invoice_date ? 1 : -1))
 
+  const sales = [...active].sort((a, b) => (a.invoice_date < b.invoice_date ? -1 : 1))
+
   const byCustomer = aggregateByCustomer(active, Infinity)
   const byProduct = aggregateByProduct(active, Infinity)
 
@@ -105,6 +115,7 @@ export function summarizeReports(invoices: ReportInvoice[], nowMs: number): Repo
     invoiceCount: invoices.length,
     outstanding,
     paid,
+    sales,
     byCustomer,
     byProduct,
   }
