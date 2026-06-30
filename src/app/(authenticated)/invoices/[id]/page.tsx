@@ -23,6 +23,8 @@ import { DEFAULT_COLOR } from '@/lib/service-status'
 import { InvoiceDetailClient } from '@/components/invoices/detail/InvoiceDetailClient'
 import { CaseDetailsEditor } from '@/components/invoices/detail/CaseDetailsEditor'
 import { WorkStatusEditor } from '@/components/invoices/detail/WorkStatusEditor'
+import { InvoiceActivityPanel } from '@/components/invoices/detail/InvoiceActivityPanel'
+import { getInvoiceActivity } from '@/data/invoice-activity'
 
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   // Hard gate: the invoice bundle is fetched and embedded server-side, so it must
@@ -31,9 +33,10 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   if (gate.ok === false) redirect('/dashboard')
 
   const { id } = await params
-  const [data, billingSettings] = await Promise.all([
+  const [data, billingSettings, activity] = await Promise.all([
     getInvoiceDetail(id),
     getBillingSettings(),
+    getInvoiceActivity(id),
   ])
   if (!data) notFound()
 
@@ -168,6 +171,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           </CardContent>
         </Card>
       )}
+
+      {/* Activity timeline — who did what on this invoice. Internal, never printed. */}
+      <InvoiceActivityPanel events={activity} />
     </div>
   )
 }

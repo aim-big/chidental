@@ -60,6 +60,26 @@ export async function getAuditFeed(limit = 100): Promise<AuditRow[]> {
   return (data ?? []) as AuditRow[]
 }
 
+export interface InvoiceActivityFeedRow {
+  id: string
+  actor_name: string
+  action: string
+  entity_label: string | null
+  reason: string | null
+  created_at: string
+}
+
+// Global per-invoice activity feed for the admin console (who did what, newest-first).
+export async function getInvoiceActivityFeed(limit = 200): Promise<InvoiceActivityFeedRow[]> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('invoice_activity_log')
+    .select('id, actor_name, action, entity_label, reason, created_at')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  return (data ?? []) as InvoiceActivityFeedRow[]
+}
+
 export async function getClinicDependencyCounts(id: string): Promise<{ invoices: number; credits: number }> {
   const admin = createAdminClient()
   const [{ count: invoices }, { count: credits }] = await Promise.all([

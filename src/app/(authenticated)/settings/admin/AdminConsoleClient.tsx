@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { EmptyState } from '@/components/ui/empty-state'
 import { useToast } from '@/components/feedback/toast'
 import { ArchiveRestore, Trash2, RotateCcw } from 'lucide-react'
-import type { DeletedInvoiceRow, ArchivedClinicRow, AuditRow } from '@/data/admin'
+import type { DeletedInvoiceRow, ArchivedClinicRow, AuditRow, InvoiceActivityFeedRow } from '@/data/admin'
+import { actionLabel } from '@/lib/audit/action-labels'
 import {
   restoreInvoiceAction, purgeInvoiceAction, purgeCustomerAction,
 } from '@/lib/admin/admin-actions'
@@ -21,11 +22,12 @@ type PurgeTarget =
   | { kind: 'clinic'; id: string; label: string }
 
 export function AdminConsoleClient({
-  deletedInvoices, archivedClinics, audit,
+  deletedInvoices, archivedClinics, audit, invoiceActivity,
 }: {
   deletedInvoices: DeletedInvoiceRow[]
   archivedClinics: ArchivedClinicRow[]
   audit: AuditRow[]
+  invoiceActivity: InvoiceActivityFeedRow[]
 }) {
   const router = useRouter()
   const { show } = useToast()
@@ -72,6 +74,7 @@ export function AdminConsoleClient({
         <TabsList>
           <TabsTrigger value="recycle">Recycle Bin</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
+          <TabsTrigger value="invoice-activity">Invoice Activity</TabsTrigger>
         </TabsList>
 
         {/* ---- Recycle Bin ---- */}
@@ -174,6 +177,40 @@ export function AdminConsoleClient({
                         <TableCell className="whitespace-nowrap text-muted-foreground">{new Date(a.created_at).toLocaleString()}</TableCell>
                         <TableCell className="font-mono text-xs">{a.action}</TableCell>
                         <TableCell>{a.entity_label ?? a.entity_type}</TableCell>
+                        <TableCell className="text-muted-foreground">{a.reason ?? '—'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ---- Invoice Activity ---- */}
+        <TabsContent value="invoice-activity">
+          <Card>
+            <CardContent className="p-0">
+              {invoiceActivity.length === 0 ? (
+                <EmptyState title="No invoice activity yet" description="Invoice actions (issue, payment, void, edits) will be recorded here." />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>When</TableHead>
+                      <TableHead>Who</TableHead>
+                      <TableHead>Action</TableHead>
+                      <TableHead>Invoice</TableHead>
+                      <TableHead>Reason</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {invoiceActivity.map(a => (
+                      <TableRow key={a.id}>
+                        <TableCell className="whitespace-nowrap text-muted-foreground">{new Date(a.created_at).toLocaleString()}</TableCell>
+                        <TableCell className="font-medium">{a.actor_name}</TableCell>
+                        <TableCell>{actionLabel(a.action)}</TableCell>
+                        <TableCell className="font-mono text-xs">{a.entity_label ?? '—'}</TableCell>
                         <TableCell className="text-muted-foreground">{a.reason ?? '—'}</TableCell>
                       </TableRow>
                     ))}

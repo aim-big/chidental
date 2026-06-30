@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { requireSuperadmin } from '@/lib/auth/require-permission'
-import { getDeletedInvoices, getArchivedClinics, getAuditFeed } from '@/data/admin'
+import { getDeletedInvoices, getArchivedClinics, getAuditFeed, getInvoiceActivityFeed } from '@/data/admin'
 import { AdminConsoleClient } from './AdminConsoleClient'
 
 // Super Admin Console: recycle bin (restore/purge soft-deleted invoices + purge
@@ -11,10 +11,11 @@ export default async function AdminConsolePage() {
   const gate = await requireSuperadmin()
   if (gate.ok === false) redirect('/dashboard')
 
-  const [deletedInvoices, archivedClinics, audit] = await Promise.all([
+  const [deletedInvoices, archivedClinics, audit, invoiceActivity] = await Promise.all([
     getDeletedInvoices(),
     getArchivedClinics(),
     getAuditFeed(),
+    getInvoiceActivityFeed(),
   ])
 
   return (
@@ -22,6 +23,7 @@ export default async function AdminConsolePage() {
       deletedInvoices={deletedInvoices}
       archivedClinics={archivedClinics}
       audit={audit}
+      invoiceActivity={invoiceActivity}
     />
   )
 }
