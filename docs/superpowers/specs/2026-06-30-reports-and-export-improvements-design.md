@@ -1,7 +1,7 @@
 # Sales Reports & CSV Export improvements — design
 
 - **Date:** 2026-06-30
-- **Status:** Approved (pending spec review)
+- **Status:** Implemented
 - **Area:** `/reports` page, `@/lib/reports`, `@/lib/reports-csv`
 
 ## Context
