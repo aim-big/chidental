@@ -37,3 +37,47 @@ export async function writeAuditLog(entry: AuditEntry): Promise<void> {
     logServerError('writeAuditLog', e, { action: entry.action })
   }
 }
+
+// Per-invoice activity timeline actions. Distinct from AuditAction (which is the
+// cross-entity Super Admin destructive log) — these power the per-invoice
+// timeline and the admin Invoice Activity view, written from the invoice actions.
+export type InvoiceActivityAction =
+  | 'invoice.created' | 'invoice.issued' | 'invoice.edited'
+  | 'invoice.recipient_changed' | 'invoice.case_changed'
+  | 'invoice.service_status_changed' | 'invoice.work_note_changed'
+  | 'payment.recorded' | 'credit.recorded'
+  | 'invoice.voided' | 'invoice.soft_deleted' | 'invoice.restored'
+  | 'invoice.void_restored' | 'invoice.purged'
+  | 'payment.deleted' | 'credit.deleted'
+
+export interface InvoiceActivityEntry {
+  invoiceId: string | null
+  actorId: string
+  actorName: string
+  action: InvoiceActivityAction
+  entityLabel?: string | null
+  changes?: unknown
+  reason?: string | null
+  metadata?: Record<string, unknown> | null
+}
+
+// Best-effort per-invoice activity write. Never throws — a failed insert must not
+// abort the action it accompanies (same contract as writeAuditLog above).
+export async function logInvoiceActivity(entry: InvoiceActivityEntry): Promise<void> {
+  try {
+    const admin = createAdminClient()
+    const { error } = await admin.from('invoice_activity_log').insert({
+      invoice_id: entry.invoiceId,
+      actor_id: entry.actorId,
+      actor_name: entry.actorName,
+      action: entry.action,
+      entity_label: entry.entityLabel ?? null,
+      changes: (entry.changes ?? null) as never,
+      reason: entry.reason ?? null,
+      metadata: (entry.metadata ?? null) as never,
+    })
+    if (error) logServerError('logInvoiceActivity', error, { action: entry.action })
+  } catch (e) {
+    logServerError('logInvoiceActivity', e, { action: entry.action })
+  }
+}

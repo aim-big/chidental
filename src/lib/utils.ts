@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import { formatDistance } from 'date-fns'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -33,4 +34,10 @@ export function todayISODate(): string {
   const month = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${d.getFullYear()}-${month}-${day}`
+}
+
+// Relative timestamp for activity feeds, e.g. "5 minutes ago". `now` is injectable
+// for deterministic tests; defaults to the current time.
+export function formatRelativeTime(date: string | Date, now: Date = new Date()): string {
+  return formatDistance(new Date(date), now, { addSuffix: true })
 }

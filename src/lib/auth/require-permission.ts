@@ -2,12 +2,14 @@ import { createClient } from '@/lib/supabase/server'
 import { permissionGranted } from '@/domain/permissions'
 
 export type PermissionCheck =
-  | { ok: true; userId: string }
+  | { ok: true; userId: string; actorName: string }
   | { ok: false; error: string }
 
 // Shape returned by the profiles->roles->role_permissions embed.
 type ProfileWithRole = {
   active: boolean
+  full_name: string | null
+  username: string | null
   roles: { is_system: boolean; role_permissions: { permission: string }[] } | null
 }
 
@@ -18,12 +20,17 @@ async function loadRole(): Promise<{ userId: string; profile: ProfileWithRole } 
 
   const { data } = await supabase
     .from('profiles')
-    .select('active, roles(is_system, role_permissions(permission))')
+    .select('active, full_name, username, roles(is_system, role_permissions(permission))')
     .eq('id', user.id)
     .single()
 
   if (!data) return null
   return { userId: user.id, profile: data as unknown as ProfileWithRole }
+}
+
+// Display name snapshot for audit/activity rows: full_name, then username.
+function actorNameOf(profile: ProfileWithRole): string {
+  return profile.full_name ?? profile.username ?? '(unknown)'
 }
 
 // Server-side gate. Reads role + permissions from the database (source of truth),
@@ -40,7 +47,7 @@ export async function requirePermission(permission: string): Promise<PermissionC
     permission,
   )
   if (!granted) return { ok: false, error: 'You do not have permission to do this.' }
-  return { ok: true, userId }
+  return { ok: true, userId, actorName: actorNameOf(profile) }
 }
 
 // Gate for role management — Super Admin only.
@@ -51,5 +58,5 @@ export async function requireSuperadmin(): Promise<PermissionCheck> {
   if (!profile.active || !profile.roles?.is_system) {
     return { ok: false, error: 'Super Admin access required' }
   }
-  return { ok: true, userId }
+  return { ok: true, userId, actorName: actorNameOf(profile) }
 }
