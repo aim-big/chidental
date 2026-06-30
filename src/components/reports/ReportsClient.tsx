@@ -2,6 +2,8 @@
 
 import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { Download } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,6 +14,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { statusBadgeVariant, paymentStatusLabel } from '@/lib/status-badge'
 import type { ReportSummary } from '@/lib/reports'
+import { buildReportCsv, reportCsvFilename } from '@/lib/reports-csv'
 
 const BRAND_CHART = '#766254'
 const BRAND_CHART_SOFT = '#9b8779'
@@ -26,6 +29,21 @@ export function ReportsClient({ from, to, summary }: { from: string; to: string;
   const setRange = (next: { from?: string; to?: string }) => {
     const params = new URLSearchParams({ from: next.from ?? from, to: next.to ?? to })
     startTransition(() => router.push(`/reports?${params.toString()}`))
+  }
+
+  // Download the whole report (all sections) for the selected range as one CSV.
+  // The leading BOM makes Excel open the UTF-8 file with clinic names intact.
+  const exportCsv = () => {
+    const csv = buildReportCsv(summary, { from, to })
+    const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = reportCsvFilename({ from, to })
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
   }
 
   const { totalInvoiced, totalPaidInvoices, totalOutstanding, invoiceCount, outstanding, paid, byCustomer, byProduct } = summary
@@ -48,6 +66,15 @@ export function ReportsClient({ from, to, summary }: { from: string; to: string;
           <Input type="date" value={to} onChange={e => setRange({ to: e.target.value })} className="w-full sm:w-40" />
         </div>
         {isPending && <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary mb-2" />}
+        <Button
+          variant="outline"
+          onClick={exportCsv}
+          disabled={invoiceCount === 0}
+          className="w-full sm:w-auto sm:ml-auto"
+        >
+          <Download className="h-4 w-4 mr-2" />
+          Export CSV
+        </Button>
       </div>
 
       {/* Summary cards */}
