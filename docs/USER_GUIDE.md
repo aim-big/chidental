@@ -196,8 +196,17 @@ activate-toggle list:
 
 - **Dashboard** (all users): four stat cards (month-to-date Revenue, Outstanding, Total
   Invoices, Clinics) plus a recent-invoices table.
-- **Reports** (`reports.view`): revenue / outstanding / aging aggregates over a date range
-  (defaults to the current month; range is in the URL, e.g. `?from=…&to=…`), with charts.
+- **Reports** (`reports.view`): everything is scoped to one date range, picked via the
+  segmented control (This Month, Last Month, … or **Custom**, which reveals From/To
+  inputs; the range lives in the URL, e.g. `?from=…&to=…`).
+  - **Cards:** Total Invoiced (all non-voided sales, paid or not) · Collected (value of
+    paid invoices) · Outstanding · Cash Received (actual payments in the period).
+  - **Tabs:** Outstanding (with aging) · Paid · Payments (cash received list) ·
+    By Clinic (total sales split into Paid / Outstanding / Draft, with chart) ·
+    By Product (with chart).
+  - **Export ▾** (CSV): **Sales Summary** (per-clinic totals split by payment status),
+    **Sales Report** (each invoice issued), **Payment Report** (each payment received),
+    **Item Sales Report** (per-product totals with % share).
 
 ---
 

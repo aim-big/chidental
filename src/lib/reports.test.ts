@@ -41,7 +41,7 @@ describe('summarizeReports', () => {
     expect(r.outstanding[1].daysOverdue).toBe(10)
   })
 
-  it('aggregates revenue by customer (top, descending)', () => {
+  it('aggregates revenue by clinic via salesSummary (descending)', () => {
     const r = summarizeReports(
       [
         ri({ total: 100, customers: { clinic_name: 'A' } }),
@@ -50,8 +50,8 @@ describe('summarizeReports', () => {
       ],
       NOW,
     )
-    expect(r.byCustomer.map(c => c.name)).toEqual(['B', 'A'])
-    expect(r.byCustomer[1]).toMatchObject({ name: 'A', total: 150, count: 2 })
+    expect(r.salesSummary.map(c => c.name)).toEqual(['B', 'A'])
+    expect(r.salesSummary[1]).toMatchObject({ name: 'A', total: 150, count: 2 })
   })
 
   it('aggregates revenue by product, falling back to line description', () => {
@@ -90,7 +90,7 @@ describe('aggregation limit', () => {
   })
   it('summarizeReports returns full breakdowns, not just top 10', () => {
     const r = summarizeReports(clinics, NOW)
-    expect(r.byCustomer).toHaveLength(15)
+    expect(r.salesSummary).toHaveLength(15)
   })
 })
 

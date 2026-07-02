@@ -50,7 +50,6 @@ export type ReportSummary = {
   outstanding: AgingInvoice[]
   paid: ReportInvoice[]
   sales: ReportInvoice[]
-  byCustomer: CustomerAgg[]
   byProduct: ProductAgg[]
   salesSummary: SalesSummaryRow[]
 }
@@ -141,8 +140,9 @@ export function summarizeReports(invoices: ReportInvoice[], nowMs: number): Repo
 
   const sales = [...active].sort((a, b) => (a.invoice_date < b.invoice_date ? -1 : 1))
 
-  const byCustomer = aggregateByCustomer(active, Infinity)
   const byProduct = aggregateByProduct(active, Infinity)
+  // Per-clinic rows (count/total + paid/outstanding/draft) — supersedes the old
+  // byCustomer aggregation on this page; the dashboard still uses aggregateByCustomer.
   const salesSummary = aggregateSalesSummary(active)
 
   return {
@@ -153,7 +153,6 @@ export function summarizeReports(invoices: ReportInvoice[], nowMs: number): Repo
     outstanding,
     paid,
     sales,
-    byCustomer,
     byProduct,
     salesSummary,
   }

@@ -94,7 +94,10 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
   const exportPayments = () => download(buildPaymentReportCsv(payments, range, todayISODate()), paymentReportFilename(range))
   const exportItems = () => download(buildItemSalesReportCsv(summary.byProduct, range, todayISODate()), itemSalesReportFilename(range))
 
-  const { totalInvoiced, totalPaidInvoices, totalOutstanding, invoiceCount, outstanding, paid, byCustomer, byProduct } = summary
+  const { totalInvoiced, totalPaidInvoices, totalOutstanding, invoiceCount, outstanding, paid, byProduct, salesSummary } = summary
+  // Real cash received in the range (sum of payment rows) — distinct from
+  // "Collected (Paid)", which is the full value of paid-status invoices.
+  const cashReceived = payments.reduce((s, p) => s + Number(p.amount), 0)
 
   return (
     <div className="space-y-6">
@@ -165,18 +168,22 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Total Invoiced</CardTitle></CardHeader>
           <CardContent><p className="text-2xl font-bold">{formatCurrency(totalInvoiced)}</p><p className="text-xs text-muted-foreground mt-1">{invoiceCount} invoices</p></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Collected (Paid)</CardTitle></CardHeader>
-          <CardContent><p className="text-2xl font-bold text-green-600">{formatCurrency(totalPaidInvoices)}</p></CardContent>
+          <CardContent><p className="text-2xl font-bold text-green-600">{formatCurrency(totalPaidInvoices)}</p><p className="text-xs text-muted-foreground mt-1">value of paid invoices</p></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Outstanding</CardTitle></CardHeader>
           <CardContent><p className="text-2xl font-bold text-yellow-600">{formatCurrency(totalOutstanding)}</p><p className="text-xs text-muted-foreground mt-1">{outstanding.length} unpaid</p></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Cash Received</CardTitle></CardHeader>
+          <CardContent><p className="text-2xl font-bold">{formatCurrency(cashReceived)}</p><p className="text-xs text-muted-foreground mt-1">{payments.length} payments in period</p></CardContent>
         </Card>
       </div>
 
@@ -184,6 +191,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
         <TabsList>
           <TabsTrigger value="outstanding">Outstanding</TabsTrigger>
           <TabsTrigger value="paid">Paid</TabsTrigger>
+          <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="customers">By Clinic</TabsTrigger>
           <TabsTrigger value="products">By Product</TabsTrigger>
         </TabsList>
@@ -264,14 +272,51 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
           </Card>
         </TabsContent>
 
+        <TabsContent value="payments" className="mt-4">
+          <Card>
+            <CardHeader><CardTitle className="text-base">Payments Received</CardTitle></CardHeader>
+            <CardContent className="p-0">
+              <Table className="min-w-[42rem]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Invoice #</TableHead>
+                    <TableHead>Clinic</TableHead>
+                    <TableHead>Reference</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {payments.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No payments received in this period</TableCell></TableRow>}
+                  {payments.map((p, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="text-sm">{formatDate(p.payment_date)}</TableCell>
+                      <TableCell className="font-medium">{p.invoice_number}</TableCell>
+                      <TableCell>{p.clinic_name}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{p.reference_number}</TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(p.amount)}</TableCell>
+                    </TableRow>
+                  ))}
+                  {payments.length > 0 && (
+                    <TableRow className="border-t-2 font-semibold">
+                      <TableCell colSpan={4}>Total</TableCell>
+                      <TableCell className="text-right">{formatCurrency(cashReceived)}</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="customers" className="mt-4">
           <Card>
-            <CardHeader><CardTitle className="text-base">Revenue by Clinic (Top 10)</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">Sales by Clinic (Top 10)</CardTitle></CardHeader>
             <CardContent>
-              {byCustomer.length > 0 ? (
+              {salesSummary.length > 0 ? (
                 <>
                   <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={byCustomer.slice(0, 10)} layout="vertical" margin={{ left: 120 }}>
+                    <BarChart data={salesSummary.slice(0, 10)} layout="vertical" margin={{ left: 120 }}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                       <XAxis type="number" tickFormatter={v => `RM${(v/1000).toFixed(0)}k`} tick={{ fontSize: 12 }} />
                       <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={120} />
@@ -280,27 +325,36 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                     </BarChart>
                   </ResponsiveContainer>
                   <div className="mt-6 overflow-x-auto">
-                    <p className="text-sm font-medium text-muted-foreground mb-2">All clinics</p>
-                    <Table className="min-w-[28rem]">
+                    <p className="text-sm font-medium text-muted-foreground mb-2">All clinics — total sales split by payment status</p>
+                    <Table className="min-w-[42rem]">
                       <TableHeader>
                         <TableRow>
                           <TableHead>Clinic</TableHead>
                           <TableHead className="text-right">Invoices</TableHead>
-                          <TableHead className="text-right">Total</TableHead>
+                          <TableHead className="text-right">Total Sales</TableHead>
+                          <TableHead className="text-right">Paid</TableHead>
+                          <TableHead className="text-right">Outstanding</TableHead>
+                          <TableHead className="text-right">Draft</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {byCustomer.map(c => (
+                        {salesSummary.map(c => (
                           <TableRow key={c.name}>
                             <TableCell>{c.name}</TableCell>
                             <TableCell className="text-right">{c.count}</TableCell>
                             <TableCell className="text-right font-medium">{formatCurrency(c.total)}</TableCell>
+                            <TableCell className="text-right text-green-600">{formatCurrency(c.paid)}</TableCell>
+                            <TableCell className="text-right text-yellow-600">{formatCurrency(c.outstanding)}</TableCell>
+                            <TableCell className="text-right text-muted-foreground">{formatCurrency(c.draft)}</TableCell>
                           </TableRow>
                         ))}
                         <TableRow className="border-t-2 font-semibold">
                           <TableCell>Total</TableCell>
-                          <TableCell className="text-right">{byCustomer.reduce((s, c) => s + c.count, 0)}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(byCustomer.reduce((s, c) => s + c.total, 0))}</TableCell>
+                          <TableCell className="text-right">{salesSummary.reduce((s, c) => s + c.count, 0)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(salesSummary.reduce((s, c) => s + c.total, 0))}</TableCell>
+                          <TableCell className="text-right text-green-600">{formatCurrency(salesSummary.reduce((s, c) => s + c.paid, 0))}</TableCell>
+                          <TableCell className="text-right text-yellow-600">{formatCurrency(salesSummary.reduce((s, c) => s + c.outstanding, 0))}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">{formatCurrency(salesSummary.reduce((s, c) => s + c.draft, 0))}</TableCell>
                         </TableRow>
                       </TableBody>
                     </Table>
