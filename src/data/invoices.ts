@@ -72,11 +72,15 @@ export type InvoiceForEdit = {
 //   .order('created_at', { ascending: false })
 export async function getInvoices(): Promise<InvoiceListRow[]> {
   const supabase = await createClient()
+  // Explicit cap (PostgREST truncates at 1000 rows anyway): newest-first means
+  // the command palette keeps the most recent invoices if the table outgrows
+  // this. The invoices list itself paginates via getInvoicesPage.
   const { data } = await supabase
     .from('invoices')
     .select('*, customers(clinic_name), service_statuses(*)')
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
+    .limit(1000)
   return (data ?? []) as InvoiceListRow[]
 }
 

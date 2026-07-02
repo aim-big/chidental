@@ -56,6 +56,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requirePermission } from '@/lib/auth/require-permission'
 import type { PermissionCheck } from '@/lib/auth/require-permission'
 import { isVoided } from '@/lib/invoice-status'
+import { invoiceMoneyError } from '@/domain/money'
 import { hold } from '@/domain/production'
 import type { Json, TablesUpdate, WorkStatus } from '@/lib/database.types'
 import { getBillingSettings } from '@/data/billing-settings'
@@ -139,6 +140,11 @@ export async function createInvoiceAction(payload: {
   const gate = await requirePermission('invoices.create')
   if (gate.ok === false) return gate
 
+  // Server-side money cross-check: refuse a payload whose subtotal/total/line
+  // amounts disagree (the DB would happily store the inconsistency).
+  const moneyErr = invoiceMoneyError(payload.p_invoice, payload.p_items)
+  if (moneyErr) return { ok: false, error: moneyErr }
+
   const admin = createAdminClient()
   const invoicePayload = {
     ...payload.p_invoice,
@@ -170,6 +176,9 @@ export async function updateInvoiceAction(
 ): Promise<ActionResult> {
   const gate = await gateForContentEdit(id)
   if (!gate.ok) return gate
+
+  const moneyErr = invoiceMoneyError(payload.p_invoice, payload.p_items)
+  if (moneyErr) return { ok: false, error: moneyErr }
 
   const admin = createAdminClient()
   const { data: beforeInv } = await admin

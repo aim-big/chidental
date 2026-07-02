@@ -13,7 +13,9 @@ export interface CommandItem {
 }
 
 /** Flat, searchable list of jump targets for the command palette. Dataset is
- *  small (tens of rows); cmdk filters client-side. */
+ *  small today (tens of rows); cmdk filters client-side. `getInvoices` caps at
+ *  the newest 1000 rows, so very old invoices fall out of the palette first —
+ *  they remain reachable via the invoices list search. */
 export async function getCommandItems(): Promise<CommandItem[]> {
   const [invoices, customers, products] = await Promise.all([getInvoices(), getCustomers(), getProducts()])
 
