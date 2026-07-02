@@ -5,7 +5,7 @@
 // table), monthly sales-vs-payment trend, and period-over-period growth.
 
 import { differenceInCalendarDays, eachMonthOfInterval, format } from 'date-fns'
-import { isVoided, isOutstanding, isOverdue } from '@/lib/invoice-status'
+import { isVoided, isOutstanding, isOverdue, balanceDue } from '@/lib/invoice-status'
 import {
   aggregateByCustomer,
   aggregateByProduct,
@@ -34,6 +34,7 @@ export type DashboardPriorInvoice = {
 // unpaid ones. Narrowed to what `isOutstanding`/`isOverdue` read.
 export type DashboardOutstandingInvoice = {
   total: number
+  amount_paid?: number | null
   status: string
   voided_at: string | null
   due_date: string | null
@@ -116,13 +117,14 @@ export function summarizeDashboard({
 
   const sales = active.reduce((s, i) => s + Number(i.total), 0)
   const paymentsReceived = payments.reduce((s, p) => s + Number(p.amount), 0)
-  const outstanding = outstandingInvoices.filter((i) => isOutstanding(i)).reduce((s, i) => s + Number(i.total), 0)
+  // Money actually still owed: remaining balances, netting out partial payments.
+  const outstanding = outstandingInvoices.filter((i) => isOutstanding(i)).reduce((s, i) => s + balanceDue(i), 0)
   const invoiceCount = active.length // voided invoices don't count anywhere on the dashboard
 
   // The chase-first slice of outstanding: already past the due date.
   const overdueList = outstandingInvoices.filter((i) => isOverdue(i, today))
   const overdueCount = overdueList.length
-  const overdueAmount = overdueList.reduce((s, i) => s + Number(i.total), 0)
+  const overdueAmount = overdueList.reduce((s, i) => s + balanceDue(i), 0)
 
   // Growth vs the prior period, and vs the same window last year.
   const priorActive = priorInvoices.filter((i) => !isVoided(i))

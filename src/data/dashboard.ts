@@ -66,7 +66,7 @@ export async function getDashboardData(from: string, to: string): Promise<Dashbo
     // All-time outstanding snapshot (money owed right now, range-independent).
     supabase
       .from('invoices')
-      .select('total, status, voided_at, due_date')
+      .select('total, amount_paid, status, voided_at, due_date')
       .in('status', OUTSTANDING_STATUSES)
       .is('voided_at', null)
       .is('deleted_at', null),

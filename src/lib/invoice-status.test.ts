@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { Invoice } from './database.types'
-import { isVoided, countsAsRevenue, isOutstanding, isOverdue, nextStatusAfterPayment, summarizeCustomerInvoices, arAging } from './invoice-status'
+import { isVoided, countsAsRevenue, isOutstanding, isOverdue, nextStatusAfterPayment, summarizeCustomerInvoices, arAging, balanceDue } from './invoice-status'
 
 const inv = (status: string, voided_at: string | null = null): Pick<Invoice, 'status' | 'voided_at'> =>
   ({ status, voided_at })
@@ -86,6 +86,20 @@ describe('isOverdue', () => {
   })
 })
 
+describe('balanceDue', () => {
+  it('nets amount_paid out of the total', () => {
+    expect(balanceDue({ status: 'partial', voided_at: null, total: 100, amount_paid: 80 })).toBe(20)
+  })
+  it('falls back to the full total when amount_paid is absent', () => {
+    expect(balanceDue({ status: 'sent', voided_at: null, total: 100 })).toBe(100)
+  })
+  it('is 0 for paid and voided invoices, and never negative on overpayment', () => {
+    expect(balanceDue({ status: 'paid', voided_at: null, total: 100, amount_paid: 0 })).toBe(0)
+    expect(balanceDue({ status: 'sent', voided_at: '2026-06-01T00:00:00Z', total: 100, amount_paid: 0 })).toBe(0)
+    expect(balanceDue({ status: 'partial', voided_at: null, total: 100, amount_paid: 150 })).toBe(0)
+  })
+})
+
 describe('summarizeCustomerInvoices', () => {
   it('sums billed across all non-voided invoices', () => {
     const r = summarizeCustomerInvoices([sumInv('draft', 100), sumInv('paid', 50), sumInv('sent', 25)])
@@ -94,6 +108,11 @@ describe('summarizeCustomerInvoices', () => {
   it('counts only outstanding invoices toward outstanding', () => {
     const r = summarizeCustomerInvoices([sumInv('sent', 100), sumInv('partial', 40), sumInv('paid', 999), sumInv('draft', 10)])
     expect(r.totalOutstanding).toBe(140)
+  })
+  it('nets partial payments out of outstanding but not out of billed', () => {
+    const r = summarizeCustomerInvoices([{ status: 'partial', total: 100, voided_at: null, amount_paid: 80 }])
+    expect(r.totalBilled).toBe(100)
+    expect(r.totalOutstanding).toBe(20)
   })
   it('excludes voided invoices from both totals', () => {
     const r = summarizeCustomerInvoices([sumInv('paid', 100), sumInv('sent', 50, '2026-06-05T00:00:00Z')])
@@ -138,5 +157,14 @@ describe('arAging', () => {
       '2026-06-23',
     )
     expect(a.total).toBe(0)
+  })
+
+  it('buckets the remaining balance, not the full total, on partially-paid invoices', () => {
+    const a = arAging(
+      [{ ...agingInv(100, '2026-06-10', 'partial'), amount_paid: 80 }], // 13d overdue, owes 20
+      '2026-06-23',
+    )
+    expect(a.d1_30).toBe(20)
+    expect(a.total).toBe(20)
   })
 })

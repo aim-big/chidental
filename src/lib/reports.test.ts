@@ -9,6 +9,7 @@ const ri = (over: Partial<ReportInvoice> = {}): ReportInvoice => ({
   status: 'sent',
   total: 100,
   subtotal: 100,
+  amount_paid: 0,
   voided_at: null,
   invoice_date: '2026-06-01',
   due_date: '2026-06-10',
@@ -30,6 +31,19 @@ describe('summarizeReports', () => {
     )
     expect(r.totalPaidInvoices).toBe(200)
     expect(r.totalOutstanding).toBe(100)
+  })
+
+  it('nets partial payments out of outstanding, its rows, and the aging buckets', () => {
+    const r = summarizeReports(
+      [
+        ri({ status: 'partial', total: 100, amount_paid: 80, due_date: '2026-06-10' }), // owes 20, 10d overdue
+        ri({ status: 'sent', total: 50, due_date: '2026-07-01' }), // owes 50, not due
+      ],
+      NOW,
+    )
+    expect(r.totalOutstanding).toBe(70)
+    expect(r.outstanding.find(i => i.status === 'partial')?.balanceDue).toBe(20)
+    expect(r.agingBuckets).toMatchObject({ current: 50, d1_30: 20 })
   })
 
   it('computes aging days for outstanding invoices, newest-overdue first', () => {
@@ -161,6 +175,14 @@ describe('aggregateSalesSummary', () => {
     const x = rows[0]
     expect(x).toMatchObject({ name: 'X', count: 4, total: 350, paid: 200, outstanding: 110, draft: 40 })
     expect(x.paid + x.outstanding + x.draft).toBe(x.total)
+  })
+
+  it('splits a partially-paid invoice between paid and outstanding, keeping the invariant', () => {
+    const rows = aggregateSalesSummary([
+      ri({ total: 100, status: 'partial', amount_paid: 30, customers: { clinic_name: 'Y' } }),
+    ])
+    expect(rows[0]).toMatchObject({ name: 'Y', total: 100, paid: 30, outstanding: 70, draft: 0 })
+    expect(rows[0].paid + rows[0].outstanding + rows[0].draft).toBe(rows[0].total)
   })
 
   it('excludes voided invoices from every column', () => {

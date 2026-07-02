@@ -99,7 +99,7 @@ export function ReportPrintDocument({
                 <th className={th}>Due Date</th>
                 <th className={th}>Aging</th>
                 <th className={th}>Status</th>
-                <th className={thRight}>Amount</th>
+                <th className={thRight}>Balance Due</th>
               </tr>
             </thead>
             <tbody>
@@ -110,7 +110,7 @@ export function ReportPrintDocument({
                   <td className={td}>{formatDate(inv.due_date)}</td>
                   <td className={td}>{inv.daysOverdue > 0 ? `${inv.daysOverdue}d overdue` : 'Not due yet'}</td>
                   <td className={td}>{paymentStatusLabel(inv.status)}</td>
-                  <td className={tdRight}>{formatCurrency(inv.total)}</td>
+                  <td className={tdRight}>{formatCurrency(inv.balanceDue)}</td>
                 </tr>
               ))}
               <tr>

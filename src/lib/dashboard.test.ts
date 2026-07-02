@@ -7,6 +7,7 @@ const di = (over: Partial<DashboardInvoice> = {}): DashboardInvoice => ({
   invoice_number: 'INV-1',
   status: 'sent',
   total: 100,
+  amount_paid: 0,
   voided_at: null,
   invoice_date: '2026-06-01',
   due_date: '2026-06-10',
@@ -71,6 +72,18 @@ describe('summarizeDashboard', () => {
     })
     expect(r.overdueCount).toBe(2)
     expect(r.overdueAmount).toBe(110)
+  })
+
+  it('nets partial payments out of outstanding and overdue amounts', () => {
+    const r = run({
+      outstandingInvoices: [
+        { status: 'partial', total: 100, amount_paid: 80, voided_at: null, due_date: '2026-06-01' }, // owes 20, overdue
+        { status: 'sent', total: 50, voided_at: null, due_date: '2026-07-01' }, // owes 50, not due
+      ],
+    })
+    expect(r.outstanding).toBe(70)
+    expect(r.overdueCount).toBe(1)
+    expect(r.overdueAmount).toBe(20)
   })
 
   it('computes period-over-period sales growth, or null with no baseline', () => {

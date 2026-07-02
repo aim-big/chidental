@@ -3,7 +3,7 @@
 // in-render math the old client page did.
 
 import type { Invoice } from '@/lib/database.types'
-import { countsAsRevenue, isOutstanding, isVoided } from '@/lib/invoice-status'
+import { balanceDue, countsAsRevenue, isOutstanding, isVoided } from '@/lib/invoice-status'
 
 export type ReportInvoiceItem = {
   description: string
@@ -17,13 +17,13 @@ export type ReportInvoiceItem = {
 // projections the query actually selects.
 export type ReportInvoice = Pick<
   Invoice,
-  'id' | 'invoice_number' | 'status' | 'total' | 'subtotal' | 'voided_at' | 'due_date' | 'invoice_date'
+  'id' | 'invoice_number' | 'status' | 'total' | 'subtotal' | 'amount_paid' | 'voided_at' | 'due_date' | 'invoice_date'
 > & {
   customers?: { clinic_name: string } | null
   invoice_items?: ReportInvoiceItem[]
 }
 
-export type AgingInvoice = ReportInvoice & { daysOverdue: number }
+export type AgingInvoice = ReportInvoice & { daysOverdue: number; balanceDue: number }
 export type CustomerAgg = { name: string; total: number; count: number }
 export type ProductAgg = { name: string; total: number; qty: number }
 export type SalesSummaryRow = {
@@ -132,13 +132,14 @@ export function aggregateByProduct(invoices: ReportInvoice[], limit = 10): Produ
 }
 
 /**
- * Total sales per clinic, partitioned by payment status, for the Sales Summary
- * report. `total` is every non-voided invoice's full value; `paid`/`outstanding`
- * are the value of paid vs issued-but-unpaid (sent/partial/overdue) invoices, and
- * `draft` is the remainder so `paid + outstanding + draft === total` always holds
- * (that leftover is the value of un-issued drafts). These are invoice values by
- * status — NOT cash collected; real collections are the Payment Report. Sorted by
- * total descending, all clinics.
+ * Total sales per clinic, split by how much of the value is settled, for the
+ * Sales Summary report. `total` is every non-voided invoice's full value;
+ * `paid` is the covered value (full value of paid invoices PLUS the amount
+ * already received on partially-paid ones); `outstanding` is the remaining
+ * balance still owed; `draft` is the value of un-issued drafts. The invariant
+ * `paid + outstanding + draft === total` always holds, and `outstanding`
+ * agrees with the Outstanding card/tab (both net out partial payments).
+ * Sorted by total descending, all clinics.
  */
 export function aggregateSalesSummary(invoices: ReportInvoice[]): SalesSummaryRow[] {
   const map: Record<string, SalesSummaryRow> = {}
@@ -151,7 +152,11 @@ export function aggregateSalesSummary(invoices: ReportInvoice[]): SalesSummaryRo
     agg.count += 1
     agg.total += t
     if (countsAsRevenue(inv)) agg.paid += t
-    else if (isOutstanding(inv)) agg.outstanding += t
+    else if (isOutstanding(inv)) {
+      const due = balanceDue(inv)
+      agg.outstanding += due
+      agg.paid += t - due // amount already received on a partially-paid invoice
+    }
   }
   return Object.values(map)
     .map((r) => ({ ...r, draft: r.total - r.paid - r.outstanding }))
@@ -168,18 +173,23 @@ export function summarizeReports(invoices: ReportInvoice[], nowMs: number): Repo
 
   const totalInvoiced = active.reduce((s, i) => s + Number(i.total), 0)
   const totalPaidInvoices = invoices.filter((i) => countsAsRevenue(i)).reduce((s, i) => s + Number(i.total), 0)
-  const totalOutstanding = invoices.filter((i) => isOutstanding(i)).reduce((s, i) => s + Number(i.total), 0)
+  // Remaining balances (total − amount_paid) — partial payments net out.
+  const totalOutstanding = invoices.filter((i) => isOutstanding(i)).reduce((s, i) => s + balanceDue(i), 0)
 
   const outstanding: AgingInvoice[] = invoices
     .filter((i) => isOutstanding(i))
-    .map((i) => ({ ...i, daysOverdue: Math.floor((nowMs - new Date(i.due_date).getTime()) / DAY_MS) }))
+    .map((i) => ({
+      ...i,
+      daysOverdue: Math.floor((nowMs - new Date(i.due_date).getTime()) / DAY_MS),
+      balanceDue: balanceDue(i),
+    }))
     .sort((a, b) => b.daysOverdue - a.daysOverdue)
 
-  // A/R aging: the outstanding value distributed by how overdue it is. Reuses
+  // A/R aging: the outstanding BALANCE distributed by how overdue it is. Reuses
   // each row's daysOverdue so the buckets always agree with the table below them.
   const agingBuckets: AgingBuckets = { current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d90plus: 0 }
   for (const inv of outstanding) {
-    const amt = Number(inv.total)
+    const amt = inv.balanceDue
     if (inv.daysOverdue <= 0) agingBuckets.current += amt
     else if (inv.daysOverdue <= 30) agingBuckets.d1_30 += amt
     else if (inv.daysOverdue <= 60) agingBuckets.d31_60 += amt

@@ -66,8 +66,15 @@ after "Name" tested as confusing on the New Invoice screen.
   date + that many days. A per-invoice exception is made by editing the due date directly —
   there is no per-clinic terms field. The printed invoice derives the shown "N Days" from the
   invoice's own dates (due − invoice date), so it always matches the dates on the page.
-- **Outstanding:** `status === 'paid' ? 0 : total − totalPaid`. The Record-Payment dialog
-  pre-fills `max(0, total − totalPaid)`; the user never computes the balance.
+- **Outstanding:** `status === 'paid' ? 0 : total − amount_paid`, floored at 0.
+  `invoices.amount_paid` is a denormalized sum of the invoice's payment rows, maintained
+  by a trigger on `payments` (migration 20260702075027) — every outstanding/aging
+  aggregate (dashboard, reports, clinic rollup, statement) sums `balanceDue()` from
+  `invoice-status.ts`, never the raw total, so partial payments net out everywhere.
+  The Record-Payment dialog pre-fills that balance; the user never computes it.
+- **Sales-by-Clinic split:** `paid` = covered value (paid invoices + amounts received on
+  partially-paid ones), `outstanding` = remaining balances, `draft` = un-issued value;
+  `paid + outstanding + draft === total` always holds (decided 2026-07-02).
 - **Payment status transitions** are decided by the `record_payment` RPC atomically:
   `sent/partial → paid` when paid ≥ total, else `partial`.
 - **Voiding is a soft-delete:** set `voided_at / voided_by / void_reason`; never hard-delete

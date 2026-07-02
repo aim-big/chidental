@@ -9,14 +9,11 @@ in [CONVENTIONS.md](./CONVENTIONS.md).
 
 ## P0 — Money correctness & compliance
 
-### 1. Outstanding must net out partial payments (known inconsistency)
-The invoice detail page computes `outstanding = total − payments` (per CONVENTIONS §3),
-but the dashboard KPI, Reports, statement totals, and A/R aging sum the **full total**
-of `partial` invoices — a clinic that paid RM800 of RM1,000 still shows RM1,000 owed.
-Harmless while partial payments are rare; wrong the day they aren't.
-**Fix:** add an `amount_paid` column on `invoices`, maintained atomically inside the
-`record_payment` RPC (and by void). Every outstanding/aging computation then uses
-`total − amount_paid` with no extra join. Migration backfills from `payments`.
+### 1. ~~Outstanding must net out partial payments~~ — SHIPPED 2026-07-02
+`invoices.amount_paid` (trigger-maintained on `payments`, backfilled — migration
+`20260702075027`) now feeds `balanceDue()`; the dashboard KPI/overdue alert, Reports
+tab + aging buckets, Sales-by-Clinic split, and the clinic rollup all net out partial
+payments. The statement already did.
 
 ### 2. LHDN e-Invoice (MyInvois) readiness — confirm with the accountant NOW
 Malaysia's mandatory e-invoicing is phasing in by turnover band; small businesses are

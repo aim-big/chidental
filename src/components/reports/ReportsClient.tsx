@@ -184,7 +184,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                     <TableHead>Clinic</TableHead>
                     <TableHead>Due Date</TableHead>
                     <TableHead>Aging</TableHead>
-                    <TableHead>Amount</TableHead>
+                    <TableHead>Balance Due</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -204,7 +204,9 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                           <span className="text-sm text-muted-foreground">Not due yet</span>
                         )}
                       </TableCell>
-                      <TableCell className="font-medium">{formatCurrency(inv.total)}</TableCell>
+                      <TableCell className="font-medium" title={inv.balanceDue < Number(inv.total) ? `partially paid — invoice total ${formatCurrency(inv.total)}` : undefined}>
+                        {formatCurrency(inv.balanceDue)}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={statusBadgeVariant('payment', inv.status)}>{paymentStatusLabel(inv.status)}</Badge>
                       </TableCell>

@@ -305,6 +305,7 @@ export type Database = {
       }
       invoices: {
         Row: {
+          amount_paid: number
           bill_to_contact: string | null
           bill_to_name: string | null
           bill_to_phone: string | null
@@ -340,6 +341,7 @@ export type Database = {
           voided_by: string | null
         }
         Insert: {
+          amount_paid?: number
           bill_to_contact?: string | null
           bill_to_name?: string | null
           bill_to_phone?: string | null
@@ -375,6 +377,7 @@ export type Database = {
           voided_by?: string | null
         }
         Update: {
+          amount_paid?: number
           bill_to_contact?: string | null
           bill_to_name?: string | null
           bill_to_phone?: string | null
