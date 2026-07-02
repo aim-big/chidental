@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { formatRelativeTime, formatDateTime } from './utils'
+import { formatRelativeTime, formatDateTime, formatCompactCurrency } from './utils'
+
+describe('formatCompactCurrency (chart axes)', () => {
+  it('leaves small amounts whole', () => expect(formatCompactCurrency(950)).toBe('RM950'))
+  it('shortens thousands', () => expect(formatCompactCurrency(12_000)).toBe('RM12k'))
+  it('shortens millions with one decimal', () => expect(formatCompactCurrency(1_250_000)).toBe('RM1.3M'))
+  it('drops a trailing .0 on millions', () => expect(formatCompactCurrency(2_000_000)).toBe('RM2M'))
+  it('handles zero', () => expect(formatCompactCurrency(0)).toBe('RM0'))
+})
 
 describe('formatRelativeTime', () => {
   const now = new Date('2026-06-30T12:00:00Z')

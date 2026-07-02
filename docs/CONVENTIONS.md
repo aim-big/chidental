@@ -47,6 +47,7 @@ Use these exact labels. Don't invent synonyms ("Client", "Account", "Customer", 
 | Lab-to-doctor note on delivery | **Service status** |
 | Soft-deleted invoice | **Voided** (verb: **Void**) |
 | Money owed | **Outstanding** / **Balance due** |
+| Cash actually collected in a period | **Cash Received** (not "Payment(s)" as a stat label) |
 
 **Recipient blocks (Bill To / Deliver To):** the entity name field is labeled **"Clinic"**
 (not "Name"/"Recipient"), and the person field is **"Contact person"** (not "Contact").
@@ -72,6 +73,11 @@ after "Name" tested as confusing on the New Invoice screen.
 - **Voiding is a soft-delete:** set `voided_at / voided_by / void_reason`; never hard-delete
   an invoice. Voided invoices are locked for everyone, show a VOID watermark, and drop out
   of the Work queue and Reports. Voiding is terminal and cannot be restored in the app.
+- **Voided invoices never count in stats — including counts.** Dashboard/Reports invoice
+  counts use non-voided invoices only, matching the money totals beside them (fixed 2026-07-02).
+- **The server re-validates invoice money on every write:** `invoiceMoneyError()`
+  (`src/domain/money.ts`) rejects a payload whose subtotal ≠ total or whose line amounts
+  don't sum to the total, so a buggy/malicious client can't store inconsistent money.
 
 ---
 

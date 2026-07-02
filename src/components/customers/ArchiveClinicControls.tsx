@@ -68,7 +68,7 @@ export function ArchiveClinicControls({ id, archived }: { id: string; archived: 
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
-            <Button onClick={runArchive} disabled={busy}>{busy ? 'Archiving…' : 'Yes, Archive'}</Button>
+            <Button variant="destructive" onClick={runArchive} disabled={busy}>{busy ? 'Archiving…' : 'Yes, Archive'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -39,7 +39,47 @@ export type ReportPayment = {
   payment_date: string
   reference_number: string | null
   invoice_number: string | null
+  /** Issue date of the paid invoice — feeds days-to-pay. Null if the join is missing. */
+  invoice_date: string | null
   clinic_name: string | null
+}
+
+export type ClinicPaymentSpeed = { payments: number; avgDaysToPay: number }
+
+/**
+ * How fast each clinic pays, from the payments received in the range: mean
+ * whole days between the invoice's issue date and the payment date, keyed by
+ * clinic name (same key as `salesSummary`). Payments without an invoice join
+ * are skipped; a same-day payment counts as 0 days.
+ */
+export function avgDaysToPayByClinic(payments: ReportPayment[]): Record<string, ClinicPaymentSpeed> {
+  const acc: Record<string, { days: number; payments: number }> = {}
+  for (const p of payments) {
+    if (!p.invoice_date || !p.clinic_name) continue
+    const days = Math.max(
+      0,
+      Math.floor((new Date(p.payment_date).getTime() - new Date(p.invoice_date).getTime()) / DAY_MS),
+    )
+    if (!acc[p.clinic_name]) acc[p.clinic_name] = { days: 0, payments: 0 }
+    acc[p.clinic_name].days += days
+    acc[p.clinic_name].payments += 1
+  }
+  return Object.fromEntries(
+    Object.entries(acc).map(([name, { days, payments: n }]) => [
+      name,
+      { payments: n, avgDaysToPay: Math.round(days / n) },
+    ]),
+  )
+}
+
+// Outstanding value bucketed by how far past due it is (money, not counts).
+// "current" = not yet due. Buckets sum to `totalOutstanding`.
+export type AgingBuckets = {
+  current: number
+  d1_30: number
+  d31_60: number
+  d61_90: number
+  d90plus: number
 }
 
 export type ReportSummary = {
@@ -48,6 +88,7 @@ export type ReportSummary = {
   totalOutstanding: number
   invoiceCount: number
   outstanding: AgingInvoice[]
+  agingBuckets: AgingBuckets
   paid: ReportInvoice[]
   sales: ReportInvoice[]
   byProduct: ProductAgg[]
@@ -134,6 +175,18 @@ export function summarizeReports(invoices: ReportInvoice[], nowMs: number): Repo
     .map((i) => ({ ...i, daysOverdue: Math.floor((nowMs - new Date(i.due_date).getTime()) / DAY_MS) }))
     .sort((a, b) => b.daysOverdue - a.daysOverdue)
 
+  // A/R aging: the outstanding value distributed by how overdue it is. Reuses
+  // each row's daysOverdue so the buckets always agree with the table below them.
+  const agingBuckets: AgingBuckets = { current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d90plus: 0 }
+  for (const inv of outstanding) {
+    const amt = Number(inv.total)
+    if (inv.daysOverdue <= 0) agingBuckets.current += amt
+    else if (inv.daysOverdue <= 30) agingBuckets.d1_30 += amt
+    else if (inv.daysOverdue <= 60) agingBuckets.d31_60 += amt
+    else if (inv.daysOverdue <= 90) agingBuckets.d61_90 += amt
+    else agingBuckets.d90plus += amt
+  }
+
   const paid = active
     .filter((i) => i.status === 'paid')
     .sort((a, b) => (a.invoice_date < b.invoice_date ? 1 : -1))
@@ -149,8 +202,9 @@ export function summarizeReports(invoices: ReportInvoice[], nowMs: number): Repo
     totalInvoiced,
     totalPaidInvoices,
     totalOutstanding,
-    invoiceCount: invoices.length,
+    invoiceCount: active.length, // voided invoices don't count as issued
     outstanding,
+    agingBuckets,
     paid,
     sales,
     byProduct,

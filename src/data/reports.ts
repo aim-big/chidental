@@ -24,7 +24,7 @@ export async function getReportPayments(from: string, to: string): Promise<Repor
   const supabase = await createClient()
   const { data } = await supabase
     .from('payments')
-    .select('amount, payment_date, reference_number, invoices(invoice_number, customers(clinic_name))')
+    .select('amount, payment_date, reference_number, invoices(invoice_number, invoice_date, customers(clinic_name))')
     .gte('payment_date', from)
     .lte('payment_date', to)
     .order('payment_date')
@@ -33,13 +33,14 @@ export async function getReportPayments(from: string, to: string): Promise<Repor
     Array.isArray(rel) ? (rel[0] ?? null) : (rel ?? null)
 
   return (data ?? []).map((row) => {
-    const inv = one(row.invoices as unknown as { invoice_number: string; customers: unknown } | null)
+    const inv = one(row.invoices as unknown as { invoice_number: string; invoice_date: string; customers: unknown } | null)
     const cust = one((inv?.customers ?? null) as unknown as { clinic_name: string } | null)
     return {
       amount: Number(row.amount),
       payment_date: row.payment_date as string,
       reference_number: (row.reference_number as string | null) ?? null,
       invoice_number: inv?.invoice_number ?? null,
+      invoice_date: inv?.invoice_date ?? null,
       clinic_name: cust?.clinic_name ?? null,
     }
   })

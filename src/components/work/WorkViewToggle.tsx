@@ -3,7 +3,7 @@
 // Thin client wrapper for the Work page that owns the List/Board toggle.
 // Receives the same rows/stages from the server component; no fetching here.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { KanbanBoard } from '@/components/work/KanbanBoard'
 import { WorkQueueClient } from '@/components/work/WorkQueueClient'
@@ -11,6 +11,8 @@ import type { WorkStage, WorkStatusConfig } from '@/lib/database.types'
 import type { WorkQueueRow } from '@/data/work'
 
 type ViewMode = 'board' | 'list'
+
+const VIEW_STORAGE_KEY = 'work-view'
 
 export function WorkViewToggle({
   rows,
@@ -22,6 +24,16 @@ export function WorkViewToggle({
   statusConfigs: WorkStatusConfig[]
 }) {
   const [view, setView] = useState<ViewMode>('list')
+
+  // Remember the chosen view across visits. Read in an effect (not the state
+  // initializer) so server + first client render agree and hydration stays clean.
+  useEffect(() => {
+    if (localStorage.getItem(VIEW_STORAGE_KEY) === 'board') setView('board')
+  }, [])
+  const pickView = (v: ViewMode) => {
+    setView(v)
+    localStorage.setItem(VIEW_STORAGE_KEY, v)
+  }
 
   return (
     <div className="space-y-6">
@@ -38,12 +50,12 @@ export function WorkViewToggle({
         <div className="grid w-full grid-cols-2 overflow-hidden rounded-lg border border-border text-sm sm:flex sm:w-auto sm:items-center">
           <ToggleButton
             active={view === 'list'}
-            onClick={() => setView('list')}
+            onClick={() => pickView('list')}
             label="List"
           />
           <ToggleButton
             active={view === 'board'}
-            onClick={() => setView('board')}
+            onClick={() => pickView('board')}
             label="Board"
           />
         </div>
@@ -72,6 +84,7 @@ function ToggleButton({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
         'px-3 py-1.5 font-medium transition-colors',
         active

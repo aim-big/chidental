@@ -16,6 +16,18 @@ export function formatCurrency(amount: number): string {
   }).format(amount)
 }
 
+/**
+ * Short money label for chart axes — "RM950", "RM12k", "RM1.2M". Charts can't
+ * afford the full `formatCurrency` width, but every axis should shorten the
+ * same way.
+ */
+export function formatCompactCurrency(amount: number): string {
+  const abs = Math.abs(amount)
+  if (abs >= 1_000_000) return `RM${(amount / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+  if (abs >= 1_000) return `RM${(amount / 1_000).toFixed(0)}k`
+  return `RM${amount}`
+}
+
 export function formatDate(date: string | Date): string {
   return new Intl.DateTimeFormat('en-MY', {
     day: '2-digit',

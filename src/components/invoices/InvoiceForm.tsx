@@ -34,6 +34,16 @@ interface LineItem {
   unit_price: number
 }
 
+type FieldErrorKey = 'clinic' | 'invoiceDate' | 'patient' | 'doctor' | 'items'
+
+// Red asterisk marking a required field (decorative — the input carries aria-required).
+const Req = () => <span className="text-destructive" aria-hidden>*</span>
+
+function FieldError({ msg }: { msg?: string }) {
+  if (!msg) return null
+  return <p className="text-xs text-destructive">{msg}</p>
+}
+
 // Hide the native number-input spin buttons (qty / unit price are typed, not stepped).
 const noSpin =
   '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
@@ -92,7 +102,12 @@ export default function InvoiceForm({
   const [deliveryAddress, setDeliveryAddress] = useState(editInvoice?.delivery_address ?? '')
   const [showRecipient, setShowRecipient] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  // Per-field validation errors, shown inline next to the field they belong to
+  // (set on submit, or on blur for the required text fields; cleared as the
+  // user fixes the field).
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldErrorKey, string>>>({})
+  // Once a save was attempted, empty line-item descriptions highlight in red.
+  const [submitAttempted, setSubmitAttempted] = useState(false)
   // Set true once a save succeeds, so the unsaved-changes guard stands down
   // before the post-save `router.push`.
   const [saved, setSaved] = useState(false)
@@ -178,13 +193,23 @@ export default function InvoiceForm({
 
   const currentServiceStatus = serviceStatuses.find(s => s.id === serviceStatusId) ?? null
 
+  const clearFieldError = useCallback((key: FieldErrorKey) => {
+    setFieldErrors(prev => {
+      if (!prev[key]) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }, [])
+
   const updateItem = useCallback((index: number, field: keyof LineItem, value: string | number | null) => {
     setItems(prev => {
       const updated = [...prev]
       updated[index] = { ...updated[index], [field]: value }
       return updated
     })
-  }, [])
+    clearFieldError('items')
+  }, [clearFieldError])
 
   // Product-first add: a picked product seeds the line (description = name,
   // price = catalog default). Picking the same product twice adds a second line.
@@ -193,9 +218,13 @@ export default function InvoiceForm({
       ...prev,
       { id: null, product_id: p.id, description: p.name, quantity: 1, unit_price: p.unit_price },
     ])
-  }, [])
+    clearFieldError('items')
+  }, [clearFieldError])
 
-  const removeItem = (i: number) => setItems(prev => prev.filter((_, idx) => idx !== i))
+  const removeItem = (i: number) => {
+    setItems(prev => prev.filter((_, idx) => idx !== i))
+    clearFieldError('items')
+  }
 
   const subtotal = items.reduce((s, item) => s + item.quantity * item.unit_price, 0)
   const total = subtotal
@@ -248,22 +277,40 @@ export default function InvoiceForm({
     total,
   })
 
+  // Anchors for scrolling the first invalid field into view on submit.
+  const clinicRef = useRef<HTMLDivElement>(null)
+  const dateRef = useRef<HTMLDivElement>(null)
+  const patientRef = useRef<HTMLDivElement>(null)
+  const doctorRef = useRef<HTMLDivElement>(null)
+
+  // Validate every field at once (not first-error-only) so all problems light
+  // up inline together, then bring the first one into view.
   const validate = () => {
-    if (!customerId) { setError('Please select a clinic.'); return false }
-    if (!patient.trim()) { setError('Patient name is required.'); return false }
-    if (!doctor.trim()) { setError('Doctor name is required.'); return false }
-    if (!invoiceDate) { setError('Invoice date is required.'); return false }
-    if (items.length === 0) { setError('Add at least one item.'); return false }
-    if (items.some(i => !i.description.trim())) { setError('Every line needs a description.'); return false }
-    if (items.some(i => !(i.quantity > 0))) { setError('Quantity must be greater than 0.'); return false }
-    if (hasItemPriceErrors) { setError('Some line items are outside the allowed price range.'); return false }
-    return true
+    const errs: Partial<Record<FieldErrorKey, string>> = {}
+    if (!customerId) errs.clinic = 'Select a clinic.'
+    if (!invoiceDate) errs.invoiceDate = 'Invoice date is required.'
+    if (!patient.trim()) errs.patient = 'Patient name is required.'
+    if (!doctor.trim()) errs.doctor = 'Doctor name is required.'
+    if (items.length === 0) errs.items = 'Add at least one item.'
+    else if (items.some(i => !i.description.trim())) errs.items = 'Every line needs a description.'
+    else if (items.some(i => !(i.quantity > 0))) errs.items = 'Quantity must be greater than 0.'
+    else if (hasItemPriceErrors) errs.items = 'Some line items are outside the allowed price range.'
+    setFieldErrors(errs)
+    setSubmitAttempted(true)
+    if (Object.keys(errs).length === 0) return true
+    const firstRef =
+      errs.clinic ? clinicRef
+      : errs.invoiceDate ? dateRef
+      : errs.patient ? patientRef
+      : errs.doctor ? doctorRef
+      : lineItemsRef
+    firstRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    return false
   }
 
   const handleCreate = async (status: 'draft' | 'sent') => {
     if (!validate()) return
     setSaving(true)
-    setError('')
 
     const itemsPayload: InvoiceItemPayload[] = items
       .filter(i => i.description.trim())
@@ -295,7 +342,6 @@ export default function InvoiceForm({
   const handleUpdate = async () => {
     if (!invoiceId || !validate()) return
     setSaving(true)
-    setError('')
 
     // The action diffs items by id: rows with an id are updated, rows without are
     // inserted, and any previously-saved id absent from this list is deleted —
@@ -379,17 +425,18 @@ export default function InvoiceForm({
       <Card>
         <CardHeader><CardTitle className="text-base">Invoice Details</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Clinic *</Label>
+          <div className="space-y-2" ref={clinicRef}>
+            <Label>Clinic <Req /></Label>
             <Combobox
               aria-label="Clinic"
               options={customers.map(c => ({ value: c.id, label: c.clinic_name, hint: c.contact_person ?? undefined }))}
               value={customerId || null}
-              onChange={setCustomerId}
+              onChange={v => { setCustomerId(v); clearFieldError('clinic') }}
               placeholder="Select a clinic…"
               searchPlaceholder="Search clinics…"
               emptyText="No clinics match."
             />
+            <FieldError msg={fieldErrors.clinic} />
           </div>
 
           {selectedCustomer && (
@@ -473,21 +520,47 @@ export default function InvoiceForm({
           )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Invoice Date</Label>
-              <Input type="date" value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} />
+            <div className="space-y-2" ref={dateRef}>
+              <Label>Invoice Date <Req /></Label>
+              <Input
+                type="date"
+                value={invoiceDate}
+                aria-required
+                aria-invalid={fieldErrors.invoiceDate ? true : undefined}
+                className={cn(fieldErrors.invoiceDate && 'border-destructive focus-visible:ring-destructive')}
+                onChange={e => { setInvoiceDate(e.target.value); clearFieldError('invoiceDate') }}
+              />
+              <FieldError msg={fieldErrors.invoiceDate} />
             </div>
           </div>
 
           {/* Patient / Doctor / Service Status — one grouped row */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="space-y-2">
-              <Label>Patient *</Label>
-              <Input placeholder="e.g. Tan Wei Ming" value={patient} onChange={e => setPatient(e.target.value)} aria-required />
+            <div className="space-y-2" ref={patientRef}>
+              <Label>Patient <Req /></Label>
+              <Input
+                placeholder="e.g. Tan Wei Ming"
+                value={patient}
+                aria-required
+                aria-invalid={fieldErrors.patient ? true : undefined}
+                className={cn(fieldErrors.patient && 'border-destructive focus-visible:ring-destructive')}
+                onChange={e => { setPatient(e.target.value); clearFieldError('patient') }}
+                onBlur={() => { if (!patient.trim()) setFieldErrors(prev => ({ ...prev, patient: 'Patient name is required.' })) }}
+              />
+              <FieldError msg={fieldErrors.patient} />
             </div>
-            <div className="space-y-2">
-              <Label>Doctor *</Label>
-              <Input placeholder="e.g. Dr. Lim Siew Hoon" value={doctor} onChange={e => setDoctor(e.target.value)} aria-required />
+            <div className="space-y-2" ref={doctorRef}>
+              <Label>Doctor <Req /></Label>
+              <Input
+                placeholder="e.g. Dr. Lim Siew Hoon"
+                value={doctor}
+                aria-required
+                aria-invalid={fieldErrors.doctor ? true : undefined}
+                className={cn(fieldErrors.doctor && 'border-destructive focus-visible:ring-destructive')}
+                onChange={e => { setDoctor(e.target.value); clearFieldError('doctor') }}
+                onBlur={() => { if (!doctor.trim()) setFieldErrors(prev => ({ ...prev, doctor: 'Doctor name is required.' })) }}
+              />
+              <FieldError msg={fieldErrors.doctor} />
             </div>
             <div className="space-y-2">
               <Label>Service Status</Label>
@@ -519,6 +592,7 @@ export default function InvoiceForm({
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Line Items</CardTitle>
+          {fieldErrors.items && <p className="text-sm text-destructive">{fieldErrors.items}</p>}
         </CardHeader>
         <CardContent ref={lineItemsRef} className="space-y-3">
           {items.length === 0 ? (
@@ -567,9 +641,10 @@ export default function InvoiceForm({
                             </div>
                           ) : (
                             <Input
-                              className="h-9"
+                              className={cn('h-9', submitAttempted && !item.description.trim() && 'border-destructive focus-visible:ring-destructive')}
                               value={item.description}
                               placeholder="Custom item"
+                              aria-invalid={submitAttempted && !item.description.trim() ? true : undefined}
                               onChange={e => updateItem(i, 'description', e.target.value)}
                               aria-label="Item description"
                             />
@@ -641,9 +716,13 @@ export default function InvoiceForm({
                       {product && (
                         <div className="mt-1.5 pr-9">
                           <input
-                            className="w-full min-w-0 bg-transparent text-xs text-gray-500 outline-none placeholder:text-gray-300"
+                            className={cn(
+                              'w-full min-w-0 bg-transparent text-xs text-gray-500 outline-none placeholder:text-gray-300',
+                              submitAttempted && !item.description.trim() && 'rounded border border-destructive px-1',
+                            )}
                             value={item.description}
                             placeholder="Printed description"
+                            aria-invalid={submitAttempted && !item.description.trim() ? true : undefined}
                             onChange={e => updateItem(i, 'description', e.target.value)}
                             aria-label="Printed description"
                           />
@@ -689,7 +768,9 @@ export default function InvoiceForm({
         </CardContent>
       </Card>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {Object.keys(fieldErrors).length > 0 && (
+        <p className="text-sm text-destructive">Please fix the highlighted fields above.</p>
+      )}
 
       <div className="flex flex-col gap-3 sm:flex-row">
         {isEdit ? (

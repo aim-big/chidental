@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import type { ReportInvoice } from './reports'
-import { summarizeReports, aggregateByCustomer, aggregateByProduct, aggregateSalesSummary } from './reports'
+import type { ReportInvoice, ReportPayment } from './reports'
+import { summarizeReports, aggregateByCustomer, aggregateByProduct, aggregateSalesSummary, avgDaysToPayByClinic } from './reports'
 
 // Minimal invoice factory — only the fields the summary reads.
 const ri = (over: Partial<ReportInvoice> = {}): ReportInvoice => ({
@@ -39,6 +39,31 @@ describe('summarizeReports', () => {
     )
     expect(r.outstanding[0].daysOverdue).toBe(30) // 2026-05-21 → 2026-06-20
     expect(r.outstanding[1].daysOverdue).toBe(10)
+  })
+
+  it('buckets outstanding value by age, summing to totalOutstanding', () => {
+    const r = summarizeReports(
+      [
+        ri({ total: 10, due_date: '2026-07-01' }), // not yet due → current
+        ri({ total: 20, due_date: '2026-06-10' }), // 10d → 1–30
+        ri({ total: 30, due_date: '2026-05-01' }), // 50d → 31–60
+        ri({ total: 40, due_date: '2026-04-01' }), // 80d → 61–90
+        ri({ total: 50, due_date: '2026-01-01' }), // 170d → 90+
+        ri({ total: 999, status: 'paid' }), // not outstanding — ignored
+      ],
+      NOW,
+    )
+    expect(r.agingBuckets).toEqual({ current: 10, d1_30: 20, d31_60: 30, d61_90: 40, d90plus: 50 })
+    const sum = Object.values(r.agingBuckets).reduce((s, v) => s + v, 0)
+    expect(sum).toBe(r.totalOutstanding)
+  })
+
+  it('counts only non-voided invoices in invoiceCount', () => {
+    const r = summarizeReports(
+      [ri(), ri({ voided_at: '2026-06-05T00:00:00Z' })],
+      NOW,
+    )
+    expect(r.invoiceCount).toBe(1)
   })
 
   it('aggregates revenue by clinic via salesSummary (descending)', () => {
@@ -150,6 +175,38 @@ describe('aggregateSalesSummary', () => {
   it('falls back to Unknown when the clinic name is missing', () => {
     const rows = aggregateSalesSummary([ri({ customers: null })])
     expect(rows[0].name).toBe('Unknown')
+  })
+})
+
+describe('avgDaysToPayByClinic', () => {
+  const pay = (over: Partial<ReportPayment> = {}): ReportPayment => ({
+    amount: 100,
+    payment_date: '2026-06-20',
+    reference_number: null,
+    invoice_number: 'INV-1',
+    invoice_date: '2026-06-10',
+    clinic_name: 'A',
+    ...over,
+  })
+
+  it('averages whole days between invoice and payment per clinic', () => {
+    const r = avgDaysToPayByClinic([
+      pay(), // 10 days
+      pay({ payment_date: '2026-06-30' }), // 20 days
+      pay({ clinic_name: 'B', payment_date: '2026-06-10' }), // same day → 0
+    ])
+    expect(r.A).toEqual({ payments: 2, avgDaysToPay: 15 })
+    expect(r.B).toEqual({ payments: 1, avgDaysToPay: 0 })
+  })
+
+  it('skips payments missing the invoice join or clinic, clamping negatives to 0', () => {
+    const r = avgDaysToPayByClinic([
+      pay({ invoice_date: null }),
+      pay({ clinic_name: null }),
+      pay({ clinic_name: 'C', payment_date: '2026-06-05' }), // before invoice date → 0
+    ])
+    expect(Object.keys(r)).toEqual(['C'])
+    expect(r.C.avgDaysToPay).toBe(0)
   })
 })
 

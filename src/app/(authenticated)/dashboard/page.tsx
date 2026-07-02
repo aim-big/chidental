@@ -8,6 +8,7 @@ import { getDashboardData } from '@/data/dashboard'
 import { summarizeDashboard } from '@/lib/dashboard'
 import { buildPresets } from '@/lib/reports-presets'
 import { requirePermission } from '@/lib/auth/require-permission'
+import { todayISODate } from '@/lib/utils'
 import { DashboardClient } from '@/components/dashboard/DashboardClient'
 
 export default async function DashboardPage({
@@ -20,9 +21,14 @@ export default async function DashboardPage({
   const from = sp.from ?? format(startOfMonth(now), 'yyyy-MM-dd')
   const to = sp.to ?? format(endOfMonth(now), 'yyyy-MM-dd')
 
-  const { invoices, payments, priorInvoices, outstandingInvoices, customerCount } = await getDashboardData(from, to)
-  const summary = summarizeDashboard({ invoices, payments, priorInvoices, outstandingInvoices, from, to })
-  const canCreateInvoice = (await requirePermission('invoices.create')).ok
+  const { invoices, payments, priorInvoices, lastYearInvoices, outstandingInvoices, workItems, customerCount } = await getDashboardData(from, to)
+  const summary = summarizeDashboard({
+    invoices, payments, priorInvoices, lastYearInvoices, outstandingInvoices, workItems, from, to, today: todayISODate(),
+  })
+  const [canCreateInvoice, canViewWork] = await Promise.all([
+    requirePermission('invoices.create').then(r => r.ok),
+    requirePermission('invoices.view').then(r => r.ok),
+  ])
 
   return (
     <DashboardClient
@@ -32,6 +38,7 @@ export default async function DashboardPage({
       presets={buildPresets(now)}
       customerCount={customerCount}
       canCreateInvoice={canCreateInvoice}
+      canViewWork={canViewWork}
     />
   )
 }

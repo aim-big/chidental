@@ -2,16 +2,17 @@
 
 import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Download, ChevronDown } from 'lucide-react'
+import { Download, ChevronDown, Printer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { formatCurrency, formatDate, todayISODate } from '@/lib/utils'
+import { cn, formatCurrency, formatCompactCurrency, formatDate, todayISODate } from '@/lib/utils'
 import { statusBadgeVariant, paymentStatusLabel } from '@/lib/status-badge'
 import type { ReportSummary } from '@/lib/reports'
+import { avgDaysToPayByClinic } from '@/lib/reports'
 import {
   buildSalesReportCsv,
   buildPaymentReportCsv,
@@ -26,6 +27,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import type { ReportPayment } from '@/lib/reports'
 import type { PresetMap } from '@/lib/reports-presets'
 import { DateRangePicker } from '@/components/date-range-picker'
+import { ReportPrintDocument } from './ReportPrintDocument'
 
 const BRAND_CHART = '#766254'
 const BRAND_CHART_SOFT = '#9b8779'
@@ -62,10 +64,20 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
   const exportPayments = () => download(buildPaymentReportCsv(payments, range, todayISODate()), paymentReportFilename(range))
   const exportItems = () => download(buildItemSalesReportCsv(summary.byProduct, range, todayISODate()), itemSalesReportFilename(range))
 
-  const { totalInvoiced, totalPaidInvoices, totalOutstanding, invoiceCount, outstanding, paid, byProduct, salesSummary } = summary
+  const { totalInvoiced, totalPaidInvoices, totalOutstanding, invoiceCount, outstanding, agingBuckets, paid, byProduct, salesSummary } = summary
   // Real cash received in the range (sum of payment rows) — distinct from
   // "Collected (Paid)", which is the full value of paid-status invoices.
   const cashReceived = payments.reduce((s, p) => s + Number(p.amount), 0)
+  // Payment speed per clinic (from the payments in this range) for the
+  // By Clinic table — surfaces who pays fast and who needs chasing.
+  const speedByClinic = avgDaysToPayByClinic(payments)
+  const speedRows = Object.values(speedByClinic)
+  const overallAvgDaysToPay = speedRows.length > 0
+    ? Math.round(
+        speedRows.reduce((s, r) => s + r.avgDaysToPay * r.payments, 0) /
+        speedRows.reduce((s, r) => s + r.payments, 0),
+      )
+    : null
 
   return (
     <div className="space-y-6">
@@ -82,22 +94,44 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
         isPending={isPending}
         onRangeChange={setRange}
         actions={
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" disabled={invoiceCount === 0} className="w-full sm:w-auto">
-                <Download className="h-4 w-4 mr-2" />
-                Export
-                <ChevronDown className="h-4 w-4 ml-2" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={exportSummary}>Sales Summary</DropdownMenuItem>
-              <DropdownMenuItem onSelect={exportSales}>Sales Report</DropdownMenuItem>
-              <DropdownMenuItem onSelect={exportPayments}>Payment Report</DropdownMenuItem>
-              <DropdownMenuItem onSelect={exportItems}>Item Sales Report</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              variant="outline"
+              disabled={invoiceCount === 0 && payments.length === 0}
+              className="w-full sm:w-auto"
+              onClick={() => window.print()}
+            >
+              <Printer className="h-4 w-4 mr-2" />
+              Print
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={invoiceCount === 0} className="w-full sm:w-auto">
+                  <Download className="h-4 w-4 mr-2" />
+                  Export
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={exportSummary}>Sales Summary</DropdownMenuItem>
+                <DropdownMenuItem onSelect={exportSales}>Sales Report</DropdownMenuItem>
+                <DropdownMenuItem onSelect={exportPayments}>Payment Report</DropdownMenuItem>
+                <DropdownMenuItem onSelect={exportItems}>Item Sales Report</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         }
+      />
+
+      {/* Print-only document: covers every tab's data for the range */}
+      <ReportPrintDocument
+        from={from}
+        to={to}
+        generatedOn={todayISODate()}
+        summary={summary}
+        payments={payments}
+        cashReceived={cashReceived}
+        speedByClinic={speedByClinic}
       />
 
       {/* Summary cards */}
@@ -133,6 +167,16 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
           <Card>
             <CardHeader><CardTitle className="text-base">Outstanding Invoices</CardTitle></CardHeader>
             <CardContent className="p-0">
+              {/* A/R aging at a glance — buckets sum to the Outstanding card */}
+              {outstanding.length > 0 && (
+                <div className="grid grid-cols-2 gap-3 border-b px-4 pb-4 sm:grid-cols-5 sm:px-6">
+                  <AgingBucket label="Not due yet" amount={agingBuckets.current} />
+                  <AgingBucket label="1–30 days" amount={agingBuckets.d1_30} toneClass="text-yellow-600" />
+                  <AgingBucket label="31–60 days" amount={agingBuckets.d31_60} toneClass="text-orange-500" />
+                  <AgingBucket label="61–90 days" amount={agingBuckets.d61_90} toneClass="text-red-600" />
+                  <AgingBucket label="Over 90 days" amount={agingBuckets.d90plus} toneClass="text-red-700" />
+                </div>
+              )}
               <Table className="min-w-[48rem]">
                 <TableHeader>
                   <TableRow>
@@ -149,7 +193,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                   {outstanding.map(inv => (
                     <TableRow key={inv.id} className="cursor-pointer" onClick={() => router.push(`/invoices/${inv.id}`)}>
                       <TableCell className="font-medium text-primary">{inv.invoice_number}</TableCell>
-                      <TableCell>{inv.customers?.clinic_name}</TableCell>
+                      <TableCell className="max-w-[16rem] truncate" title={inv.customers?.clinic_name ?? undefined}>{inv.customers?.clinic_name}</TableCell>
                       <TableCell className="text-sm">{formatDate(inv.due_date)}</TableCell>
                       <TableCell>
                         {inv.daysOverdue > 0 ? (
@@ -166,6 +210,13 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                       </TableCell>
                     </TableRow>
                   ))}
+                  {outstanding.length > 0 && (
+                    <TableRow className="border-t-2 font-semibold">
+                      <TableCell colSpan={4}>Total</TableCell>
+                      <TableCell>{formatCurrency(totalOutstanding)}</TableCell>
+                      <TableCell />
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -191,7 +242,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                   {paid.map(inv => (
                     <TableRow key={inv.id} className="cursor-pointer" onClick={() => router.push(`/invoices/${inv.id}`)}>
                       <TableCell className="font-medium text-primary">{inv.invoice_number}</TableCell>
-                      <TableCell>{inv.customers?.clinic_name}</TableCell>
+                      <TableCell className="max-w-[16rem] truncate" title={inv.customers?.clinic_name ?? undefined}>{inv.customers?.clinic_name}</TableCell>
                       <TableCell className="text-sm">{formatDate(inv.invoice_date)}</TableCell>
                       <TableCell className="font-medium">{formatCurrency(inv.total)}</TableCell>
                       <TableCell>
@@ -199,6 +250,13 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                       </TableCell>
                     </TableRow>
                   ))}
+                  {paid.length > 0 && (
+                    <TableRow className="border-t-2 font-semibold">
+                      <TableCell colSpan={3}>Total</TableCell>
+                      <TableCell>{formatCurrency(totalPaidInvoices)}</TableCell>
+                      <TableCell />
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -225,7 +283,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                     <TableRow key={i}>
                       <TableCell className="text-sm">{formatDate(p.payment_date)}</TableCell>
                       <TableCell className="font-medium">{p.invoice_number}</TableCell>
-                      <TableCell>{p.clinic_name}</TableCell>
+                      <TableCell className="max-w-[16rem] truncate" title={p.clinic_name ?? undefined}>{p.clinic_name}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{p.reference_number}</TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(p.amount)}</TableCell>
                     </TableRow>
@@ -251,7 +309,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={salesSummary.slice(0, 10)} layout="vertical" margin={{ left: 120 }}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                      <XAxis type="number" tickFormatter={v => `RM${(v/1000).toFixed(0)}k`} tick={{ fontSize: 12 }} />
+                      <XAxis type="number" tickFormatter={formatCompactCurrency} tick={{ fontSize: 12 }} />
                       <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={120} />
                       <Tooltip formatter={(v: number) => formatCurrency(v)} />
                       <Bar dataKey="total" fill={BRAND_CHART} radius={[0, 4, 4, 0]} />
@@ -268,19 +326,26 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                           <TableHead className="text-right">Paid</TableHead>
                           <TableHead className="text-right">Outstanding</TableHead>
                           <TableHead className="text-right">Draft</TableHead>
+                          <TableHead className="text-right">Avg Days to Pay</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {salesSummary.map(c => (
-                          <TableRow key={c.name}>
-                            <TableCell>{c.name}</TableCell>
-                            <TableCell className="text-right">{c.count}</TableCell>
-                            <TableCell className="text-right font-medium">{formatCurrency(c.total)}</TableCell>
-                            <TableCell className="text-right text-green-600">{formatCurrency(c.paid)}</TableCell>
-                            <TableCell className="text-right text-yellow-600">{formatCurrency(c.outstanding)}</TableCell>
-                            <TableCell className="text-right text-muted-foreground">{formatCurrency(c.draft)}</TableCell>
-                          </TableRow>
-                        ))}
+                        {salesSummary.map(c => {
+                          const speed = speedByClinic[c.name]
+                          return (
+                            <TableRow key={c.name}>
+                              <TableCell className="max-w-[16rem] truncate" title={c.name}>{c.name}</TableCell>
+                              <TableCell className="text-right">{c.count}</TableCell>
+                              <TableCell className="text-right font-medium">{formatCurrency(c.total)}</TableCell>
+                              <TableCell className="text-right text-green-600">{formatCurrency(c.paid)}</TableCell>
+                              <TableCell className="text-right text-yellow-600">{formatCurrency(c.outstanding)}</TableCell>
+                              <TableCell className="text-right text-muted-foreground">{formatCurrency(c.draft)}</TableCell>
+                              <TableCell className="text-right" title={speed ? `from ${speed.payments} payment${speed.payments === 1 ? '' : 's'} in this period` : 'no payments in this period'}>
+                                {speed ? `${speed.avgDaysToPay}d` : <span className="text-muted-foreground">—</span>}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
                         <TableRow className="border-t-2 font-semibold">
                           <TableCell>Total</TableCell>
                           <TableCell className="text-right">{salesSummary.reduce((s, c) => s + c.count, 0)}</TableCell>
@@ -288,6 +353,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                           <TableCell className="text-right text-green-600">{formatCurrency(salesSummary.reduce((s, c) => s + c.paid, 0))}</TableCell>
                           <TableCell className="text-right text-yellow-600">{formatCurrency(salesSummary.reduce((s, c) => s + c.outstanding, 0))}</TableCell>
                           <TableCell className="text-right text-muted-foreground">{formatCurrency(salesSummary.reduce((s, c) => s + c.draft, 0))}</TableCell>
+                          <TableCell className="text-right">{overallAvgDaysToPay != null ? `${overallAvgDaysToPay}d` : '—'}</TableCell>
                         </TableRow>
                       </TableBody>
                     </Table>
@@ -307,7 +373,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={byProduct.slice(0, 10)} layout="vertical" margin={{ left: 160 }}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                      <XAxis type="number" tickFormatter={v => `RM${(v/1000).toFixed(0)}k`} tick={{ fontSize: 12 }} />
+                      <XAxis type="number" tickFormatter={formatCompactCurrency} tick={{ fontSize: 12 }} />
                       <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={160} />
                       <Tooltip formatter={(v: number) => formatCurrency(v)} />
                       <Bar dataKey="total" fill={BRAND_CHART_SOFT} radius={[0, 4, 4, 0]} />
@@ -326,7 +392,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                       <TableBody>
                         {byProduct.map(p => (
                           <TableRow key={p.name}>
-                            <TableCell>{p.name}</TableCell>
+                            <TableCell className="max-w-[16rem] truncate" title={p.name}>{p.name}</TableCell>
                             <TableCell className="text-right">{p.qty}</TableCell>
                             <TableCell className="text-right font-medium">{formatCurrency(p.total)}</TableCell>
                           </TableRow>
@@ -345,6 +411,19 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
           </Card>
         </TabsContent>
       </Tabs>
+    </div>
+  )
+}
+
+// One A/R aging bucket — the amount owed in an age band of the Outstanding tab.
+function AgingBucket({ label, amount, toneClass }: { label: string; amount: number; toneClass?: string }) {
+  const empty = amount <= 0
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={cn('text-lg font-semibold tabular-nums', empty ? 'text-muted-foreground/50' : toneClass)}>
+        {formatCurrency(amount)}
+      </p>
     </div>
   )
 }
