@@ -1,17 +1,15 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Download, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { cn, formatCurrency, formatDate, todayISODate } from '@/lib/utils'
+import { formatCurrency, formatDate, todayISODate } from '@/lib/utils'
 import { statusBadgeVariant, paymentStatusLabel } from '@/lib/status-badge'
 import type { ReportSummary } from '@/lib/reports'
 import {
@@ -26,18 +24,11 @@ import {
 } from '@/lib/reports-exports'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import type { ReportPayment } from '@/lib/reports'
-import { matchPreset, PRESET_LABELS, type PresetKind, type PresetMap } from '@/lib/reports-presets'
+import type { PresetMap } from '@/lib/reports-presets'
+import { DateRangePicker } from '@/components/date-range-picker'
 
 const BRAND_CHART = '#766254'
 const BRAND_CHART_SOFT = '#9b8779'
-
-// The range picker is a single segmented control: the quick presets plus a real,
-// clickable "Custom" segment. Selecting Custom reveals the From/To inputs so the
-// user understands they're choosing one range, one way or the other.
-const SEGMENTS: { key: PresetKind | 'custom'; label: string }[] = [
-  ...(Object.keys(PRESET_LABELS) as PresetKind[]).map(key => ({ key, label: PRESET_LABELS[key] })),
-  { key: 'custom', label: 'Custom' },
-]
 
 // Interactive shell for the reports page. The Server Component fetches + computes
 // `summary`; this island renders it and drives the date range through the URL so
@@ -46,33 +37,10 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
-  const setRange = (next: { from?: string; to?: string }) => {
-    const params = new URLSearchParams({ from: next.from ?? from, to: next.to ?? to })
+  const setRange = (next: { from: string; to: string }) => {
+    const params = new URLSearchParams(next)
     startTransition(() => router.push(`/reports?${params.toString()}`, { scroll: false }))
   }
-
-  // The selected segment is derived from the URL, except while the user is
-  // composing a custom range (showCustom) before pressing Apply.
-  const activeRange = matchPreset(from, to, presets)
-  const [showCustom, setShowCustom] = useState(activeRange === 'custom')
-  // Draft custom dates: edited locally and committed in one navigation on Apply,
-  // so editing both ends costs a single server fetch instead of one per field.
-  const [draftFrom, setDraftFrom] = useState(from)
-  const [draftTo, setDraftTo] = useState(to)
-  const selectedSegment = showCustom ? 'custom' : activeRange
-
-  const selectPreset = (kind: PresetKind) => {
-    setShowCustom(false)
-    setRange(presets[kind])
-  }
-  const openCustom = () => {
-    setDraftFrom(from)
-    setDraftTo(to)
-    setShowCustom(true)
-  }
-  const applyCustom = () => setRange({ from: draftFrom, to: draftTo })
-  const customUnchanged = draftFrom === from && draftTo === to
-  const customInvalid = !draftFrom || !draftTo || draftFrom > draftTo
 
   // Download a CSV string as a file. The leading BOM makes Excel open the UTF-8
   // file with clinic names intact.
@@ -106,33 +74,14 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
         <p className="text-sm text-muted-foreground mt-0.5">Revenue and outstanding analysis</p>
       </div>
 
-      {/* Date range picker: segmented presets + Custom, with a reveal panel */}
-      <div className="space-y-3">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="inline-flex max-w-full overflow-x-auto rounded-lg bg-muted p-1" role="group" aria-label="Date range">
-              {SEGMENTS.map(seg => {
-                const isSelected = selectedSegment === seg.key
-                return (
-                  <button
-                    key={seg.key}
-                    type="button"
-                    aria-pressed={isSelected}
-                    onClick={() => (seg.key === 'custom' ? openCustom() : selectPreset(seg.key))}
-                    className={cn(
-                      'whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                      isSelected
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground',
-                    )}
-                  >
-                    {seg.label}
-                  </button>
-                )
-              })}
-            </div>
-            {isPending && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary" />}
-          </div>
+      {/* Date range picker (shared segmented control) with the Export menu on the right */}
+      <DateRangePicker
+        from={from}
+        to={to}
+        presets={presets}
+        isPending={isPending}
+        onRangeChange={setRange}
+        actions={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" disabled={invoiceCount === 0} className="w-full sm:w-auto">
@@ -148,24 +97,8 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
               <DropdownMenuItem onSelect={exportItems}>Item Sales Report</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-
-        {showCustom && (
-          <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4 sm:flex-row sm:items-end">
-            <div className="space-y-1.5">
-              <Label>From</Label>
-              <Input type="date" value={draftFrom} max={draftTo || undefined} onChange={e => setDraftFrom(e.target.value)} className="w-full sm:w-40" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>To</Label>
-              <Input type="date" value={draftTo} min={draftFrom || undefined} onChange={e => setDraftTo(e.target.value)} className="w-full sm:w-40" />
-            </div>
-            <Button onClick={applyCustom} disabled={isPending || customInvalid || customUnchanged} className="w-full sm:w-auto">
-              Apply
-            </Button>
-          </div>
-        )}
-      </div>
+        }
+      />
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

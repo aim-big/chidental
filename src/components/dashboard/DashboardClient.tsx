@@ -5,8 +5,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
@@ -15,6 +13,8 @@ import {
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import type { DashboardSummary } from '@/lib/dashboard'
+import type { PresetMap } from '@/lib/reports-presets'
+import { DateRangePicker } from '@/components/date-range-picker'
 
 const BRAND_CHART = '#766254'
 const BRAND_CHART_SOFT = '#9b8779'
@@ -23,20 +23,21 @@ const BRAND_CHART_SOFT = '#9b8779'
 // `summary`; this island renders it and drives the date range through the URL so
 // a change re-runs the server query (same pattern as the reports page).
 export function DashboardClient({
-  from, to, summary, customerCount, canCreateInvoice,
+  from, to, summary, presets, customerCount, canCreateInvoice,
 }: {
   from: string
   to: string
   summary: DashboardSummary
+  presets: PresetMap
   customerCount: number
   canCreateInvoice: boolean
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
-  const setRange = (next: { from?: string; to?: string }) => {
-    const params = new URLSearchParams({ from: next.from ?? from, to: next.to ?? to })
-    startTransition(() => router.push(`/dashboard?${params.toString()}`))
+  const setRange = (next: { from: string; to: string }) => {
+    const params = new URLSearchParams(next)
+    startTransition(() => router.push(`/dashboard?${params.toString()}`, { scroll: false }))
   }
 
   const {
@@ -59,18 +60,8 @@ export function DashboardClient({
         )}
       </div>
 
-      {/* Date range */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-        <div className="space-y-2">
-          <Label>From</Label>
-          <Input type="date" value={from} onChange={e => setRange({ from: e.target.value })} className="w-full sm:w-40" />
-        </div>
-        <div className="space-y-2">
-          <Label>To</Label>
-          <Input type="date" value={to} onChange={e => setRange({ to: e.target.value })} className="w-full sm:w-40" />
-        </div>
-        {isPending && <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary mb-2" />}
-      </div>
+      {/* Date range picker (shared segmented control) */}
+      <DateRangePicker from={from} to={to} presets={presets} isPending={isPending} onRangeChange={setRange} />
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

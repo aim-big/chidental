@@ -6,6 +6,7 @@
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { getDashboardData } from '@/data/dashboard'
 import { summarizeDashboard } from '@/lib/dashboard'
+import { buildPresets } from '@/lib/reports-presets'
 import { requirePermission } from '@/lib/auth/require-permission'
 import { DashboardClient } from '@/components/dashboard/DashboardClient'
 
@@ -28,6 +29,7 @@ export default async function DashboardPage({
       from={from}
       to={to}
       summary={summary}
+      presets={buildPresets(now)}
       customerCount={customerCount}
       canCreateInvoice={canCreateInvoice}
     />
