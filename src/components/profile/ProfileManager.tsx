@@ -72,7 +72,7 @@ function PinForm() {
     if (pin !== confirm) { setMsg({ ok: false, text: 'PINs do not match.' }); return }
     start(async () => {
       const res = await changeMyPin({ pin })
-      if (res.ok) { setMsg({ ok: true, text: 'PIN changed.' }); setPin(''); setConfirm('') }
+      if (res.ok) { setMsg({ ok: true, text: 'PIN changed — use the new PIN next time you sign in.' }); setPin(''); setConfirm('') }
       else setMsg({ ok: false, text: (res as { error: string }).error })
     })
   }
@@ -82,9 +82,9 @@ function PinForm() {
       <CardContent className="p-4 sm:p-5">
         <form onSubmit={save} className="space-y-3">
           <Label>Change PIN (6 digits)</Label>
-          <Input type="password" inputMode="numeric" maxLength={6} value={pin}
+          <Input type="password" inputMode="numeric" maxLength={6} value={pin} aria-label="New PIN"
             onChange={e => setPin(e.target.value.replace(/\D/g, ''))} placeholder="New PIN" />
-          <Input type="password" inputMode="numeric" maxLength={6} value={confirm}
+          <Input type="password" inputMode="numeric" maxLength={6} value={confirm} aria-label="Confirm new PIN"
             onChange={e => setConfirm(e.target.value.replace(/\D/g, ''))} placeholder="Confirm new PIN" />
           {msg && <p className={msg.ok ? 'text-sm text-green-600' : 'text-sm text-destructive'}>{msg.text}</p>}
           <Button className="w-full sm:w-auto" type="submit" disabled={pending || pin.length !== 6}>{pending ? 'Saving…' : 'Change PIN'}</Button>

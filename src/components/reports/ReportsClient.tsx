@@ -184,7 +184,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                     <TableHead>Clinic</TableHead>
                     <TableHead>Due Date</TableHead>
                     <TableHead>Aging</TableHead>
-                    <TableHead>Balance Due</TableHead>
+                    <TableHead className="text-right">Balance Due</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -204,7 +204,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                           <span className="text-sm text-muted-foreground">Not due yet</span>
                         )}
                       </TableCell>
-                      <TableCell className="font-medium" title={inv.balanceDue < Number(inv.total) ? `partially paid — invoice total ${formatCurrency(inv.total)}` : undefined}>
+                      <TableCell className="text-right font-medium tabular-nums" title={inv.balanceDue < Number(inv.total) ? `partially paid — invoice total ${formatCurrency(inv.total)}` : undefined}>
                         {formatCurrency(inv.balanceDue)}
                       </TableCell>
                       <TableCell>
@@ -215,7 +215,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                   {outstanding.length > 0 && (
                     <TableRow className="border-t-2 font-semibold">
                       <TableCell colSpan={4}>Total</TableCell>
-                      <TableCell>{formatCurrency(totalOutstanding)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatCurrency(totalOutstanding)}</TableCell>
                       <TableCell />
                     </TableRow>
                   )}
@@ -235,7 +235,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                     <TableHead>Invoice #</TableHead>
                     <TableHead>Clinic</TableHead>
                     <TableHead>Date</TableHead>
-                    <TableHead>Amount</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -246,7 +246,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                       <TableCell className="font-medium text-primary">{inv.invoice_number}</TableCell>
                       <TableCell className="max-w-[16rem] truncate" title={inv.customers?.clinic_name ?? undefined}>{inv.customers?.clinic_name}</TableCell>
                       <TableCell className="text-sm">{formatDate(inv.invoice_date)}</TableCell>
-                      <TableCell className="font-medium">{formatCurrency(inv.total)}</TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">{formatCurrency(inv.total)}</TableCell>
                       <TableCell>
                         <Badge variant={statusBadgeVariant('payment', inv.status)}>{paymentStatusLabel(inv.status)}</Badge>
                       </TableCell>
@@ -255,7 +255,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                   {paid.length > 0 && (
                     <TableRow className="border-t-2 font-semibold">
                       <TableCell colSpan={3}>Total</TableCell>
-                      <TableCell>{formatCurrency(totalPaidInvoices)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatCurrency(totalPaidInvoices)}</TableCell>
                       <TableCell />
                     </TableRow>
                   )}

@@ -254,7 +254,9 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
             </Link>
           </div>
         </div>
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
+        {/* Mobile: a 2-up grid keeps every action visible at half the height of a
+            full-width stack. sm+: the usual wrapping row. */}
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
           {/* Issuing is the key state transition for a draft, so it's the primary
               (colored) CTA. The tooltip spells out the consequence — it finalizes
               the invoice and locks it from staff editing. */}
