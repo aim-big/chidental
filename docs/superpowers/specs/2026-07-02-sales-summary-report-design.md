@@ -1,7 +1,7 @@
 # Sales Summary report (totals-only, by clinic) — design
 
 - **Date:** 2026-07-02
-- **Status:** Approved
+- **Status:** Implemented
 - **Area:** `/reports` page — `@/lib/reports`, `@/lib/reports-exports`, `@/components/reports/ReportsClient`
 
 ## Context

@@ -26,6 +26,14 @@ export type ReportInvoice = Pick<
 export type AgingInvoice = ReportInvoice & { daysOverdue: number }
 export type CustomerAgg = { name: string; total: number; count: number }
 export type ProductAgg = { name: string; total: number; qty: number }
+export type SalesSummaryRow = {
+  name: string
+  count: number
+  total: number
+  paid: number
+  outstanding: number
+  draft: number
+}
 export type ReportPayment = {
   amount: number
   payment_date: string
@@ -44,6 +52,7 @@ export type ReportSummary = {
   sales: ReportInvoice[]
   byCustomer: CustomerAgg[]
   byProduct: ProductAgg[]
+  salesSummary: SalesSummaryRow[]
 }
 
 const DAY_MS = 86_400_000
@@ -83,6 +92,33 @@ export function aggregateByProduct(invoices: ReportInvoice[], limit = 10): Produ
 }
 
 /**
+ * Total sales per clinic, partitioned by payment status, for the Sales Summary
+ * report. `total` is every non-voided invoice's full value; `paid`/`outstanding`
+ * are the value of paid vs issued-but-unpaid (sent/partial/overdue) invoices, and
+ * `draft` is the remainder so `paid + outstanding + draft === total` always holds
+ * (that leftover is the value of un-issued drafts). These are invoice values by
+ * status — NOT cash collected; real collections are the Payment Report. Sorted by
+ * total descending, all clinics.
+ */
+export function aggregateSalesSummary(invoices: ReportInvoice[]): SalesSummaryRow[] {
+  const map: Record<string, SalesSummaryRow> = {}
+  for (const inv of invoices) {
+    if (isVoided(inv)) continue
+    const name = inv.customers?.clinic_name ?? 'Unknown'
+    if (!map[name]) map[name] = { name, count: 0, total: 0, paid: 0, outstanding: 0, draft: 0 }
+    const agg = map[name]
+    const t = Number(inv.total)
+    agg.count += 1
+    agg.total += t
+    if (countsAsRevenue(inv)) agg.paid += t
+    else if (isOutstanding(inv)) agg.outstanding += t
+  }
+  return Object.values(map)
+    .map((r) => ({ ...r, draft: r.total - r.paid - r.outstanding }))
+    .sort((a, b) => b.total - a.total)
+}
+
+/**
  * Summarize a date-ranged set of invoices for the reports page. `nowMs` is the
  * reference time for aging (pass `Date.now()` at the call site so this stays
  * deterministic/testable). Voided invoices never count toward any total.
@@ -107,6 +143,7 @@ export function summarizeReports(invoices: ReportInvoice[], nowMs: number): Repo
 
   const byCustomer = aggregateByCustomer(active, Infinity)
   const byProduct = aggregateByProduct(active, Infinity)
+  const salesSummary = aggregateSalesSummary(active)
 
   return {
     totalInvoiced,
@@ -118,5 +155,6 @@ export function summarizeReports(invoices: ReportInvoice[], nowMs: number): Repo
     sales,
     byCustomer,
     byProduct,
+    salesSummary,
   }
 }

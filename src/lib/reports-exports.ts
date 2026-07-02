@@ -2,7 +2,7 @@
 // they stay unit-testable; the client island handles the download. Money is
 // 2-dp plain numbers, dates ISO, RFC-4180 quoting, CRLF endings.
 
-import type { ReportInvoice, ReportPayment, ProductAgg } from './reports'
+import type { ReportInvoice, ReportPayment, ProductAgg, SalesSummaryRow } from './reports'
 import { paymentStatusLabel } from './status-badge'
 import { COMPANY } from './config'
 
@@ -37,6 +37,9 @@ export function paymentReportFilename(range: Range): string {
 }
 export function itemSalesReportFilename(range: Range): string {
   return `item-sales-report_${range.from}_${range.to}.csv`
+}
+export function salesSummaryReportFilename(range: Range): string {
+  return `sales-summary_${range.from}_${range.to}.csv`
 }
 
 // 1. Sales Report — invoices issued in the period (Tax = total − subtotal).
@@ -86,6 +89,30 @@ export function buildPaymentReportCsv(payments: ReportPayment[], range: Range, g
     )
   }
   lines.push(row(['Total', '', '', money(total), '']))
+  return lines.join('\r\n')
+}
+
+// 4. Sales Summary — total sales per clinic, partitioned by payment status.
+// Columns partition Total Sales into Paid + Outstanding + Draft, so the Total row
+// reconciles with the detailed Sales Report's grand total. Invoice values by
+// status, not cash (see `aggregateSalesSummary`).
+export function buildSalesSummaryReportCsv(rows: SalesSummaryRow[], range: Range, generatedOn: string): string {
+  const lines = titleBlock('Sales Summary', range, generatedOn)
+  lines.push(row(['Clinic', 'Invoices', 'Total Sales', 'Paid', 'Outstanding', 'Draft']))
+  let count = 0
+  let total = 0
+  let paid = 0
+  let outstanding = 0
+  let draft = 0
+  for (const r of rows) {
+    count += r.count
+    total += r.total
+    paid += r.paid
+    outstanding += r.outstanding
+    draft += r.draft
+    lines.push(row([r.name, r.count, money(r.total), money(r.paid), money(r.outstanding), money(r.draft)]))
+  }
+  lines.push(row(['Total', count, money(total), money(paid), money(outstanding), money(draft)]))
   return lines.join('\r\n')
 }
 
