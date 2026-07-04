@@ -31,13 +31,17 @@ export async function getCustomers(): Promise<Customer[]> {
 
 // --- Paginated list (URL-driven) -------------------------------------------
 
+// The clinics list active/archived filter rides the `view` URL slot (mirrors
+// the products catalogue's active/inactive/all filter).
+export type CustomerView = 'active' | 'archived' | 'all'
+
 export interface CustomerListParams {
   q?: string
   page?: number
   pageSize?: number
   sort?: string | null
   dir?: 'asc' | 'desc'
-  archived?: boolean
+  view?: CustomerView
 }
 
 export interface CustomerListPage {
@@ -62,7 +66,7 @@ const CUSTOMER_SORT_COLUMNS: Record<string, string> = {
  * phone (all base-table columns, so the whole filter lives in SQL).
  */
 export async function getCustomersPage(params: CustomerListParams = {}): Promise<CustomerListPage> {
-  const { q = '', page = 1, pageSize = 15, sort = null, dir = 'asc', archived = false } = params
+  const { q = '', page = 1, pageSize = 15, sort = null, dir = 'asc', view = 'active' } = params
   const supabase = await createClient()
 
   const sortCol = (sort && CUSTOMER_SORT_COLUMNS[sort]) || 'clinic_name'
@@ -72,8 +76,10 @@ export async function getCustomersPage(params: CustomerListParams = {}): Promise
     .select('*', { count: 'exact' })
     .order(sortCol, { ascending: dir !== 'desc' })
 
-  // Active view (default) hides archived clinics; the "Archived" view shows only them.
-  query = archived ? query.not('archived_at', 'is', null) : query.is('archived_at', null)
+  // Active view (default) hides archived clinics; "Archived" shows only them;
+  // "All" shows both (archived rows are badged + dimmed in the client).
+  if (view === 'active') query = query.is('archived_at', null)
+  else if (view === 'archived') query = query.not('archived_at', 'is', null)
 
   const term = q.trim()
   if (term) {
