@@ -7,6 +7,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useToast } from '@/components/feedback/toast'
@@ -20,7 +22,16 @@ import {
 
 type PurgeTarget =
   | { kind: 'invoice'; id: string; label: string }
-  | { kind: 'clinic'; id: string; label: string }
+  | { kind: 'clinic'; id: string; label: string; invoiceCount: number; creditCount: number }
+
+// Spells out the cascade blast radius for a clinic purge, flowing after the clinic
+// name in the confirm dialog. Returns just a period when the clinic has no records.
+function describeClinicCascade(invoiceCount: number, creditCount: number): string {
+  const parts: string[] = []
+  if (invoiceCount > 0) parts.push(`${invoiceCount} invoice${invoiceCount === 1 ? '' : 's'} (with their line items and payments)`)
+  if (creditCount > 0) parts.push(`${creditCount} credit${creditCount === 1 ? '' : 's'}`)
+  return parts.length === 0 ? '.' : ` and its ${parts.join(' and ')}.`
+}
 
 export function AdminConsoleClient({
   deletedInvoices, archivedClinics, audit, invoiceActivity,
@@ -35,7 +46,10 @@ export function AdminConsoleClient({
   const [busyId, setBusyId] = useState<string | null>(null)
   const [purge, setPurge] = useState<PurgeTarget | null>(null)
   const [confirmText, setConfirmText] = useState('')
+  const [reason, setReason] = useState('')
   const [purging, setPurging] = useState(false)
+
+  function closePurge() { setPurge(null); setConfirmText(''); setReason('') }
 
   async function restoreInvoice(id: string) {
     setBusyId(id)
@@ -51,12 +65,13 @@ export function AdminConsoleClient({
     if (!purge) return
     setPurging(true)
     try {
+      const trimmedReason = reason.trim() || undefined
       const res = purge.kind === 'invoice'
-        ? await purgeInvoiceAction({ id: purge.id })
-        : await purgeCustomerAction({ id: purge.id })
+        ? await purgeInvoiceAction({ id: purge.id, reason: trimmedReason })
+        : await purgeCustomerAction({ id: purge.id, reason: trimmedReason })
       if (res.ok === false) { show({ variant: 'error', title: res.error }); return }
       show({ variant: 'success', title: 'Permanently deleted' })
-      setPurge(null); setConfirmText('')
+      closePurge()
       router.refresh()
     } finally { setPurging(false) }
   }
@@ -106,7 +121,7 @@ export function AdminConsoleClient({
                             <Button variant="outline" size="sm" disabled={busyId === inv.id} onClick={() => restoreInvoice(inv.id)}>
                               <ArchiveRestore className="h-4 w-4 mr-1.5" />Restore
                             </Button>
-                            <Button variant="destructive" size="sm" onClick={() => { setPurge({ kind: 'invoice', id: inv.id, label: inv.invoice_number }); setConfirmText('') }}>
+                            <Button variant="destructive" size="sm" onClick={() => { setPurge({ kind: 'invoice', id: inv.id, label: inv.invoice_number }); setConfirmText(''); setReason('') }}>
                               <Trash2 className="h-4 w-4 mr-1.5" />Delete permanently
                             </Button>
                           </TableCell>
@@ -122,18 +137,20 @@ export function AdminConsoleClient({
           <section className="space-y-2">
             <h3 className="text-sm font-semibold text-foreground">Archived clinics</h3>
             <p className="text-xs text-muted-foreground">
-              Restore an archived clinic from its clinic page. Permanent deletion here
-              is only possible once a clinic has no invoices or credits left.
+              Restore an archived clinic from its clinic page. Deleting one here is
+              permanent and also deletes all of its invoices, line items, payments,
+              and credits.
             </p>
             <Card>
               <CardContent className="p-0">
                 {archivedClinics.length === 0 ? (
-                  <EmptyState title="No archived clinics" description="Archived clinics can be permanently removed here when they have no records." />
+                  <EmptyState title="No archived clinics" description="Clinics archived from their clinic page appear here, where a Super Admin can permanently delete them." />
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Clinic</TableHead>
+                        <TableHead>Records</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -141,8 +158,18 @@ export function AdminConsoleClient({
                       {archivedClinics.map(c => (
                         <TableRow key={c.id}>
                           <TableCell className="font-medium">{c.clinic_name}</TableCell>
+                          <TableCell className="space-x-1.5">
+                            {c.invoice_count === 0 && c.credit_count === 0 ? (
+                              <span className="text-muted-foreground">No records</span>
+                            ) : (
+                              <>
+                                {c.invoice_count > 0 && <Badge variant="secondary">{c.invoice_count} invoice{c.invoice_count === 1 ? '' : 's'}</Badge>}
+                                {c.credit_count > 0 && <Badge variant="secondary">{c.credit_count} credit{c.credit_count === 1 ? '' : 's'}</Badge>}
+                              </>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right">
-                            <Button variant="destructive" size="sm" onClick={() => { setPurge({ kind: 'clinic', id: c.id, label: c.clinic_name }); setConfirmText('') }}>
+                            <Button variant="destructive" size="sm" onClick={() => { setPurge({ kind: 'clinic', id: c.id, label: c.clinic_name, invoiceCount: c.invoice_count, creditCount: c.credit_count }); setConfirmText(''); setReason('') }}>
                               <Trash2 className="h-4 w-4 mr-1.5" />Delete permanently
                             </Button>
                           </TableCell>
@@ -224,7 +251,7 @@ export function AdminConsoleClient({
       </Tabs>
 
       {/* Typed-confirmation purge dialog */}
-      <Dialog open={purge !== null} onOpenChange={o => { if (!o) { setPurge(null); setConfirmText('') } }}>
+      <Dialog open={purge !== null} onOpenChange={o => { if (!o) closePurge() }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
@@ -235,17 +262,23 @@ export function AdminConsoleClient({
             <div className="space-y-3 text-sm">
               <p className="text-muted-foreground">
                 This permanently deletes <span className="font-semibold text-foreground">{purge.label}</span>
-                {purge.kind === 'invoice' ? ' and all of its line items and payments. ' : '. '}
+                {purge.kind === 'invoice'
+                  ? ' and all of its line items and payments. '
+                  : `${describeClinicCascade(purge.invoiceCount, purge.creditCount)} `}
                 This cannot be undone.
               </p>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-foreground">Type <span className="font-mono">{purge.label}</span> to confirm</label>
                 <Input value={confirmText} onChange={e => setConfirmText(e.target.value)} placeholder={purge.label} autoFocus />
               </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground">Reason <span className="text-muted-foreground font-normal">(optional, logged)</span></label>
+                <Textarea value={reason} onChange={e => setReason(e.target.value)} rows={2} placeholder="e.g. test data cleanup" />
+              </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setPurge(null); setConfirmText('') }} disabled={purging}>Cancel</Button>
+            <Button variant="outline" onClick={closePurge} disabled={purging}>Cancel</Button>
             <Button
               variant="destructive"
               onClick={runPurge}

@@ -131,31 +131,36 @@ export async function purgeInvoiceAction(input: { id: string; reason?: string })
 
 // --- Clinics (customers) ---------------------------------------------------
 
-// Permanent delete of a clinic. Refused while any invoice or credit still
-// references it (the FK is ON DELETE RESTRICT; we check first for a clear error).
-// Clinics are soft-deleted via archived_at elsewhere; this is the Super Admin purge.
+// Permanent cascade-delete of a clinic and everything hanging off it: its credits,
+// its invoices (invoice_items + payments cascade), and the clinic row itself. All in
+// one atomic transaction via the admin_purge_clinic RPC — a partial failure rolls
+// back entirely. Clinics are soft-deleted via archived_at for everyday use; this is
+// the Super Admin escalation (docs/CONVENTIONS.md §5). Before deleting we snapshot the
+// clinic + invoice + credit rows into the audit metadata as a forensic breadcrumb
+// (line items and payments are not snapshotted — same bound as the invoice purge).
 export async function purgeCustomerAction(input: { id: string; reason?: string }): Promise<ActionResult> {
   const gate = await requireSuperadmin()
   if (gate.ok === false) return gate
 
   const admin = createAdminClient()
-  const [{ count: invCount }, { count: creditCount }] = await Promise.all([
-    admin.from('invoices').select('id', { count: 'exact', head: true }).eq('customer_id', input.id),
-    admin.from('credits').select('id', { count: 'exact', head: true }).eq('customer_id', input.id),
-  ])
-  if ((invCount ?? 0) > 0 || (creditCount ?? 0) > 0) {
-    return { ok: false, error: `Clinic still has ${invCount ?? 0} invoice(s) and ${creditCount ?? 0} credit(s). Delete or reassign those first.` }
-  }
 
-  const { data: c } = await admin.from('customers').select('clinic_name').eq('id', input.id).single()
-  const { error } = await admin.from('customers').delete().eq('id', input.id)
+  // Snapshot before destroying — after the RPC these rows are gone.
+  const [{ data: clinic }, { data: invoices }, { data: credits }] = await Promise.all([
+    admin.from('customers').select('*').eq('id', input.id).single(),
+    admin.from('invoices').select('*').eq('customer_id', input.id),
+    admin.from('credits').select('*').eq('customer_id', input.id),
+  ])
+
+  const { data: counts, error } = await admin.rpc('admin_purge_clinic', { p_id: input.id })
   if (error) {
     logServerError('purgeCustomerAction', error, { id: input.id })
     return { ok: false, error: 'Could not permanently delete the clinic. Please try again.' }
   }
+
   await writeAuditLog({
-    actorId: gate.userId, action: 'customer.purge', entityType: 'customer',
-    entityId: input.id, entityLabel: c?.clinic_name ?? null, reason: input.reason,
+    actorId: gate.userId, action: 'customer.purge_cascade', entityType: 'customer',
+    entityId: input.id, entityLabel: clinic?.clinic_name ?? null, reason: input.reason,
+    metadata: { counts, snapshot: { clinic, invoices, credits } } as Record<string, unknown>,
   })
   revalidatePath('/customers')
   revalidatePath('/settings/admin')

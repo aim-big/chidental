@@ -745,6 +745,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_purge_clinic: { Args: { p_id: string }; Returns: Json }
       admin_restore_void: { Args: { p_id: string }; Returns: undefined }
       auth_has_permission: { Args: { p_perm: string }; Returns: boolean }
       create_invoice_with_items: {

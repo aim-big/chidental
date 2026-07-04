@@ -3,7 +3,7 @@ import { logServerError } from '@/lib/log'
 
 export type AuditAction =
   | 'invoice.soft_delete' | 'invoice.restore' | 'invoice.purge' | 'invoice.void_restore'
-  | 'customer.purge'
+  | 'customer.purge' | 'customer.purge_cascade'
   | 'payment.delete' | 'credit.delete'
   | 'product.delete' | 'employee.delete'
 

@@ -138,8 +138,14 @@ permission changes apply immediately with no re-login. Client `hasPermission()` 
    recorded (e.g. status-history triggers) or RLS should apply. Use the **admin** client only
    for privileged writes (void, employee management) — and remember prod needs
    `SUPABASE_SERVICE_ROLE_KEY` set for those.
-5. **Soft-delete, don't destroy.** Products deactivate; invoices void; work stages retire.
-   History must always survive.
+5. **Soft-delete, don't destroy — except the Super Admin escalation.** Products
+   deactivate; invoices void; clinics archive; work stages retire. History must always
+   survive for everyday users. The one sanctioned hard-delete is the **Super Admin
+   console**: purge a soft-deleted invoice, or **cascade-delete an archived clinic**
+   (its invoices, line items, payments, and credits, via the `admin_purge_clinic`
+   RPC in one transaction). Both are gated to Super Admin, confirmed by typed name,
+   and recorded in `admin_audit_log` with a row snapshot. The append-only
+   `invoice_activity_log` keeps its breadcrumbs even after a purge.
 6. **Navigation is data.** Add nav items in `src/domain/navigation.ts` with their permission;
    the sidebar and the deep-link guard both read from there.
 7. **Optimistic moves on the Work board** revert on failure (toast + auto-revert).

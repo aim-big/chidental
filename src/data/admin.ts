@@ -18,6 +18,8 @@ export interface ArchivedClinicRow {
   id: string
   clinic_name: string
   archived_at: string
+  invoice_count: number
+  credit_count: number
 }
 
 export interface AuditRow {
@@ -47,7 +49,29 @@ export async function getArchivedClinics(): Promise<ArchivedClinicRow[]> {
     .select('id, clinic_name, archived_at')
     .not('archived_at', 'is', null)
     .order('archived_at', { ascending: false })
-  return (data ?? []) as unknown as ArchivedClinicRow[]
+  const clinics = (data ?? []) as { id: string; clinic_name: string; archived_at: string }[]
+  if (clinics.length === 0) return []
+
+  // Dependency counts drive the "N invoices" badge and the cascade-delete blast
+  // radius. Two batched queries (not one-per-clinic) then tallied in memory.
+  const ids = clinics.map(c => c.id)
+  const [{ data: invRows }, { data: creditRows }] = await Promise.all([
+    admin.from('invoices').select('customer_id').in('customer_id', ids),
+    admin.from('credits').select('customer_id').in('customer_id', ids),
+  ])
+  const tally = (rows: { customer_id: string }[] | null) => {
+    const m = new Map<string, number>()
+    for (const r of rows ?? []) m.set(r.customer_id, (m.get(r.customer_id) ?? 0) + 1)
+    return m
+  }
+  const invByClinic = tally(invRows)
+  const creditByClinic = tally(creditRows)
+
+  return clinics.map(c => ({
+    ...c,
+    invoice_count: invByClinic.get(c.id) ?? 0,
+    credit_count: creditByClinic.get(c.id) ?? 0,
+  }))
 }
 
 export async function getAuditFeed(limit = 100): Promise<AuditRow[]> {
@@ -78,13 +102,4 @@ export async function getInvoiceActivityFeed(limit = 200): Promise<InvoiceActivi
     .order('created_at', { ascending: false })
     .limit(limit)
   return (data ?? []) as InvoiceActivityFeedRow[]
-}
-
-export async function getClinicDependencyCounts(id: string): Promise<{ invoices: number; credits: number }> {
-  const admin = createAdminClient()
-  const [{ count: invoices }, { count: credits }] = await Promise.all([
-    admin.from('invoices').select('id', { count: 'exact', head: true }).eq('customer_id', id),
-    admin.from('credits').select('id', { count: 'exact', head: true }).eq('customer_id', id),
-  ])
-  return { invoices: invoices ?? 0, credits: credits ?? 0 }
 }
