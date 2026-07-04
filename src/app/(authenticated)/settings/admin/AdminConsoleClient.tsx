@@ -12,8 +12,9 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useToast } from '@/components/feedback/toast'
-import { ArchiveRestore, Trash2, RotateCcw } from 'lucide-react'
-import type { DeletedInvoiceRow, ArchivedClinicRow, AuditRow, InvoiceActivityFeedRow } from '@/data/admin'
+import { ArchiveRestore, Trash2, RotateCcw, ExternalLink } from 'lucide-react'
+import Link from 'next/link'
+import type { DeletedInvoiceRow, ArchivedClinicRow, AuditRow, InvoiceActivityFeedRow, InvoiceHealthRow } from '@/data/admin'
 import { actionLabel } from '@/lib/audit/action-labels'
 import { formatDateTime } from '@/lib/utils'
 import {
@@ -34,12 +35,13 @@ function describeClinicCascade(invoiceCount: number, creditCount: number): strin
 }
 
 export function AdminConsoleClient({
-  deletedInvoices, archivedClinics, audit, invoiceActivity,
+  deletedInvoices, archivedClinics, audit, invoiceActivity, healthIssues,
 }: {
   deletedInvoices: DeletedInvoiceRow[]
   archivedClinics: ArchivedClinicRow[]
   audit: AuditRow[]
   invoiceActivity: InvoiceActivityFeedRow[]
+  healthIssues: InvoiceHealthRow[]
 }) {
   const router = useRouter()
   const { show } = useToast()
@@ -89,6 +91,12 @@ export function AdminConsoleClient({
       <Tabs defaultValue="recycle">
         <TabsList>
           <TabsTrigger value="recycle">Recycle Bin</TabsTrigger>
+          <TabsTrigger value="health" className="gap-1.5">
+            Data Health
+            {healthIssues.length > 0 && (
+              <Badge variant="destructive" className="px-1.5 py-0 text-[10px] leading-4">{healthIssues.length}</Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
           <TabsTrigger value="invoice-activity">Invoice Activity</TabsTrigger>
         </TabsList>
@@ -181,6 +189,49 @@ export function AdminConsoleClient({
               </CardContent>
             </Card>
           </section>
+        </TabsContent>
+
+        {/* ---- Data Health ---- */}
+        <TabsContent value="health" className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Invoices whose stored status or amounts don&apos;t line up with their recorded
+            payments or line items — e.g. marked Paid without a matching payment. Open the
+            invoice to correct it (record the payment, or change the status).
+          </p>
+          <Card>
+            <CardContent className="p-0">
+              {healthIssues.length === 0 ? (
+                <EmptyState title="All clear" description="Every invoice's status and amounts are consistent with its recorded payments." />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Invoice</TableHead>
+                      <TableHead>Clinic</TableHead>
+                      <TableHead>Issue</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {healthIssues.map(h => (
+                      <TableRow key={h.id}>
+                        <TableCell className="font-medium">{h.invoice_number}</TableCell>
+                        <TableCell>{h.clinic_name ?? '—'}</TableCell>
+                        <TableCell className="text-muted-foreground">{h.message}</TableCell>
+                        <TableCell className="text-right">
+                          <Button asChild variant="outline" size="sm">
+                            <Link href={`/invoices/${h.id}`}>
+                              <ExternalLink className="h-4 w-4 mr-1.5" />Open
+                            </Link>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* ---- Activity ---- */}

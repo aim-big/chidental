@@ -4,6 +4,7 @@
 // requireSuperadmin() before calling any of these.
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { invoiceIntegrityIssue, type IntegrityCode } from '@/lib/invoice-integrity'
 
 export interface DeletedInvoiceRow {
   id: string
@@ -102,4 +103,80 @@ export async function getInvoiceActivityFeed(limit = 200): Promise<InvoiceActivi
     .order('created_at', { ascending: false })
     .limit(limit)
   return (data ?? []) as InvoiceActivityFeedRow[]
+}
+
+export interface InvoiceHealthRow {
+  id: string
+  invoice_number: string
+  clinic_name: string | null
+  status: string
+  total: number
+  paymentSum: number
+  code: IntegrityCode
+  message: string
+}
+
+// Data Health scan: every invoice whose stored status/amount is inconsistent
+// with its recorded payments or line items (see invoiceIntegrityIssue). Classi-
+// fication runs in the tested pure helper; this function is the glue that loads
+// the fields it needs. Batched (not one-query-per-invoice), like getArchivedClinics.
+export async function getInvoiceHealthIssues(): Promise<InvoiceHealthRow[]> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('invoices')
+    .select('id, invoice_number, status, total, subtotal, amount_paid, voided_at, deleted_at, customers(clinic_name)')
+  const invoices = (data ?? []) as unknown as {
+    id: string; invoice_number: string; status: string
+    total: number; subtotal: number; amount_paid: number | null
+    voided_at: string | null; deleted_at: string | null
+    customers: { clinic_name: string } | null
+  }[]
+  if (invoices.length === 0) return []
+
+  const ids = invoices.map(i => i.id)
+  const [{ data: payRows }, { data: itemRows }] = await Promise.all([
+    admin.from('payments').select('invoice_id, amount').in('invoice_id', ids),
+    admin.from('invoice_items').select('invoice_id, amount').in('invoice_id', ids),
+  ])
+
+  const sumBy = (rows: { invoice_id: string; amount: number }[] | null) => {
+    const sum = new Map<string, number>()
+    const count = new Map<string, number>()
+    for (const r of rows ?? []) {
+      sum.set(r.invoice_id, (sum.get(r.invoice_id) ?? 0) + Number(r.amount))
+      count.set(r.invoice_id, (count.get(r.invoice_id) ?? 0) + 1)
+    }
+    return { sum, count }
+  }
+  const pay = sumBy(payRows as { invoice_id: string; amount: number }[] | null)
+  const lines = sumBy(itemRows as { invoice_id: string; amount: number }[] | null)
+
+  const issues: InvoiceHealthRow[] = []
+  for (const inv of invoices) {
+    const paymentSum = pay.sum.get(inv.id) ?? 0
+    const issue = invoiceIntegrityIssue({
+      status: inv.status,
+      total: Number(inv.total),
+      subtotal: Number(inv.subtotal),
+      amount_paid: inv.amount_paid == null ? null : Number(inv.amount_paid),
+      voided_at: inv.voided_at,
+      deleted_at: inv.deleted_at,
+      paymentSum,
+      paymentCount: pay.count.get(inv.id) ?? 0,
+      lineSum: lines.sum.get(inv.id) ?? 0,
+    })
+    if (issue) {
+      issues.push({
+        id: inv.id,
+        invoice_number: inv.invoice_number,
+        clinic_name: inv.customers?.clinic_name ?? null,
+        status: inv.status,
+        total: Number(inv.total),
+        paymentSum,
+        code: issue.code,
+        message: issue.message,
+      })
+    }
+  }
+  return issues
 }
