@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Download, ChevronDown, Printer, ChevronRight, Info } from 'lucide-react'
+import { Download, ChevronDown, Printer, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tooltip as InfoTooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -46,13 +46,24 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
     startTransition(() => router.push(`/reports?${params.toString()}`, { scroll: false }))
   }
 
-  // Whole-row click opens the invoice in the same tab. The invoice-number cell is
-  // a real <Link>, so cmd/ctrl/middle-click there opens a new tab natively — we
-  // skip the row handler on modified clicks so it doesn't also navigate this tab.
+  // Makes the whole row behave like a link: plain click opens the invoice in this
+  // tab; cmd/ctrl-click or middle-click opens it in a new tab (like a native link).
+  // Wire to both onClick (left) and onAuxClick (middle). The invoice-number <Link>
+  // stops propagation so its own native handling isn't duplicated here.
   const openInvoiceOnRowClick = (id: string) => (e: React.MouseEvent) => {
-    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
-    router.push(`/invoices/${id}`)
+    if (e.defaultPrevented) return
+    const url = `/invoices/${id}`
+    if (e.button === 1 || e.metaKey || e.ctrlKey) {
+      e.preventDefault()
+      window.open(url, '_blank', 'noopener')
+      return
+    }
+    if (e.button !== 0 || e.shiftKey || e.altKey) return
+    router.push(url)
   }
+  // Left-clicking the invoice-number <Link> already navigates; middle/cmd-clicking
+  // it opens a new tab natively. Stop the event so the row handler doesn't re-fire.
+  const stopRowNav = (e: React.MouseEvent) => e.stopPropagation()
 
   // Download a CSV string as a file. The leading BOM makes Excel open the UTF-8
   // file with clinic names intact.
@@ -161,7 +172,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
           title="Total Invoiced"
           value={formatCurrency(totalInvoiced)}
           sub={`${invoiceCount} invoices`}
-          tooltip="The total value of every invoice issued in this period, counted by the date each invoice was written."
+          tooltip="Value of all invoices issued this period."
           onClick={() => setTab('invoices')}
         />
         <SummaryCard
@@ -169,7 +180,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
           value={formatCurrency(cashReceived)}
           valueClass="text-green-600"
           sub={`${payments.length} payments`}
-          tooltip="The actual cash received in this period, counted by payment date. It includes payments toward older invoices, so it won't necessarily match what you invoiced this period."
+          tooltip="Cash received this period, including payments for older invoices."
           onClick={() => setTab('payments')}
         />
         <SummaryCard
@@ -177,7 +188,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
           value={formatCurrency(totalOutstanding)}
           valueClass="text-yellow-600"
           sub={`${outstanding.length} unpaid`}
-          tooltip="The balance still owed on this period's unpaid invoices — each invoice's total minus any partial payments already made."
+          tooltip="Unpaid balance still owed on this period's invoices."
           onClick={() => setTab('outstanding')}
         />
       </div>
@@ -211,9 +222,9 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                 <TableBody>
                   {sales.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No invoices in this period</TableCell></TableRow>}
                   {invoicesNewestFirst.map(inv => (
-                    <TableRow key={inv.id} className="cursor-pointer" onClick={openInvoiceOnRowClick(inv.id)}>
+                    <TableRow key={inv.id} className="cursor-pointer" onClick={openInvoiceOnRowClick(inv.id)} onAuxClick={openInvoiceOnRowClick(inv.id)}>
                       <TableCell className="font-medium text-primary">
-                        <Link href={`/invoices/${inv.id}`} onClick={(e) => e.stopPropagation()} className="hover:underline">{inv.invoice_number}</Link>
+                        <Link href={`/invoices/${inv.id}`} onClick={stopRowNav} onAuxClick={stopRowNav} className="hover:underline">{inv.invoice_number}</Link>
                       </TableCell>
                       <TableCell className="max-w-[16rem] truncate" title={inv.customers?.clinic_name ?? undefined}>{inv.customers?.clinic_name}</TableCell>
                       <TableCell className="text-sm">{formatDate(inv.invoice_date)}</TableCell>
@@ -266,9 +277,9 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                 <TableBody>
                   {outstanding.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No outstanding invoices</TableCell></TableRow>}
                   {outstanding.map(inv => (
-                    <TableRow key={inv.id} className="cursor-pointer" onClick={openInvoiceOnRowClick(inv.id)}>
+                    <TableRow key={inv.id} className="cursor-pointer" onClick={openInvoiceOnRowClick(inv.id)} onAuxClick={openInvoiceOnRowClick(inv.id)}>
                       <TableCell className="font-medium text-primary">
-                        <Link href={`/invoices/${inv.id}`} onClick={(e) => e.stopPropagation()} className="hover:underline">{inv.invoice_number}</Link>
+                        <Link href={`/invoices/${inv.id}`} onClick={stopRowNav} onAuxClick={stopRowNav} className="hover:underline">{inv.invoice_number}</Link>
                       </TableCell>
                       <TableCell className="max-w-[16rem] truncate" title={inv.customers?.clinic_name ?? undefined}>{inv.customers?.clinic_name}</TableCell>
                       <TableCell className="text-sm">{formatDate(inv.due_date)}</TableCell>
@@ -322,11 +333,11 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                 <TableBody>
                   {payments.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No payments received in this period</TableCell></TableRow>}
                   {payments.map((p, i) => (
-                    <TableRow key={i} className={cn(p.invoice_id && 'cursor-pointer')} onClick={p.invoice_id ? openInvoiceOnRowClick(p.invoice_id) : undefined}>
+                    <TableRow key={i} className={cn(p.invoice_id && 'cursor-pointer')} onClick={p.invoice_id ? openInvoiceOnRowClick(p.invoice_id) : undefined} onAuxClick={p.invoice_id ? openInvoiceOnRowClick(p.invoice_id) : undefined}>
                       <TableCell className="text-sm">{formatDate(p.payment_date)}</TableCell>
                       <TableCell className={cn('font-medium', p.invoice_id && 'text-primary')}>
                         {p.invoice_id ? (
-                          <Link href={`/invoices/${p.invoice_id}`} onClick={(e) => e.stopPropagation()} className="hover:underline">{p.invoice_number}</Link>
+                          <Link href={`/invoices/${p.invoice_id}`} onClick={stopRowNav} onAuxClick={stopRowNav} className="hover:underline">{p.invoice_number}</Link>
                         ) : (
                           p.invoice_number
                         )}
@@ -486,7 +497,7 @@ function SummaryCard({ title, value, sub, valueClass, tooltip, onClick }: {
         }
       }}
       title="Click to see the invoices behind this number"
-      className="group relative cursor-pointer transition-colors hover:border-primary/60 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+      className="relative cursor-pointer transition-colors hover:border-primary/60 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
     >
       {/* "What does this mean" tooltip, top-right. stopPropagation so interacting
           with the icon shows the hint instead of switching tabs. */}
@@ -508,9 +519,6 @@ function SummaryCard({ title, value, sub, valueClass, tooltip, onClick }: {
       <CardContent>
         <p className={cn('text-2xl font-bold', valueClass)}>{value}</p>
         <p className="text-xs text-muted-foreground mt-1">{sub}</p>
-        <p className="mt-2 flex items-center text-xs font-medium text-primary/70 transition-colors group-hover:text-primary">
-          View list <ChevronRight className="h-3 w-3" />
-        </p>
       </CardContent>
     </Card>
   )

@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { CalendarDays } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
+import { cn, formatDate } from '@/lib/utils'
 import { matchPreset, PRESET_LABELS, type PresetKind, type PresetMap } from '@/lib/reports-presets'
 
 // The range picker is a single segmented control: the quick presets plus a real,
@@ -52,6 +53,11 @@ export function DateRangePicker({
   const customUnchanged = draftFrom === from && draftTo === to
   const customInvalid = !draftFrom || !draftTo || draftFrom > draftTo
 
+  // Plain-language summary of the range actually driving the data (the applied
+  // from/to, not the in-progress custom draft): the preset name plus the exact
+  // dates, so it's never ambiguous what "This month" resolves to.
+  const rangeLabel = activeRange === 'custom' ? 'Custom range' : PRESET_LABELS[activeRange]
+
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -81,6 +87,16 @@ export function DateRangePicker({
         </div>
         {actions}
       </div>
+
+      {/* Which filter is active + the concrete dates it resolves to */}
+      <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+        <span>
+          Showing <span className="font-medium text-foreground">{rangeLabel}</span>
+          {' · '}
+          <span className="tabular-nums">{formatDate(from)} – {formatDate(to)}</span>
+        </span>
+      </p>
 
       {showCustom && (
         <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4 sm:flex-row sm:items-end">
