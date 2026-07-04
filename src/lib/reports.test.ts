@@ -24,12 +24,11 @@ describe('summarizeReports', () => {
     expect(r.totalInvoiced).toBe(100)
   })
 
-  it('sums collected (paid, non-voided) and outstanding separately', () => {
+  it('sums outstanding balances and excludes paid invoices', () => {
     const r = summarizeReports(
       [ri({ status: 'paid', total: 200 }), ri({ status: 'sent', total: 80 }), ri({ status: 'partial', total: 20 })],
       NOW,
     )
-    expect(r.totalPaidInvoices).toBe(200)
     expect(r.totalOutstanding).toBe(100)
   })
 
@@ -205,6 +204,7 @@ describe('avgDaysToPayByClinic', () => {
     amount: 100,
     payment_date: '2026-06-20',
     reference_number: null,
+    invoice_id: 'inv-1',
     invoice_number: 'INV-1',
     invoice_date: '2026-06-10',
     clinic_name: 'A',

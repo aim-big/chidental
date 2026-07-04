@@ -30,7 +30,7 @@ export function ReportPrintDocument({
   cashReceived: number
   speedByClinic: Record<string, ClinicPaymentSpeed>
 }) {
-  const { totalInvoiced, totalPaidInvoices, totalOutstanding, invoiceCount, outstanding, agingBuckets, paid, byProduct, salesSummary } = summary
+  const { totalInvoiced, totalOutstanding, invoiceCount, outstanding, agingBuckets, byProduct, salesSummary } = summary
 
   return (
     <div id="invoice-print" className="hidden bg-white text-black print:block">
@@ -51,10 +51,9 @@ export function ReportPrintDocument({
         <table className="w-full">
           <tbody>
             <tr>
-              <SummaryCell label={`Total Invoiced (${invoiceCount} invoices)`} value={formatCurrency(totalInvoiced)} />
-              <SummaryCell label="Collected (Paid)" value={formatCurrency(totalPaidInvoices)} />
-              <SummaryCell label={`Outstanding (${outstanding.length} unpaid)`} value={formatCurrency(totalOutstanding)} />
-              <SummaryCell label={`Cash Received (${payments.length} payments)`} value={formatCurrency(cashReceived)} />
+              <SummaryCell label={`Total Invoiced (${invoiceCount} invoices · by invoice date)`} value={formatCurrency(totalInvoiced)} />
+              <SummaryCell label={`Collected (${payments.length} payments · by payment date)`} value={formatCurrency(cashReceived)} />
+              <SummaryCell label={`Outstanding (${outstanding.length} unpaid · by invoice date)`} value={formatCurrency(totalOutstanding)} />
             </tr>
           </tbody>
         </table>
@@ -188,37 +187,6 @@ export function ReportPrintDocument({
                 <td className={totalRow}>Total</td>
                 <td className={totalRight}>{byProduct.reduce((s, p) => s + p.qty, 0)}</td>
                 <td className={totalRight}>{formatCurrency(byProduct.reduce((s, p) => s + p.total, 0))}</td>
-              </tr>
-            </tbody>
-          </table>
-        </section>
-      )}
-
-      {/* Paid invoices */}
-      {paid.length > 0 && (
-        <section className="mb-4 break-inside-avoid">
-          <h3 className="mb-1 text-sm font-semibold">Paid Invoices</h3>
-          <table className="w-full">
-            <thead>
-              <tr>
-                <th className={th}>Invoice #</th>
-                <th className={th}>Clinic</th>
-                <th className={th}>Date</th>
-                <th className={thRight}>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paid.map(inv => (
-                <tr key={inv.id}>
-                  <td className={td}>{inv.invoice_number}</td>
-                  <td className={td}>{inv.customers?.clinic_name}</td>
-                  <td className={td}>{formatDate(inv.invoice_date)}</td>
-                  <td className={tdRight}>{formatCurrency(inv.total)}</td>
-                </tr>
-              ))}
-              <tr>
-                <td className={totalRow} colSpan={3}>Total</td>
-                <td className={totalRight}>{formatCurrency(totalPaidInvoices)}</td>
               </tr>
             </tbody>
           </table>

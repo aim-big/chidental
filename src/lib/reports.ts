@@ -38,6 +38,8 @@ export type ReportPayment = {
   amount: number
   payment_date: string
   reference_number: string | null
+  /** UUID of the paid invoice, for drill-down to /invoices/[id]. Null if the join is missing. */
+  invoice_id: string | null
   invoice_number: string | null
   /** Issue date of the paid invoice — feeds days-to-pay. Null if the join is missing. */
   invoice_date: string | null
@@ -84,12 +86,10 @@ export type AgingBuckets = {
 
 export type ReportSummary = {
   totalInvoiced: number
-  totalPaidInvoices: number
   totalOutstanding: number
   invoiceCount: number
   outstanding: AgingInvoice[]
   agingBuckets: AgingBuckets
-  paid: ReportInvoice[]
   sales: ReportInvoice[]
   byProduct: ProductAgg[]
   salesSummary: SalesSummaryRow[]
@@ -172,7 +172,6 @@ export function summarizeReports(invoices: ReportInvoice[], nowMs: number): Repo
   const active = invoices.filter((i) => !isVoided(i))
 
   const totalInvoiced = active.reduce((s, i) => s + Number(i.total), 0)
-  const totalPaidInvoices = invoices.filter((i) => countsAsRevenue(i)).reduce((s, i) => s + Number(i.total), 0)
   // Remaining balances (total − amount_paid) — partial payments net out.
   const totalOutstanding = invoices.filter((i) => isOutstanding(i)).reduce((s, i) => s + balanceDue(i), 0)
 
@@ -197,10 +196,6 @@ export function summarizeReports(invoices: ReportInvoice[], nowMs: number): Repo
     else agingBuckets.d90plus += amt
   }
 
-  const paid = active
-    .filter((i) => i.status === 'paid')
-    .sort((a, b) => (a.invoice_date < b.invoice_date ? 1 : -1))
-
   const sales = [...active].sort((a, b) => (a.invoice_date < b.invoice_date ? -1 : 1))
 
   const byProduct = aggregateByProduct(active, Infinity)
@@ -210,12 +205,10 @@ export function summarizeReports(invoices: ReportInvoice[], nowMs: number): Repo
 
   return {
     totalInvoiced,
-    totalPaidInvoices,
     totalOutstanding,
     invoiceCount: active.length, // voided invoices don't count as issued
     outstanding,
     agingBuckets,
-    paid,
     sales,
     byProduct,
     salesSummary,

@@ -1,10 +1,12 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Download, ChevronDown, Printer } from 'lucide-react'
+import { Download, ChevronDown, Printer, ChevronRight, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tooltip as InfoTooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -44,6 +46,14 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
     startTransition(() => router.push(`/reports?${params.toString()}`, { scroll: false }))
   }
 
+  // Whole-row click opens the invoice in the same tab. The invoice-number cell is
+  // a real <Link>, so cmd/ctrl/middle-click there opens a new tab natively — we
+  // skip the row handler on modified clicks so it doesn't also navigate this tab.
+  const openInvoiceOnRowClick = (id: string) => (e: React.MouseEvent) => {
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+    router.push(`/invoices/${id}`)
+  }
+
   // Download a CSV string as a file. The leading BOM makes Excel open the UTF-8
   // file with clinic names intact.
   const download = (csv: string, filename: string) => {
@@ -64,10 +74,18 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
   const exportPayments = () => download(buildPaymentReportCsv(payments, range, todayISODate()), paymentReportFilename(range))
   const exportItems = () => download(buildItemSalesReportCsv(summary.byProduct, range, todayISODate()), itemSalesReportFilename(range))
 
-  const { totalInvoiced, totalPaidInvoices, totalOutstanding, invoiceCount, outstanding, agingBuckets, paid, byProduct, salesSummary } = summary
-  // Real cash received in the range (sum of payment rows) — distinct from
-  // "Collected (Paid)", which is the full value of paid-status invoices.
+  const { totalInvoiced, totalOutstanding, invoiceCount, outstanding, agingBuckets, byProduct, salesSummary, sales } = summary
+  // Every invoice issued in the period, newest first (the flat list behind the
+  // Total Invoiced card). `sales` is stored oldest-first for the CSV export.
+  const invoicesNewestFirst = [...sales].reverse()
+  // The "Collected" card: real cash received in the range (sum of payment rows),
+  // a pure cash-basis number filtered by payment date — as opposed to Total
+  // Invoiced / Outstanding, which are filtered by invoice date.
   const cashReceived = payments.reduce((s, p) => s + Number(p.amount), 0)
+
+  // Each summary card selects the tab that itemizes it, so the number can be
+  // verified against its receipts in one click — just switch, no scrolling.
+  const [tab, setTab] = useState('invoices')
   // Payment speed per clinic (from the payments in this range) for the
   // By Clinic table — surfaces who pays fast and who needs chasing.
   const speedByClinic = avgDaysToPayByClinic(payments)
@@ -134,38 +152,95 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
         speedByClinic={speedByClinic}
       />
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Total Invoiced</CardTitle></CardHeader>
-          <CardContent><p className="text-2xl font-bold">{formatCurrency(totalInvoiced)}</p><p className="text-xs text-muted-foreground mt-1">{invoiceCount} invoices</p></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Collected (Paid)</CardTitle></CardHeader>
-          <CardContent><p className="text-2xl font-bold text-green-600">{formatCurrency(totalPaidInvoices)}</p><p className="text-xs text-muted-foreground mt-1">value of paid invoices</p></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Outstanding</CardTitle></CardHeader>
-          <CardContent><p className="text-2xl font-bold text-yellow-600">{formatCurrency(totalOutstanding)}</p><p className="text-xs text-muted-foreground mt-1">{outstanding.length} unpaid</p></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Cash Received</CardTitle></CardHeader>
-          <CardContent><p className="text-2xl font-bold">{formatCurrency(cashReceived)}</p><p className="text-xs text-muted-foreground mt-1">{payments.length} payments in period</p></CardContent>
-        </Card>
+      {/* Summary cards — a single money number (Collected = real cash received),
+          so "invoiced vs collected" can't be mistaken for the same figure. Each
+          card is clickable to reveal the invoices/payments behind it; the date
+          basis lives in the drill-down tab, not as top-level clutter. */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <SummaryCard
+          title="Total Invoiced"
+          value={formatCurrency(totalInvoiced)}
+          sub={`${invoiceCount} invoices`}
+          tooltip="The total value of every invoice issued in this period, counted by the date each invoice was written."
+          onClick={() => setTab('invoices')}
+        />
+        <SummaryCard
+          title="Collected"
+          value={formatCurrency(cashReceived)}
+          valueClass="text-green-600"
+          sub={`${payments.length} payments`}
+          tooltip="The actual cash received in this period, counted by payment date. It includes payments toward older invoices, so it won't necessarily match what you invoiced this period."
+          onClick={() => setTab('payments')}
+        />
+        <SummaryCard
+          title="Outstanding"
+          value={formatCurrency(totalOutstanding)}
+          valueClass="text-yellow-600"
+          sub={`${outstanding.length} unpaid`}
+          tooltip="The balance still owed on this period's unpaid invoices — each invoice's total minus any partial payments already made."
+          onClick={() => setTab('outstanding')}
+        />
       </div>
 
-      <Tabs defaultValue="outstanding">
-        <TabsList>
-          <TabsTrigger value="outstanding">Outstanding</TabsTrigger>
-          <TabsTrigger value="paid">Paid</TabsTrigger>
-          <TabsTrigger value="payments">Payments</TabsTrigger>
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
+          <TabsTrigger value="invoices">All ({invoiceCount})</TabsTrigger>
+          <TabsTrigger value="payments">Collected ({payments.length})</TabsTrigger>
+          <TabsTrigger value="outstanding">Outstanding ({outstanding.length})</TabsTrigger>
           <TabsTrigger value="customers">By Clinic</TabsTrigger>
           <TabsTrigger value="products">By Product</TabsTrigger>
         </TabsList>
 
+        <TabsContent value="invoices" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">All Invoices</CardTitle>
+              <CardDescription>Every invoice issued in this period · by invoice date. Sums to Total Invoiced.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table className="min-w-[42rem]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Invoice #</TableHead>
+                    <TableHead>Clinic</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sales.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No invoices in this period</TableCell></TableRow>}
+                  {invoicesNewestFirst.map(inv => (
+                    <TableRow key={inv.id} className="cursor-pointer" onClick={openInvoiceOnRowClick(inv.id)}>
+                      <TableCell className="font-medium text-primary">
+                        <Link href={`/invoices/${inv.id}`} onClick={(e) => e.stopPropagation()} className="hover:underline">{inv.invoice_number}</Link>
+                      </TableCell>
+                      <TableCell className="max-w-[16rem] truncate" title={inv.customers?.clinic_name ?? undefined}>{inv.customers?.clinic_name}</TableCell>
+                      <TableCell className="text-sm">{formatDate(inv.invoice_date)}</TableCell>
+                      <TableCell>
+                        <Badge variant={statusBadgeVariant('payment', inv.status)}>{paymentStatusLabel(inv.status)}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">{formatCurrency(inv.total)}</TableCell>
+                    </TableRow>
+                  ))}
+                  {sales.length > 0 && (
+                    <TableRow className="border-t-2 font-semibold">
+                      <TableCell colSpan={4}>Total</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatCurrency(totalInvoiced)}</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="outstanding" className="mt-4">
           <Card>
-            <CardHeader><CardTitle className="text-base">Outstanding Invoices</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Outstanding Invoices</CardTitle>
+              <CardDescription>Unpaid balances still owed · by invoice date. Sums to Outstanding.</CardDescription>
+            </CardHeader>
             <CardContent className="p-0">
               {/* A/R aging at a glance — buckets sum to the Outstanding card */}
               {outstanding.length > 0 && (
@@ -191,8 +266,10 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                 <TableBody>
                   {outstanding.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No outstanding invoices</TableCell></TableRow>}
                   {outstanding.map(inv => (
-                    <TableRow key={inv.id} className="cursor-pointer" onClick={() => router.push(`/invoices/${inv.id}`)}>
-                      <TableCell className="font-medium text-primary">{inv.invoice_number}</TableCell>
+                    <TableRow key={inv.id} className="cursor-pointer" onClick={openInvoiceOnRowClick(inv.id)}>
+                      <TableCell className="font-medium text-primary">
+                        <Link href={`/invoices/${inv.id}`} onClick={(e) => e.stopPropagation()} className="hover:underline">{inv.invoice_number}</Link>
+                      </TableCell>
                       <TableCell className="max-w-[16rem] truncate" title={inv.customers?.clinic_name ?? undefined}>{inv.customers?.clinic_name}</TableCell>
                       <TableCell className="text-sm">{formatDate(inv.due_date)}</TableCell>
                       <TableCell>
@@ -225,49 +302,12 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
           </Card>
         </TabsContent>
 
-        <TabsContent value="paid" className="mt-4">
-          <Card>
-            <CardHeader><CardTitle className="text-base">Paid Invoices</CardTitle></CardHeader>
-            <CardContent className="p-0">
-              <Table className="min-w-[42rem]">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Invoice #</TableHead>
-                    <TableHead>Clinic</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paid.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No paid invoices in this period</TableCell></TableRow>}
-                  {paid.map(inv => (
-                    <TableRow key={inv.id} className="cursor-pointer" onClick={() => router.push(`/invoices/${inv.id}`)}>
-                      <TableCell className="font-medium text-primary">{inv.invoice_number}</TableCell>
-                      <TableCell className="max-w-[16rem] truncate" title={inv.customers?.clinic_name ?? undefined}>{inv.customers?.clinic_name}</TableCell>
-                      <TableCell className="text-sm">{formatDate(inv.invoice_date)}</TableCell>
-                      <TableCell className="text-right font-medium tabular-nums">{formatCurrency(inv.total)}</TableCell>
-                      <TableCell>
-                        <Badge variant={statusBadgeVariant('payment', inv.status)}>{paymentStatusLabel(inv.status)}</Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {paid.length > 0 && (
-                    <TableRow className="border-t-2 font-semibold">
-                      <TableCell colSpan={3}>Total</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatCurrency(totalPaidInvoices)}</TableCell>
-                      <TableCell />
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         <TabsContent value="payments" className="mt-4">
           <Card>
-            <CardHeader><CardTitle className="text-base">Payments Received</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Payments Received</CardTitle>
+              <CardDescription>Cash actually received in this period · by payment date. Sums to Collected.</CardDescription>
+            </CardHeader>
             <CardContent className="p-0">
               <Table className="min-w-[42rem]">
                 <TableHeader>
@@ -282,9 +322,15 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                 <TableBody>
                   {payments.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No payments received in this period</TableCell></TableRow>}
                   {payments.map((p, i) => (
-                    <TableRow key={i}>
+                    <TableRow key={i} className={cn(p.invoice_id && 'cursor-pointer')} onClick={p.invoice_id ? openInvoiceOnRowClick(p.invoice_id) : undefined}>
                       <TableCell className="text-sm">{formatDate(p.payment_date)}</TableCell>
-                      <TableCell className="font-medium">{p.invoice_number}</TableCell>
+                      <TableCell className={cn('font-medium', p.invoice_id && 'text-primary')}>
+                        {p.invoice_id ? (
+                          <Link href={`/invoices/${p.invoice_id}`} onClick={(e) => e.stopPropagation()} className="hover:underline">{p.invoice_number}</Link>
+                        ) : (
+                          p.invoice_number
+                        )}
+                      </TableCell>
                       <TableCell className="max-w-[16rem] truncate" title={p.clinic_name ?? undefined}>{p.clinic_name}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{p.reference_number}</TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(p.amount)}</TableCell>
@@ -414,6 +460,59 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
         </TabsContent>
       </Tabs>
     </div>
+  )
+}
+
+// A clickable summary card that reveals the invoices/payments behind its number.
+// Rendered as a button so it's keyboard-reachable and announced as actionable.
+// The corner info icon carries a "what does this mean" tooltip.
+function SummaryCard({ title, value, sub, valueClass, tooltip, onClick }: {
+  title: string
+  value: string
+  sub: string
+  valueClass?: string
+  tooltip: string
+  onClick: () => void
+}) {
+  return (
+    <Card
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick()
+        }
+      }}
+      title="Click to see the invoices behind this number"
+      className="group relative cursor-pointer transition-colors hover:border-primary/60 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+    >
+      {/* "What does this mean" tooltip, top-right. stopPropagation so interacting
+          with the icon shows the hint instead of switching tabs. */}
+      <InfoTooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={`What does ${title} mean?`}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+            className="absolute right-2 top-2 rounded-full p-1 text-muted-foreground/50 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+          >
+            <Info className="h-4 w-4" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-[16rem] text-left font-normal leading-snug">{tooltip}</TooltipContent>
+      </InfoTooltip>
+      <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{title}</CardTitle></CardHeader>
+      <CardContent>
+        <p className={cn('text-2xl font-bold', valueClass)}>{value}</p>
+        <p className="text-xs text-muted-foreground mt-1">{sub}</p>
+        <p className="mt-2 flex items-center text-xs font-medium text-primary/70 transition-colors group-hover:text-primary">
+          View list <ChevronRight className="h-3 w-3" />
+        </p>
+      </CardContent>
+    </Card>
   )
 }
 
