@@ -42,7 +42,55 @@ describe('StatementPage', () => {
     })
   })
 
-  it('prints account totals in the open view even when no invoices are outstanding', async () => {
+  it('renders one combined statement with period records and open invoice records', async () => {
+    mocks.getClinicStatement.mockResolvedValue({
+      clinic: {
+        id: 'clinic-1',
+        clinic_name: 'Bright Smile Clinic',
+        contact_person: null,
+        ssm_no: null,
+        billing_address: null,
+      },
+      invoices: [
+        {
+          id: 'inv-period',
+          invoice_number: 'INV-100',
+          invoice_date: '2026-06-10',
+          due_date: '2026-07-10',
+          patient: 'Ali',
+          total: 300,
+          status: 'partial',
+          voided_at: null,
+        },
+      ],
+      payments: [
+        {
+          invoice_id: 'inv-period',
+          amount: 120,
+          payment_date: '2026-06-20',
+          reference_number: 'PAY-1',
+        },
+      ],
+      credits: [],
+    })
+
+    const html = renderToStaticMarkup(
+      await StatementPage({
+        params: Promise.resolve({ id: 'clinic-1' }),
+        searchParams: Promise.resolve({ from: '2026-06-01', to: '2026-06-30' }),
+      }),
+    )
+
+    expect(html).toContain('From date')
+    expect(html).toContain('Invoice and payment records')
+    expect(html).toContain('Payment received · Ref PAY-1')
+    expect(html).toContain('Outstanding invoice records')
+    expect(html).toContain('INV-100')
+    expect(html).not.toContain('Full activity')
+    expect(html).not.toContain('Outstanding only')
+  })
+
+  it('prints account totals even when no invoices are outstanding', async () => {
     mocks.getClinicStatement.mockResolvedValue({
       clinic: {
         id: 'clinic-1',
@@ -77,7 +125,7 @@ describe('StatementPage', () => {
     const html = renderToStaticMarkup(
       await StatementPage({
         params: Promise.resolve({ id: 'clinic-1' }),
-        searchParams: Promise.resolve({ view: 'open' }),
+        searchParams: Promise.resolve({}),
       }),
     )
 
@@ -122,7 +170,7 @@ describe('StatementPage', () => {
     const html = renderToStaticMarkup(
       await StatementPage({
         params: Promise.resolve({ id: 'clinic-1' }),
-        searchParams: Promise.resolve({ view: 'open' }),
+        searchParams: Promise.resolve({}),
       }),
     )
 

@@ -1,15 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, Edit, Plus, FileText } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { ArchiveClinicControls } from '@/components/customers/ArchiveClinicControls'
 
-// Interactive header for the customer detail page: browser-back, the
-// permission-gated Edit button, and New Invoice. The customer name/contact are
+// Interactive header for the customer detail page: back to the Clinics list,
+// the permission-gated Edit button, and New Invoice. The customer name/contact are
 // passed in from the Server Component so the data fetch stays server-side.
 export function CustomerDetailHeader({
   id,
@@ -22,15 +21,16 @@ export function CustomerDetailHeader({
   contactPerson: string | null
   archivedAt: string | null
 }) {
-  const router = useRouter()
   const { hasPermission } = useAuth()
   const archived = archivedAt !== null
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4" />
+        <Button variant="ghost" size="icon" asChild>
+          <Link href="/customers" aria-label="Back to Clinics">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
         </Button>
         <div>
           <div className="flex items-center gap-2">

@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, CheckCircle2, Download, ChevronDown, Printer, Info } from 'lucide-react'
+import { Download, ChevronDown, Printer, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tooltip as InfoTooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -14,7 +14,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { cn, formatCurrency, formatCompactCurrency, formatDate, todayISODate } from '@/lib/utils'
 import { statusBadgeVariant, paymentStatusLabel } from '@/lib/status-badge'
 import type { ReportSummary } from '@/lib/reports'
-import { avgDaysToPayByClinic, buildReportChecks, hasReportExportData, type ReportCheck } from '@/lib/reports'
+import { avgDaysToPayByClinic, hasReportExportData } from '@/lib/reports'
 import {
   buildSalesReportCsv,
   buildPaymentReportCsv,
@@ -93,7 +93,6 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
   // a pure cash-basis number filtered by payment date — as opposed to Total
   // Invoiced / Outstanding, which are filtered by invoice date.
   const cashReceived = payments.reduce((s, p) => s + Number(p.amount), 0)
-  const reportChecks = buildReportChecks(summary, payments)
 
   // Each summary card selects the tab that itemizes it, so the number can be
   // verified against its receipts in one click — just switch, no scrolling.
@@ -196,8 +195,6 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
           onClick={() => setTab('outstanding')}
         />
       </div>
-
-      <ReportChecks checks={reportChecks} />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
@@ -477,43 +474,6 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
         </TabsContent>
       </Tabs>
     </div>
-  )
-}
-
-function ReportChecks({ checks }: { checks: ReportCheck[] }) {
-  const issueCount = checks.filter((check) => !check.ok).length
-
-  return (
-    <Card>
-      <CardContent className="p-4 sm:p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Report Checks</h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Reconciliation checks for the selected range before using the numbers.
-            </p>
-          </div>
-          <Badge variant={issueCount === 0 ? 'secondary' : 'destructive'}>
-            {issueCount === 0 ? 'All clear' : `${issueCount} warning${issueCount === 1 ? '' : 's'}`}
-          </Badge>
-        </div>
-        <div className="mt-4 grid gap-2 md:grid-cols-2">
-          {checks.map((check) => (
-            <div key={check.key} className="flex min-w-0 gap-2 rounded-md border border-border bg-background p-3">
-              {check.ok ? (
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
-              ) : (
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-600" />
-              )}
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">{check.label}</p>
-                <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{check.detail}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
   )
 }
 

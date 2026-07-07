@@ -1,11 +1,9 @@
 // Statement of Account — Server Component.
 //
-// Two views, URL-driven (`?view=activity|open&from=&to=`):
-//   • activity (default) — a period transaction ledger: balance brought
-//     forward, then every invoice / payment / credit in [from, to] with a
-//     running balance, ending at the closing balance.
-//   • open — the classic open-item statement: only invoices that still carry
-//     a balance, plus account totals to date.
+// One period-filtered statement document:
+//   • invoice/payment/credit records for [from, to], with opening and closing
+//     balances;
+//   • open invoice records, account totals, credits, and A/R aging as at today.
 //
 // The date range reuses the Sales Reports preset math (`reports-presets.ts`,
 // defaulting to the current month). All money math lives in the pure helpers
@@ -94,7 +92,6 @@ export default async function StatementPage({
   if (gate.ok === false) redirect('/dashboard')
 
   const sp = await searchParams
-  const view: 'activity' | 'open' = sp.view === 'open' ? 'open' : 'activity'
   const now = new Date()
   const { from, to } = resolveDateRange(sp, now)
   const presets = buildPresets(now)
@@ -111,7 +108,6 @@ export default async function StatementPage({
   const activity = buildActivityStatement(invoices, payments, credits, from, to)
 
   const basePath = `/customers/${id}/statement`
-  const rangeQS = `from=${from}&to=${to}`
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-4">
@@ -124,48 +120,33 @@ export default async function StatementPage({
               Back to Clinic
             </Link>
           </Button>
-          <div className="flex items-center gap-2">
-            {/* View toggle */}
-            <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
-              <Button asChild size="sm" variant={view === 'activity' ? 'secondary' : 'ghost'}>
-                <Link href={`${basePath}?view=activity&${rangeQS}`}>Full activity</Link>
-              </Button>
-              <Button asChild size="sm" variant={view === 'open' ? 'secondary' : 'ghost'}>
-                <Link href={`${basePath}?view=open&${rangeQS}`}>Outstanding only</Link>
-              </Button>
-            </div>
-            <StatementPrintButton />
-          </div>
+          <StatementPrintButton />
         </div>
 
-        {/* Period picker — activity view only (open items are always as-of-today) */}
-        {view === 'activity' && (
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-1">
-              {(Object.keys(PRESET_LABELS) as PresetKind[]).map((kind) => (
-                <Button
-                  key={kind}
-                  asChild
-                  size="sm"
-                  variant={activePreset === kind ? 'default' : 'outline'}
-                >
-                  <Link href={`${basePath}?view=activity&from=${presets[kind].from}&to=${presets[kind].to}`}>
-                    {PRESET_LABELS[kind]}
-                  </Link>
-                </Button>
-              ))}
-            </div>
-            {/* key remounts the uncontrolled date inputs when the range changes
-                via a preset link (soft navigation keeps DOM state otherwise) */}
-            <form method="get" className="flex items-center gap-2" key={`${from}:${to}`}>
-              <input type="hidden" name="view" value="activity" />
-              <Input type="date" name="from" defaultValue={from} className="h-8 w-auto" aria-label="From date" />
-              <span className="text-muted-foreground text-sm">–</span>
-              <Input type="date" name="to" defaultValue={to} className="h-8 w-auto" aria-label="To date" />
-              <Button type="submit" size="sm" variant="outline">Apply</Button>
-            </form>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-1">
+            {(Object.keys(PRESET_LABELS) as PresetKind[]).map((kind) => (
+              <Button
+                key={kind}
+                asChild
+                size="sm"
+                variant={activePreset === kind ? 'default' : 'outline'}
+              >
+                <Link href={`${basePath}?from=${presets[kind].from}&to=${presets[kind].to}`}>
+                  {PRESET_LABELS[kind]}
+                </Link>
+              </Button>
+            ))}
           </div>
-        )}
+          {/* key remounts the uncontrolled date inputs when the range changes
+              via a preset link (soft navigation keeps DOM state otherwise) */}
+          <form method="get" className="flex items-center gap-2" key={`${from}:${to}`}>
+            <Input type="date" name="from" defaultValue={from} className="h-8 w-auto" aria-label="From date" />
+            <span className="text-muted-foreground text-sm">–</span>
+            <Input type="date" name="to" defaultValue={to} className="h-8 w-auto" aria-label="To date" />
+            <Button type="submit" size="sm" variant="outline">Apply</Button>
+          </form>
+        </div>
       </div>
 
       {/* Printable document */}
@@ -195,16 +176,12 @@ export default async function StatementPage({
                 <span className="text-muted-foreground">Date: </span>
                 <span className="font-semibold text-foreground">{formatDate(today)}</span>
               </div>
-              {view === 'activity' ? (
-                <div>
-                  <span className="text-muted-foreground">Period: </span>
-                  <span className="font-semibold text-foreground">
-                    {formatDate(from)} – {formatDate(to)}
-                  </span>
-                </div>
-              ) : (
-                <div>Outstanding items as at {formatDate(today)}</div>
-              )}
+              <div>
+                <span className="text-muted-foreground">Period: </span>
+                <span className="font-semibold text-foreground">
+                  {formatDate(from)} – {formatDate(to)}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -226,8 +203,10 @@ export default async function StatementPage({
           )}
         </div>
 
-        {view === 'activity' ? (
-          /* ── Activity ledger ──────────────────────────────────────────── */
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Invoice and payment records
+        </div>
+        {/* ── Activity ledger ──────────────────────────────────────────── */}
           <div className="-mx-4 mb-8 overflow-x-auto px-4 print:mx-0 print:overflow-visible print:px-0">
             <table className="mb-0 w-full min-w-[46rem] text-sm print:min-w-0">
               <thead>
@@ -308,9 +287,11 @@ export default async function StatementPage({
               </tfoot>
             </table>
           </div>
-        ) : (
-          /* ── Open-item table ──────────────────────────────────────────── */
-          <>
+
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Outstanding invoice records
+        </div>
+        {/* ── Open-item table ──────────────────────────────────────────── */}
             {stmt.lines.length > 0 ? (
               <div className="-mx-4 mb-6 overflow-x-auto px-4 print:mx-0 print:overflow-visible print:px-0">
                 <table className="mb-0 w-full min-w-[44rem] text-sm print:min-w-0">
@@ -354,8 +335,9 @@ export default async function StatementPage({
                 zero-balance or credit-balance statement is complete. */}
             <OpenStatementTotals stmt={stmt} />
 
-            {/* ── Account credits ledger (open view only — the activity ledger
-                   already lists credits as dated lines) ───────────────────── */}
+            {/* ── Account credits ledger — the period ledger above only lists
+                   credits inside the selected period. This one shows all credits
+                   included in the as-at-today account balance. ───────────── */}
             {stmt.credits.length > 0 && (
               <div className="mb-8">
                 <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
@@ -385,8 +367,6 @@ export default async function StatementPage({
                 </div>
               </div>
             )}
-          </>
-        )}
 
         {/* ── A/R Aging — always as-of-today, regardless of the period ────── */}
         {stmt.aging.total > 0 && (
