@@ -21,6 +21,30 @@ export type DashboardData = {
 
 const OUTSTANDING_STATUSES = ['sent', 'partial', 'overdue']
 
+type DashboardPaymentRow = {
+  amount: number
+  payment_date: string
+  invoices:
+    | { invoice_date: string; voided_at: string | null; deleted_at: string | null }
+    | { invoice_date: string; voided_at: string | null; deleted_at: string | null }[]
+    | null
+}
+
+const one = <T,>(rel: T | T[] | null | undefined): T | null =>
+  Array.isArray(rel) ? (rel[0] ?? null) : (rel ?? null)
+
+export function normalizeDashboardPayments(rows: DashboardPaymentRow[]): DashboardPayment[] {
+  return rows.flatMap((row) => {
+    const inv = one(row.invoices)
+    if (inv?.voided_at != null || inv?.deleted_at != null) return []
+    return [{
+      amount: Number(row.amount),
+      payment_date: row.payment_date,
+      invoice_date: inv?.invoice_date ?? null,
+    }]
+  })
+}
+
 /** The same-length window immediately before [from, to]. */
 function priorRange(from: string, to: string): { from: string; to: string } {
   const span = differenceInCalendarDays(new Date(to), new Date(from)) // inclusive length - 1
@@ -48,7 +72,7 @@ export async function getDashboardData(from: string, to: string): Promise<Dashbo
     // The joined invoice's issue date feeds avg-days-to-collect.
     supabase
       .from('payments')
-      .select('amount, payment_date, invoices(invoice_date)')
+      .select('amount, payment_date, invoices(invoice_date, voided_at, deleted_at)')
       .gte('payment_date', from)
       .lte('payment_date', to),
     supabase
@@ -80,18 +104,7 @@ export async function getDashboardData(from: string, to: string): Promise<Dashbo
   ])
 
   // supabase-js may return a to-one relation as an object or a 1-element array.
-  const one = <T,>(rel: T | T[] | null | undefined): T | null =>
-    Array.isArray(rel) ? (rel[0] ?? null) : (rel ?? null)
-
-  const payments: DashboardPayment[] = ((paymentsRes.data ?? []) as unknown as Array<{
-    amount: number
-    payment_date: string
-    invoices: { invoice_date: string } | { invoice_date: string }[] | null
-  }>).map((row) => ({
-    amount: Number(row.amount),
-    payment_date: row.payment_date,
-    invoice_date: one(row.invoices)?.invoice_date ?? null,
-  }))
+  const payments = normalizeDashboardPayments((paymentsRes.data ?? []) as unknown as DashboardPaymentRow[])
 
   const workItems: DashboardWorkItem[] = ((workRes.data ?? []) as unknown as Array<{
     work_status: string

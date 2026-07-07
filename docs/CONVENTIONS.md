@@ -77,15 +77,14 @@ after "Name" tested as confusing on the New Invoice screen.
   `paid + outstanding + draft === total` always holds (decided 2026-07-02).
 - **Payment status transitions** are decided by the `record_payment` RPC atomically:
   `sent/partial → paid` when paid ≥ total, else `partial`.
-- **"Paid" requires recorded payments that cover the total.** A DB trigger
-  (`enforce_paid_requires_payment`, migration 20260704214428) rejects any write that *sets*
-  status to `paid` while `sum(payments) < total`. It is transition-only, so it never
-  re-validates an already-paid invoice, and the normal flows pass because `record_payment` /
-  `mark_invoice_paid` insert the covering payment before flipping status. Pre-existing
-  inconsistencies (and any other status/amount mismatches) are surfaced, not auto-fixed, by the
-  **Data Health** tab in the Super Admin Console (`invoiceIntegrityIssue()` in
-  `lib/invoice-integrity.ts`). Decided 2026-07-05 after INV-2026-0016 was found marked Paid with
-  zero payments (a pre-guard direct edit).
+- **"Paid" requires recorded payments that exactly equal the total.** DB triggers
+  (`enforce_paid_requires_payment`, migration 20260704214428; strengthened by
+  20260706090502) reject paid invoices whose `sum(payments) !== total`, including
+  later payment edits/deletes or paid-invoice total edits that would break the
+  match. The normal flow passes because `record_payment` / `mark_invoice_paid`
+  insert the balancing payment before flipping status. Any status/amount mismatch
+  is surfaced by the **Data Health** tab in the Super Admin Console
+  (`invoiceIntegrityIssue()` in `lib/invoice-integrity.ts`).
 - **Voiding is a soft-delete:** set `voided_at / voided_by / void_reason`; never hard-delete
   an invoice. Voided invoices are locked for everyone, show a VOID watermark, and drop out
   of the Work queue and Reports. Voiding is terminal and cannot be restored in the app.
@@ -94,6 +93,11 @@ after "Name" tested as confusing on the New Invoice screen.
 - **The server re-validates invoice money on every write:** `invoiceMoneyError()`
   (`src/domain/money.ts`) rejects a payload whose subtotal ≠ total or whose line amounts
   don't sum to the total, so a buggy/malicious client can't store inconsistent money.
+- **Reporting date presets use the lab calendar:** Dashboard, Reports, and clinic
+  statement presets resolve "This Month", "Last Month", "This Quarter", and
+  "Year to Date" in `Asia/Kuala_Lumpur`, not in the server/browser timezone.
+  Date-only values (`yyyy-MM-dd`) display as that literal calendar day, so report
+  output cannot slip a day near UTC midnight.
 
 ---
 

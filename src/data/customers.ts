@@ -9,7 +9,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import type { Customer, Invoice } from '@/lib/database.types'
-import type { StatementInvoiceRow, StatementPaymentRow, StatementCreditRow } from '@/lib/statement'
+import type { StatementInvoiceRow, ActivityPaymentRow, StatementCreditRow } from '@/lib/statement'
 
 // The bundle the detail page needs: the customer plus its invoice history.
 export type CustomerDetail = {
@@ -121,12 +121,14 @@ export async function getCustomerDetail(id: string): Promise<CustomerDetail | nu
 }
 
 // Statement bundle — fetches the clinic row, its non-voided invoices (fields
-// needed by buildStatement), and all payment rows for those invoices. Returns
+// needed by buildStatement), and all payment rows for those invoices. The
+// payment rows carry date + reference so the same bundle feeds both the
+// open-item and the activity (period-ledger) statement builders. Returns
 // `null` when the clinic row is missing.
 export type ClinicStatementBundle = {
   clinic: Customer
   invoices: StatementInvoiceRow[]
-  payments: StatementPaymentRow[]
+  payments: ActivityPaymentRow[]
   credits: StatementCreditRow[]
 }
 
@@ -156,14 +158,14 @@ export async function getClinicStatement(id: string): Promise<ClinicStatementBun
   const credits = (crRes.data ?? []) as StatementCreditRow[]
 
   // Fetch payments for these invoices (empty result set if no invoices)
-  let payments: StatementPaymentRow[] = []
+  let payments: ActivityPaymentRow[] = []
   if (invoices.length > 0) {
     const invoiceIds = invoices.map((i) => i.id)
     const { data: pData } = await supabase
       .from('payments')
-      .select('invoice_id, amount')
+      .select('invoice_id, amount, payment_date, reference_number')
       .in('invoice_id', invoiceIds)
-    payments = (pData ?? []) as StatementPaymentRow[]
+    payments = (pData ?? []) as ActivityPaymentRow[]
   }
 
   return {

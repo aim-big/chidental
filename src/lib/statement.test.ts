@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { buildStatement } from './statement'
-import type { StatementInvoiceRow, StatementPaymentRow, StatementCreditRow } from './statement'
+import { buildStatement, buildActivityStatement } from './statement'
+import type {
+  StatementInvoiceRow,
+  StatementPaymentRow,
+  StatementCreditRow,
+  ActivityPaymentRow,
+} from './statement'
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -79,6 +84,32 @@ describe('buildStatement', () => {
     expect(stmt.lines).toHaveLength(0)
     expect(stmt.totalBilled).toBe(100)
     expect(stmt.balance).toBeCloseTo(0.004)
+  })
+
+  it('excludes future-dated invoices, payments, and credits from the as-at-today statement', () => {
+    const invoices = [
+      makeInv({ id: 'current', invoice_date: '2026-06-01', due_date: '2026-06-15', total: 300 }),
+      makeInv({ id: 'future', invoice_date: '2026-06-24', due_date: '2026-07-24', total: 900 }),
+    ]
+    const payments: ActivityPaymentRow[] = [
+      { invoice_id: 'current', amount: 100, payment_date: '2026-06-20' },
+      { invoice_id: 'current', amount: 50, payment_date: '2026-06-24' },
+      { invoice_id: 'future', amount: 900, payment_date: '2026-06-24' },
+    ]
+    const credits = [
+      { credit_date: '2026-06-22', amount: 25, reason: 'goodwill', invoice_id: null },
+      { credit_date: '2026-06-24', amount: 75, reason: 'remake', invoice_id: 'current' },
+    ]
+
+    const stmt = buildStatement(invoices, payments, credits, TODAY)
+
+    expect(stmt.lines.map((line) => line.number)).toEqual(['INV-current'])
+    expect(stmt.totalBilled).toBe(300)
+    expect(stmt.totalPaid).toBe(100)
+    expect(stmt.totalCredits).toBe(25)
+    expect(stmt.balance).toBe(175)
+    expect(stmt.aging.total).toBe(200)
+    expect(stmt.credits.map((credit) => credit.amount)).toEqual([25])
   })
 
   it('sorts open lines by invoice_date ascending', () => {
@@ -245,5 +276,177 @@ describe('buildStatement — credits', () => {
     expect(stmt.credits).toHaveLength(0)
     expect(stmt.totalCredits).toBe(0)
     expect(stmt.balance).toBe(100)
+  })
+})
+
+// ── Activity statement (period ledger) ────────────────────────────────────────
+
+describe('buildActivityStatement', () => {
+  function makeActPay(
+    invoice_id: string,
+    amount: number,
+    payment_date: string,
+    reference_number: string | null = null,
+  ): ActivityPaymentRow {
+    return { invoice_id, amount, payment_date, reference_number }
+  }
+
+  function makeCredit(overrides: Partial<StatementCreditRow> = {}): StatementCreditRow {
+    return { credit_date: '2026-06-01', amount: 50, reason: 'goodwill', invoice_id: null, ...overrides }
+  }
+
+  const FROM = '2026-06-01'
+  const TO = '2026-06-30'
+
+  it('returns an empty statement for no data', () => {
+    const stmt = buildActivityStatement([], [], [], FROM, TO)
+    expect(stmt.openingBalance).toBe(0)
+    expect(stmt.lines).toHaveLength(0)
+    expect(stmt.totalInvoiced).toBe(0)
+    expect(stmt.totalPayments).toBe(0)
+    expect(stmt.totalCredits).toBe(0)
+    expect(stmt.closingBalance).toBe(0)
+  })
+
+  it('folds pre-period invoices, payments, and credits into the opening balance', () => {
+    const invoices = [
+      makeInv({ id: 'old', invoice_date: '2026-05-10', total: 1000 }),
+      makeInv({ id: 'cur', invoice_date: '2026-06-15', total: 300 }),
+    ]
+    const payments = [makeActPay('old', 400, '2026-05-20')]
+    const credits = [makeCredit({ credit_date: '2026-05-25', amount: 100 })]
+    const stmt = buildActivityStatement(invoices, payments, credits, FROM, TO)
+    // opening = 1000 − 400 − 100
+    expect(stmt.openingBalance).toBe(500)
+    // only the June invoice is a ledger line
+    expect(stmt.lines).toHaveLength(1)
+    expect(stmt.lines[0].number).toBe('INV-cur')
+    expect(stmt.closingBalance).toBe(800)
+  })
+
+  it('builds a chronological ledger with a correct running balance', () => {
+    const invoices = [
+      makeInv({ id: 'a', invoice_number: 'INV-A', invoice_date: '2026-06-05', total: 1200, patient: 'Ali' }),
+      makeInv({ id: 'b', invoice_number: 'INV-B', invoice_date: '2026-06-20', total: 800 }),
+    ]
+    const payments = [makeActPay('a', 1200, '2026-06-10', 'BANKREF1')]
+    const credits = [makeCredit({ credit_date: '2026-06-25', amount: 150, reason: 'remake', invoice_id: 'b' })]
+    const stmt = buildActivityStatement(invoices, payments, credits, FROM, TO)
+
+    expect(stmt.openingBalance).toBe(0)
+    expect(stmt.lines.map((l) => l.kind)).toEqual(['invoice', 'payment', 'invoice', 'credit'])
+    expect(stmt.lines.map((l) => l.balance)).toEqual([1200, 0, 800, 650])
+
+    const [invA, payA, , credB] = stmt.lines
+    expect(invA.debit).toBe(1200)
+    expect(invA.credit).toBe(0)
+    expect(invA.patient).toBe('Ali')
+    expect(payA.credit).toBe(1200)
+    expect(payA.number).toBe('INV-A') // payment carries the invoice it settles
+    expect(payA.reference).toBe('BANKREF1')
+    expect(credB.credit).toBe(150)
+    expect(credB.number).toBe('INV-B') // linked credit carries its invoice number
+    expect(credB.reason).toBe('remake')
+
+    expect(stmt.totalInvoiced).toBe(2000)
+    expect(stmt.totalPayments).toBe(1200)
+    expect(stmt.totalCredits).toBe(150)
+    expect(stmt.closingBalance).toBe(650)
+    // ledger identity: closing = opening + invoiced − payments − credits
+    expect(stmt.closingBalance).toBe(
+      stmt.openingBalance + stmt.totalInvoiced - stmt.totalPayments - stmt.totalCredits,
+    )
+  })
+
+  it('orders same-day activity as invoice → payment → credit', () => {
+    const d = '2026-06-15'
+    const invoices = [makeInv({ id: 'a', invoice_date: d, total: 500 })]
+    const payments = [makeActPay('a', 500, d)]
+    const credits = [makeCredit({ credit_date: d, amount: 20 })]
+    const stmt = buildActivityStatement(invoices, payments, credits, FROM, TO)
+    expect(stmt.lines.map((l) => l.kind)).toEqual(['invoice', 'payment', 'credit'])
+    expect(stmt.lines.map((l) => l.balance)).toEqual([500, 0, -20])
+  })
+
+  it('excludes voided and draft invoices AND their payments everywhere', () => {
+    const invoices = [
+      makeInv({ id: 'v', invoice_date: '2026-05-01', total: 900, voided_at: '2026-05-02' }),
+      makeInv({ id: 'd', invoice_date: '2026-06-10', total: 700, status: 'draft' }),
+      makeInv({ id: 'ok', invoice_date: '2026-06-12', total: 100 }),
+    ]
+    const payments = [
+      makeActPay('v', 900, '2026-05-03'), // payment on voided invoice — ignored
+      makeActPay('d', 200, '2026-06-11'), // payment on draft — ignored
+    ]
+    const stmt = buildActivityStatement(invoices, payments, [], FROM, TO)
+    expect(stmt.openingBalance).toBe(0)
+    expect(stmt.lines).toHaveLength(1)
+    expect(stmt.lines[0].number).toBe('INV-ok')
+    expect(stmt.closingBalance).toBe(100)
+  })
+
+  it('includes lines dated exactly on the from/to boundaries, excludes after to', () => {
+    const invoices = [
+      makeInv({ id: 'onFrom', invoice_date: FROM, total: 10 }),
+      makeInv({ id: 'onTo', invoice_date: TO, total: 20 }),
+      makeInv({ id: 'after', invoice_date: '2026-07-01', total: 40 }),
+      makeInv({ id: 'before', invoice_date: '2026-05-31', total: 80 }),
+    ]
+    const stmt = buildActivityStatement(invoices, [], [], FROM, TO)
+    expect(stmt.lines.map((l) => l.number)).toEqual(['INV-onFrom', 'INV-onTo'])
+    expect(stmt.openingBalance).toBe(80) // 'before' folds into opening
+    expect(stmt.closingBalance).toBe(110) // 80 + 10 + 20; 'after' fully excluded
+    expect(stmt.totalInvoiced).toBe(30)
+  })
+
+  it('clinic-level credit line carries a null invoice number', () => {
+    const stmt = buildActivityStatement(
+      [makeInv({ id: 'a', invoice_date: '2026-06-02', total: 100 })],
+      [],
+      [makeCredit({ credit_date: '2026-06-03', amount: 30, invoice_id: null })],
+      FROM,
+      TO,
+    )
+    const cred = stmt.lines.find((l) => l.kind === 'credit')
+    expect(cred?.number).toBeNull()
+    expect(stmt.closingBalance).toBe(70)
+  })
+
+  it('sums multiple partial payments against one invoice as separate ledger lines', () => {
+    const invoices = [makeInv({ id: 'a', invoice_date: '2026-06-01', total: 300 })]
+    const payments = [
+      makeActPay('a', 100, '2026-06-10', 'R1'),
+      makeActPay('a', 50, '2026-06-20', 'R2'),
+    ]
+    const stmt = buildActivityStatement(invoices, payments, [], FROM, TO)
+    expect(stmt.lines.filter((l) => l.kind === 'payment')).toHaveLength(2)
+    expect(stmt.totalPayments).toBe(150)
+    expect(stmt.closingBalance).toBe(150)
+    expect(stmt.lines.map((l) => l.balance)).toEqual([300, 200, 150])
+  })
+
+  it('full-history closing balance equals the open-item statement balance', () => {
+    // The two builders must agree on the account balance — this is the
+    // "numbers are correct" cross-check.
+    const invoices = [
+      makeInv({ id: 'a', invoice_date: '2026-01-05', total: 300 }),
+      makeInv({ id: 'b', invoice_date: '2026-03-10', total: 200 }),
+      makeInv({ id: 'v', invoice_date: '2026-02-01', total: 100, voided_at: '2026-02-02' }),
+      makeInv({ id: 'd', invoice_date: '2026-04-01', total: 500, status: 'draft' }),
+    ]
+    const payments = [
+      makeActPay('a', 100, '2026-02-15'),
+      makeActPay('b', 50, '2026-04-20'),
+      makeActPay('v', 100, '2026-02-03'), // voided invoice — both builders must ignore
+    ]
+    const credits = [
+      makeCredit({ credit_date: '2026-05-01', amount: 40 }),
+      makeCredit({ credit_date: '2026-05-02', amount: 25, invoice_id: 'a' }),
+    ]
+    const open = buildStatement(invoices, payments, credits, TODAY)
+    const activity = buildActivityStatement(invoices, payments, credits, '2000-01-01', TODAY)
+    expect(activity.openingBalance).toBe(0)
+    expect(activity.closingBalance).toBe(open.balance) // 500 − 150 − 65 = 285
+    expect(activity.closingBalance).toBe(285)
   })
 })

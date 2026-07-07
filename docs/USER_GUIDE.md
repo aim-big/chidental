@@ -196,7 +196,7 @@ activate-toggle list:
 
 Both pages share the same segmented date-range control (This Month, Last Month, This
 Quarter, Year to Date, or **Custom** From/To inputs; the range lives in the URL, e.g.
-`?from=…&to=…`).
+`?from=…&to=…`). Presets use the lab's Malaysia calendar.
 
 - **Dashboard** (all users):
   - **KPI cards:** Sales (growth vs the prior same-length period **and vs the same
@@ -210,18 +210,19 @@ Quarter, Year to Date, or **Custom** From/To inputs; the range lives in the URL,
   - **Growth strip:** new clinics · returning clinics · avg invoice value · **avg time
     to payment** (days from invoice date to payment date).
 - **Reports** (`reports.view`):
-  - **Cards:** Total Invoiced (all non-voided sales, paid or not) · Collected (value of
-    paid invoices) · Outstanding · Cash Received (actual payments in the period).
-  - **Tabs:** Outstanding (**A/R aging strip** — Not due yet / 1–30 / 31–60 / 61–90 /
+  - **Cards:** Total Invoiced (all non-voided sales, paid or not) · Cash Received
+    (actual payments in the period) · Outstanding.
+  - **Tabs:** All invoices (every invoice issued in the range, with a totals row) ·
+    Cash Received (payment rows received in the range, with a totals row) ·
+    Outstanding (**A/R aging strip** — Not due yet / 1–30 / 31–60 / 61–90 /
     90+ days — above the invoice list, plus a totals row; the **Balance Due** column
-    nets out partial payments) · Paid (with totals row) · Payments (cash received
-    list) · By Clinic (total sales split into Paid / Outstanding / Draft — a
+    nets out partial payments) · By Clinic (total sales split into Paid / Outstanding / Draft — a
     partially-paid invoice splits between Paid and Outstanding — plus an
     **Avg Days to Pay** column from the period's payments, with chart) ·
     By Product (with chart).
   - **Print:** one print-friendly document covering the whole range (summary, A/R
-    aging, outstanding, by clinic, by product, paid, payments) via the browser's
-    print dialog — use "Save as PDF" to hand it to the accountant.
+    aging, all invoices, outstanding, by clinic, by product, payments) via the
+    browser's print dialog — use "Save as PDF" to hand it to the accountant.
   - **Export ▾** (CSV): **Sales Summary** (per-clinic totals split by payment status),
     **Sales Report** (each invoice issued), **Payment Report** (each payment received),
     **Item Sales Report** (per-product totals with % share).

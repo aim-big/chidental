@@ -1,2 +1,5 @@
 [mcp_servers.big-pos-supabase]
 url = "https://mcp.supabase.com/mcp?project_ref=xjwkmlmkwpbxjziyngmb"
+
+[mcp_servers.chidental-supabase]
+url = "https://mcp.supabase.com/mcp?project_ref=xjwkmlmkwpbxjziyngmb"

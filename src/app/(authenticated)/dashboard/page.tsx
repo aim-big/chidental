@@ -3,10 +3,9 @@
 // query + aggregation run on the server; changing the range re-navigates. The
 // interactive UI (date inputs, KPI cards, charts) is a single client island.
 
-import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { getDashboardData } from '@/data/dashboard'
 import { summarizeDashboard } from '@/lib/dashboard'
-import { buildPresets } from '@/lib/reports-presets'
+import { buildPresets, resolveDateRange } from '@/lib/reports-presets'
 import { requirePermission } from '@/lib/auth/require-permission'
 import { todayISODate } from '@/lib/utils'
 import { DashboardClient } from '@/components/dashboard/DashboardClient'
@@ -18,8 +17,7 @@ export default async function DashboardPage({
 }) {
   const sp = await searchParams
   const now = new Date()
-  const from = sp.from ?? format(startOfMonth(now), 'yyyy-MM-dd')
-  const to = sp.to ?? format(endOfMonth(now), 'yyyy-MM-dd')
+  const { from, to } = resolveDateRange(sp, now)
 
   const { invoices, payments, priorInvoices, lastYearInvoices, outstandingInvoices, workItems, customerCount } = await getDashboardData(from, to)
   const summary = summarizeDashboard({

@@ -34,21 +34,23 @@ describe('buildSalesReportCsv', () => {
     expect(csv).toContain('Sales Report')
     expect(csv).toContain('Range,2026-06-01 to 2026-06-30')
     expect(csv).toContain('Generated,2026-06-30')
-    expect(csv).toContain('Date,Invoice #,Clinic,Subtotal,Tax,Total,Status')
-    expect(csv).toContain('2026-06-08,INV-2026-0015,Dr Ray & Partners Dental Clinic,1800.00,0.00,1800.00,Issued')
-    expect(csv).toContain('Total,,,1800.00,0.00,1800.00,')
+    expect(csv).toContain('Date,Invoice #,Clinic,Subtotal,Total,Status')
+    expect(csv).toContain('2026-06-08,INV-2026-0015,Dr Ray & Partners Dental Clinic,1800.00,1800.00,Issued')
+    expect(csv).toContain('Total,,,1800.00,1800.00,')
+    expect(csv).not.toContain('Tax')
     expect(csv).not.toContain('RM')
   })
 
-  it('computes Tax as total minus subtotal', () => {
+  it('does not expose a tax column under the no-tax money model', () => {
     const csv = buildSalesReportCsv([sale({ subtotal: 1000, total: 1060 })], range, GEN)
-    expect(csv).toContain(',1000.00,60.00,1060.00,Issued')
+    expect(csv).toContain(',1000.00,1060.00,Issued')
+    expect(csv).not.toContain(',60.00,')
   })
 
   it('uses CRLF and handles empty input', () => {
     const csv = buildSalesReportCsv([], range, GEN)
     expect(csv).toContain('\r\n')
-    expect(csv).toContain('Total,,,0.00,0.00,0.00,')
+    expect(csv).toContain('Total,,,0.00,0.00,')
   })
 })
 

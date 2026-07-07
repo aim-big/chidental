@@ -30,7 +30,7 @@ export function ReportPrintDocument({
   cashReceived: number
   speedByClinic: Record<string, ClinicPaymentSpeed>
 }) {
-  const { totalInvoiced, totalOutstanding, invoiceCount, outstanding, agingBuckets, byProduct, salesSummary } = summary
+  const { totalInvoiced, totalOutstanding, invoiceCount, outstanding, agingBuckets, byProduct, salesSummary, sales } = summary
 
   return (
     <div id="invoice-print" className="hidden bg-white text-black print:block">
@@ -52,12 +52,45 @@ export function ReportPrintDocument({
           <tbody>
             <tr>
               <SummaryCell label={`Total Invoiced (${invoiceCount} invoices · by invoice date)`} value={formatCurrency(totalInvoiced)} />
-              <SummaryCell label={`Collected (${payments.length} payments · by payment date)`} value={formatCurrency(cashReceived)} />
+              <SummaryCell label={`Cash Received (${payments.length} payments · by payment date)`} value={formatCurrency(cashReceived)} />
               <SummaryCell label={`Outstanding (${outstanding.length} unpaid · by invoice date)`} value={formatCurrency(totalOutstanding)} />
             </tr>
           </tbody>
         </table>
       </section>
+
+      {/* All invoices issued in the range */}
+      {sales.length > 0 && (
+        <section className="mb-4 break-inside-avoid">
+          <h3 className="mb-1 text-sm font-semibold">All Invoices</h3>
+          <table className="w-full">
+            <thead>
+              <tr>
+                <th className={th}>Invoice #</th>
+                <th className={th}>Clinic</th>
+                <th className={th}>Date</th>
+                <th className={th}>Status</th>
+                <th className={thRight}>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sales.map(inv => (
+                <tr key={inv.id}>
+                  <td className={td}>{inv.invoice_number}</td>
+                  <td className={td}>{inv.customers?.clinic_name}</td>
+                  <td className={td}>{formatDate(inv.invoice_date)}</td>
+                  <td className={td}>{paymentStatusLabel(inv.status)}</td>
+                  <td className={tdRight}>{formatCurrency(inv.total)}</td>
+                </tr>
+              ))}
+              <tr>
+                <td className={totalRow} colSpan={4}>Total</td>
+                <td className={totalRight}>{formatCurrency(totalInvoiced)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      )}
 
       {/* A/R aging */}
       {outstanding.length > 0 && (

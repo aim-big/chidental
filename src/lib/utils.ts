@@ -2,6 +2,8 @@ import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import { formatDistance } from 'date-fns'
 
+export const LAB_TIME_ZONE = 'Asia/Kuala_Lumpur'
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
@@ -28,24 +30,43 @@ export function formatCompactCurrency(amount: number): string {
   return `RM${amount}`
 }
 
+function parseDisplayDate(date: string | Date): Date {
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const [year, month, day] = date.split('-').map(Number)
+    return new Date(year, month - 1, day)
+  }
+  return new Date(date)
+}
+
 export function formatDate(date: string | Date): string {
   return new Intl.DateTimeFormat('en-MY', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
-  }).format(new Date(date))
+  }).format(parseDisplayDate(date))
 }
 
 /**
- * Today's date as a local `yyyy-MM-dd` string. Unlike
- * `new Date().toISOString().split('T')[0]` this uses the local calendar day,
- * so it doesn't roll to "yesterday/tomorrow" near midnight in UTC+8 (MYT).
+ * A date as a `yyyy-MM-dd` string in the lab's Malaysia calendar.
  */
-export function todayISODate(): string {
-  const d = new Date()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${d.getFullYear()}-${month}-${day}`
+export function isoDateInTimeZone(date: Date = new Date(), timeZone = LAB_TIME_ZONE): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+  const value = (type: 'year' | 'month' | 'day') => parts.find((part) => part.type === type)?.value ?? ''
+  return `${value('year')}-${value('month')}-${value('day')}`
+}
+
+/**
+ * Today's date as a lab-local `yyyy-MM-dd` string. Unlike
+ * `new Date().toISOString().split('T')[0]` this uses the Malaysia calendar day,
+ * so it doesn't roll to yesterday/tomorrow near UTC midnight or on UTC hosts.
+ */
+export function todayISODate(date: Date = new Date()): string {
+  return isoDateInTimeZone(date)
 }
 
 // Relative timestamp for activity feeds, e.g. "5 minutes ago". `now` is injectable
@@ -65,6 +86,6 @@ export function formatDateTime(date: string | Date): string {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true,
-    timeZone: 'Asia/Kuala_Lumpur',
+    timeZone: LAB_TIME_ZONE,
   }).format(new Date(date))
 }

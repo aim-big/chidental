@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import type { ReportInvoice, ReportPayment } from './reports'
-import { summarizeReports, aggregateByCustomer, aggregateByProduct, aggregateSalesSummary, avgDaysToPayByClinic } from './reports'
+import {
+  summarizeReports,
+  aggregateByCustomer,
+  aggregateByProduct,
+  aggregateSalesSummary,
+  avgDaysToPayByClinic,
+  buildReportChecks,
+  hasReportExportData,
+} from './reports'
 
 // Minimal invoice factory — only the fields the summary reads.
 const ri = (over: Partial<ReportInvoice> = {}): ReportInvoice => ({
@@ -52,6 +60,15 @@ describe('summarizeReports', () => {
     )
     expect(r.outstanding[0].daysOverdue).toBe(30) // 2026-05-21 → 2026-06-20
     expect(r.outstanding[1].daysOverdue).toBe(10)
+  })
+
+  it('ages invoices by the Malaysia calendar day, not UTC elapsed hours', () => {
+    const malaysiaEarlyMorning = new Date('2026-06-19T16:30:00Z').getTime() // 2026-06-20 00:30 MYT
+
+    const r = summarizeReports([ri({ due_date: '2026-06-10' })], malaysiaEarlyMorning)
+
+    expect(r.outstanding[0].daysOverdue).toBe(10)
+    expect(r.agingBuckets.d1_30).toBe(100)
   })
 
   it('buckets outstanding value by age, summing to totalOutstanding', () => {
@@ -239,5 +256,85 @@ describe('summarizeReports salesSummary', () => {
       ri({ total: 100, status: 'sent', customers: { clinic_name: 'A' } }),
     ], NOW)
     expect(r.salesSummary[0]).toMatchObject({ name: 'A', total: 300, paid: 200, outstanding: 100, draft: 0 })
+  })
+})
+
+describe('hasReportExportData', () => {
+  it('allows exports when the range only has payments', () => {
+    expect(hasReportExportData({ invoiceCount: 0, paymentCount: 1 })).toBe(true)
+  })
+
+  it('disables exports only when the range has no invoices or payments', () => {
+    expect(hasReportExportData({ invoiceCount: 0, paymentCount: 0 })).toBe(false)
+  })
+})
+
+describe('buildReportChecks', () => {
+  const payment = (over: Partial<ReportPayment> = {}): ReportPayment => ({
+    amount: 100,
+    payment_date: '2026-06-20',
+    reference_number: null,
+    invoice_id: 'i1',
+    invoice_number: 'INV-1',
+    invoice_date: '2026-06-01',
+    clinic_name: 'A',
+    ...over,
+  })
+
+  it('returns passing reconciliation checks for a consistent report', () => {
+    const summary = summarizeReports([
+      ri({
+        id: 'paid',
+        status: 'paid',
+        total: 100,
+        amount_paid: 100,
+        invoice_items: [{ description: 'Crown', amount: 100, quantity: 1 }],
+      }),
+      ri({
+        id: 'sent',
+        status: 'sent',
+        total: 50,
+        amount_paid: 0,
+        invoice_items: [{ description: 'Denture', amount: 50, quantity: 1 }],
+      }),
+    ], NOW)
+
+    const checks = buildReportChecks(summary, [payment({ amount: 100 })])
+
+    expect(checks.every((check) => check.ok)).toBe(true)
+    expect(checks.map((check) => check.key)).toEqual([
+      'sales_partition',
+      'aging_total',
+      'product_total',
+      'cash_received',
+      'paid_coverage',
+    ])
+  })
+
+  it('flags a paid invoice whose recorded amount does not cover the total', () => {
+    const summary = summarizeReports([
+      ri({ status: 'paid', total: 160, amount_paid: 0 }),
+    ], NOW)
+
+    const paidCoverage = buildReportChecks(summary, []).find((check) => check.key === 'paid_coverage')
+
+    expect(paidCoverage).toMatchObject({
+      ok: false,
+      label: 'Paid invoices have matching payments',
+      detail: '1 paid invoice does not have recorded payments matching its total.',
+    })
+  })
+
+  it('flags item totals that do not reconcile to total invoiced', () => {
+    const summary = summarizeReports([
+      ri({ total: 100, invoice_items: [{ description: 'Crown', amount: 90, quantity: 1 }] }),
+    ], NOW)
+
+    const productTotal = buildReportChecks(summary, []).find((check) => check.key === 'product_total')
+
+    expect(productTotal).toMatchObject({
+      ok: false,
+      label: 'Product totals equal Total Invoiced',
+    })
   })
 })

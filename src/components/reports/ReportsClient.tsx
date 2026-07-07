@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Download, ChevronDown, Printer, Info } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Download, ChevronDown, Printer, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tooltip as InfoTooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -14,7 +14,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { cn, formatCurrency, formatCompactCurrency, formatDate, todayISODate } from '@/lib/utils'
 import { statusBadgeVariant, paymentStatusLabel } from '@/lib/status-badge'
 import type { ReportSummary } from '@/lib/reports'
-import { avgDaysToPayByClinic } from '@/lib/reports'
+import { avgDaysToPayByClinic, buildReportChecks, hasReportExportData, type ReportCheck } from '@/lib/reports'
 import {
   buildSalesReportCsv,
   buildPaymentReportCsv,
@@ -89,10 +89,11 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
   // Every invoice issued in the period, newest first (the flat list behind the
   // Total Invoiced card). `sales` is stored oldest-first for the CSV export.
   const invoicesNewestFirst = [...sales].reverse()
-  // The "Collected" card: real cash received in the range (sum of payment rows),
+  // The "Cash Received" card: real cash received in the range (sum of payment rows),
   // a pure cash-basis number filtered by payment date — as opposed to Total
   // Invoiced / Outstanding, which are filtered by invoice date.
   const cashReceived = payments.reduce((s, p) => s + Number(p.amount), 0)
+  const reportChecks = buildReportChecks(summary, payments)
 
   // Each summary card selects the tab that itemizes it, so the number can be
   // verified against its receipts in one click — just switch, no scrolling.
@@ -135,7 +136,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" disabled={invoiceCount === 0} className="w-full sm:w-auto">
+                <Button variant="outline" disabled={!hasReportExportData({ invoiceCount, paymentCount: payments.length })} className="w-full sm:w-auto">
                   <Download className="h-4 w-4 mr-2" />
                   Export
                   <ChevronDown className="h-4 w-4 ml-2" />
@@ -163,8 +164,8 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
         speedByClinic={speedByClinic}
       />
 
-      {/* Summary cards — a single money number (Collected = real cash received),
-          so "invoiced vs collected" can't be mistaken for the same figure. Each
+      {/* Summary cards — a single money number (Cash Received = real cash received),
+          so "invoiced vs paid value" can't be mistaken for the same figure. Each
           card is clickable to reveal the invoices/payments behind it; the date
           basis lives in the drill-down tab, not as top-level clutter. */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -173,14 +174,16 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
           value={formatCurrency(totalInvoiced)}
           sub={`${invoiceCount} invoices`}
           tooltip="Value of all invoices issued this period."
+          drillDownTitle="Click to see all invoices behind this number"
           onClick={() => setTab('invoices')}
         />
         <SummaryCard
-          title="Collected"
+          title="Cash Received"
           value={formatCurrency(cashReceived)}
           valueClass="text-green-600"
           sub={`${payments.length} payments`}
           tooltip="Cash received this period, including payments for older invoices."
+          drillDownTitle="Click to see payments behind this number"
           onClick={() => setTab('payments')}
         />
         <SummaryCard
@@ -189,14 +192,17 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
           valueClass="text-yellow-600"
           sub={`${outstanding.length} unpaid`}
           tooltip="Unpaid balance still owed on this period's invoices."
+          drillDownTitle="Click to see outstanding invoices behind this number"
           onClick={() => setTab('outstanding')}
         />
       </div>
 
+      <ReportChecks checks={reportChecks} />
+
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
           <TabsTrigger value="invoices">All ({invoiceCount})</TabsTrigger>
-          <TabsTrigger value="payments">Collected ({payments.length})</TabsTrigger>
+          <TabsTrigger value="payments">Cash Received ({payments.length})</TabsTrigger>
           <TabsTrigger value="outstanding">Outstanding ({outstanding.length})</TabsTrigger>
           <TabsTrigger value="customers">By Clinic</TabsTrigger>
           <TabsTrigger value="products">By Product</TabsTrigger>
@@ -317,7 +323,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Payments Received</CardTitle>
-              <CardDescription>Cash actually received in this period · by payment date. Sums to Collected.</CardDescription>
+              <CardDescription>Cash actually received in this period · by payment date. Sums to Cash Received.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <Table className="min-w-[42rem]">
@@ -474,15 +480,53 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
   )
 }
 
+function ReportChecks({ checks }: { checks: ReportCheck[] }) {
+  const issueCount = checks.filter((check) => !check.ok).length
+
+  return (
+    <Card>
+      <CardContent className="p-4 sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Report Checks</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Reconciliation checks for the selected range before using the numbers.
+            </p>
+          </div>
+          <Badge variant={issueCount === 0 ? 'secondary' : 'destructive'}>
+            {issueCount === 0 ? 'All clear' : `${issueCount} warning${issueCount === 1 ? '' : 's'}`}
+          </Badge>
+        </div>
+        <div className="mt-4 grid gap-2 md:grid-cols-2">
+          {checks.map((check) => (
+            <div key={check.key} className="flex min-w-0 gap-2 rounded-md border border-border bg-background p-3">
+              {check.ok ? (
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
+              ) : (
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-600" />
+              )}
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">{check.label}</p>
+                <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{check.detail}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 // A clickable summary card that reveals the invoices/payments behind its number.
 // Rendered as a button so it's keyboard-reachable and announced as actionable.
 // The corner info icon carries a "what does this mean" tooltip.
-function SummaryCard({ title, value, sub, valueClass, tooltip, onClick }: {
+function SummaryCard({ title, value, sub, valueClass, tooltip, drillDownTitle, onClick }: {
   title: string
   value: string
   sub: string
   valueClass?: string
   tooltip: string
+  drillDownTitle: string
   onClick: () => void
 }) {
   return (
@@ -496,7 +540,8 @@ function SummaryCard({ title, value, sub, valueClass, tooltip, onClick }: {
           onClick()
         }
       }}
-      title="Click to see the invoices behind this number"
+      title={drillDownTitle}
+      aria-label={`${title}: ${value}. ${drillDownTitle}`}
       className="relative cursor-pointer transition-colors hover:border-primary/60 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
     >
       {/* "What does this mean" tooltip, top-right. stopPropagation so interacting

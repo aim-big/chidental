@@ -1,5 +1,12 @@
-import { describe, it, expect } from 'vitest'
-import { formatRelativeTime, formatDateTime, formatCompactCurrency } from './utils'
+import { afterEach, describe, it, expect } from 'vitest'
+import { formatRelativeTime, formatDate, formatDateTime, formatCompactCurrency, todayISODate } from './utils'
+
+const ORIGINAL_TZ = process.env.TZ
+
+afterEach(() => {
+  if (ORIGINAL_TZ === undefined) delete process.env.TZ
+  else process.env.TZ = ORIGINAL_TZ
+})
 
 describe('formatCompactCurrency (chart axes)', () => {
   it('leaves small amounts whole', () => expect(formatCompactCurrency(950)).toBe('RM950'))
@@ -7,6 +14,22 @@ describe('formatCompactCurrency (chart axes)', () => {
   it('shortens millions with one decimal', () => expect(formatCompactCurrency(1_250_000)).toBe('RM1.3M'))
   it('drops a trailing .0 on millions', () => expect(formatCompactCurrency(2_000_000)).toBe('RM2M'))
   it('handles zero', () => expect(formatCompactCurrency(0)).toBe('RM0'))
+})
+
+describe('formatDate', () => {
+  it('keeps date-only strings on their calendar day outside Malaysia time', () => {
+    process.env.TZ = 'America/New_York'
+
+    expect(formatDate('2026-06-01')).toBe('01 Jun 2026')
+  })
+})
+
+describe('todayISODate', () => {
+  it('uses the Malaysia calendar day even when the runtime timezone is UTC', () => {
+    process.env.TZ = 'UTC'
+
+    expect((todayISODate as (now: Date) => string)(new Date('2026-06-30T17:00:00Z'))).toBe('2026-07-01')
+  })
 })
 
 describe('formatRelativeTime', () => {

@@ -42,18 +42,17 @@ export function salesSummaryReportFilename(range: Range): string {
   return `sales-summary_${range.from}_${range.to}.csv`
 }
 
-// 1. Sales Report — invoices issued in the period (Tax = total − subtotal).
+// 1. Sales Report — invoices issued in the period. The product has no tax or
+// discount breakdown, so the export mirrors the invoice document: Subtotal → Total.
 export function buildSalesReportCsv(sales: ReportInvoice[], range: Range, generatedOn: string): string {
   const lines = titleBlock('Sales Report', range, generatedOn)
-  lines.push(row(['Date', 'Invoice #', 'Clinic', 'Subtotal', 'Tax', 'Total', 'Status']))
+  lines.push(row(['Date', 'Invoice #', 'Clinic', 'Subtotal', 'Total', 'Status']))
   let sub = 0
-  let tax = 0
   let tot = 0
   for (const inv of sales) {
     const s = Number(inv.subtotal)
     const t = Number(inv.total)
     sub += s
-    tax += t - s
     tot += t
     lines.push(
       row([
@@ -61,13 +60,12 @@ export function buildSalesReportCsv(sales: ReportInvoice[], range: Range, genera
         inv.invoice_number,
         inv.customers?.clinic_name ?? '',
         money(s),
-        money(t - s),
         money(t),
         paymentStatusLabel(inv.status),
       ]),
     )
   }
-  lines.push(row(['Total', '', '', money(sub), money(tax), money(tot), '']))
+  lines.push(row(['Total', '', '', money(sub), money(tot), '']))
   return lines.join('\r\n')
 }
 

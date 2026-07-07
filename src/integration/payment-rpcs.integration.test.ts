@@ -77,26 +77,27 @@ describe('record_payment', () => {
     expect(await paymentsFor(invoiceId)).toHaveLength(2)
   })
 
-  it('an overpayment still settles to "paid"', async () => {
+  it('rejects an overpayment instead of creating a paid/payment mismatch', async () => {
     const { actor, invoiceId } = await arrangeInvoice(100)
 
-    const res = await asServiceRole<{ record_payment: string }>(
-      'select record_payment($1, $2, $3) as record_payment', [invoiceId, 150, actor],
-    )
+    await expect(
+      asServiceRole('select record_payment($1, $2, $3)', [invoiceId, 150, actor]),
+    ).rejects.toThrow(/must have recorded payments exactly equal to the total/)
 
-    expect(res.rows[0].record_payment).toBe('paid')
-    expect(await statusOf(invoiceId)).toBe('paid')
+    expect(await statusOf(invoiceId)).toBe('sent')
+    expect(await paymentsFor(invoiceId)).toHaveLength(0)
   })
 
-  it('never downgrades an already-paid invoice', async () => {
-    const { actor, invoiceId } = await arrangeInvoice(100, 'paid')
+  it('rejects extra payments on an already-paid invoice', async () => {
+    const { actor, invoiceId } = await arrangeInvoice(100)
+    await asServiceRole('select record_payment($1, $2, $3)', [invoiceId, 100, actor])
 
-    const res = await asServiceRole<{ record_payment: string }>(
-      'select record_payment($1, $2, $3) as record_payment', [invoiceId, 10, actor],
-    )
+    await expect(
+      asServiceRole('select record_payment($1, $2, $3)', [invoiceId, 10, actor]),
+    ).rejects.toThrow(/must have recorded payments exactly equal to the total/)
 
-    expect(res.rows[0].record_payment).toBe('paid')
     expect(await statusOf(invoiceId)).toBe('paid')
+    expect(await paymentsFor(invoiceId)).toHaveLength(1)
   })
 
   it('rejects a non-positive amount', async () => {
@@ -157,5 +158,44 @@ describe('mark_invoice_paid', () => {
 
     expect(await paymentsFor(invoiceId)).toHaveLength(1) // only the original full payment
     expect(await statusOf(invoiceId)).toBe('paid')
+  })
+})
+
+describe('paid invoice reconciliation guard', () => {
+  it('rejects deleting the payment that makes a paid invoice reconcile', async () => {
+    const { actor, invoiceId } = await arrangeInvoice(100)
+    await asServiceRole('select record_payment($1, $2, $3)', [invoiceId, 100, actor])
+    const payment = (await sql<{ id: string }>('select id from payments where invoice_id = $1', [invoiceId])).rows[0]
+
+    await expect(
+      asServiceRole('delete from payments where id = $1', [payment.id]),
+    ).rejects.toThrow(/must have recorded payments exactly equal to the total/)
+
+    expect(await paymentsFor(invoiceId)).toHaveLength(1)
+  })
+
+  it('rejects reducing the payment amount on a paid invoice', async () => {
+    const { actor, invoiceId } = await arrangeInvoice(100)
+    await asServiceRole('select record_payment($1, $2, $3)', [invoiceId, 100, actor])
+    const payment = (await sql<{ id: string }>('select id from payments where invoice_id = $1', [invoiceId])).rows[0]
+
+    await expect(
+      asServiceRole('update payments set amount = 90 where id = $1', [payment.id]),
+    ).rejects.toThrow(/must have recorded payments exactly equal to the total/)
+
+    const amounts = (await paymentsFor(invoiceId)).map((row) => Number(row.amount))
+    expect(amounts).toEqual([100])
+  })
+
+  it('rejects changing a paid invoice total away from its payment sum', async () => {
+    const { actor, invoiceId } = await arrangeInvoice(100)
+    await asServiceRole('select record_payment($1, $2, $3)', [invoiceId, 100, actor])
+
+    await expect(
+      asServiceRole('update invoices set total = 120, subtotal = 120 where id = $1', [invoiceId]),
+    ).rejects.toThrow(/must have recorded payments exactly equal to the total/)
+
+    const total = (await sql<{ total: string }>('select total from invoices where id = $1', [invoiceId])).rows[0].total
+    expect(Number(total)).toBe(100)
   })
 })

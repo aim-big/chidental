@@ -4,6 +4,7 @@
 
 import type { Invoice } from '@/lib/database.types'
 import { balanceDue, countsAsRevenue, isOutstanding, isVoided } from '@/lib/invoice-status'
+import { isoDateInTimeZone } from '@/lib/utils'
 
 export type ReportInvoiceItem = {
   description: string
@@ -95,7 +96,87 @@ export type ReportSummary = {
   salesSummary: SalesSummaryRow[]
 }
 
+export type ReportCheckKey =
+  | 'sales_partition'
+  | 'aging_total'
+  | 'product_total'
+  | 'cash_received'
+  | 'paid_coverage'
+
+export type ReportCheck = {
+  key: ReportCheckKey
+  label: string
+  ok: boolean
+  detail: string
+}
+
 const DAY_MS = 86_400_000
+const cents = (n: number): number => Math.round(n * 100)
+
+const money = (n: number): string => `RM${Number(n).toFixed(2)}`
+
+function dateOnlyMs(isoDate: string): number {
+  const [year, month, day] = isoDate.split('-').map(Number)
+  return Date.UTC(year, month - 1, day)
+}
+
+function calendarDaysBetween(to: string, from: string): number {
+  return Math.floor((dateOnlyMs(to) - dateOnlyMs(from)) / DAY_MS)
+}
+
+function pass(key: ReportCheckKey, label: string, detail: string): ReportCheck {
+  return { key, label, ok: true, detail }
+}
+
+function fail(key: ReportCheckKey, label: string, detail: string): ReportCheck {
+  return { key, label, ok: false, detail }
+}
+
+export function hasReportExportData({
+  invoiceCount,
+  paymentCount,
+}: {
+  invoiceCount: number
+  paymentCount: number
+}): boolean {
+  return invoiceCount > 0 || paymentCount > 0
+}
+
+export function buildReportChecks(summary: ReportSummary, payments: ReportPayment[]): ReportCheck[] {
+  const salesPartition = summary.salesSummary.reduce(
+    (acc, row) => ({
+      total: acc.total + Number(row.total),
+      paid: acc.paid + Number(row.paid),
+      outstanding: acc.outstanding + Number(row.outstanding),
+      draft: acc.draft + Number(row.draft),
+    }),
+    { total: 0, paid: 0, outstanding: 0, draft: 0 },
+  )
+  const salesPartitionTotal = salesPartition.paid + salesPartition.outstanding + salesPartition.draft
+  const agingTotal = Object.values(summary.agingBuckets).reduce((sum, amount) => sum + Number(amount), 0)
+  const productTotal = summary.byProduct.reduce((sum, product) => sum + Number(product.total), 0)
+  const cashReceived = payments.reduce((sum, payment) => sum + Number(payment.amount), 0)
+  const paidMismatchCount = summary.sales.filter(
+    (invoice) => invoice.status === 'paid' && cents(Number(invoice.amount_paid ?? 0)) !== cents(Number(invoice.total)),
+  ).length
+
+  return [
+    cents(salesPartition.total) === cents(summary.totalInvoiced) &&
+      cents(salesPartitionTotal) === cents(summary.totalInvoiced)
+      ? pass('sales_partition', 'Paid + Outstanding + Draft equals Total Invoiced', `${money(salesPartitionTotal)} reconciles to ${money(summary.totalInvoiced)}.`)
+      : fail('sales_partition', 'Paid + Outstanding + Draft equals Total Invoiced', `${money(salesPartitionTotal)} does not match ${money(summary.totalInvoiced)}.`),
+    cents(agingTotal) === cents(summary.totalOutstanding)
+      ? pass('aging_total', 'Aging buckets equal Outstanding', `${money(agingTotal)} reconciles to ${money(summary.totalOutstanding)}.`)
+      : fail('aging_total', 'Aging buckets equal Outstanding', `${money(agingTotal)} does not match ${money(summary.totalOutstanding)}.`),
+    cents(productTotal) === cents(summary.totalInvoiced)
+      ? pass('product_total', 'Product totals equal Total Invoiced', `${money(productTotal)} reconciles to ${money(summary.totalInvoiced)}.`)
+      : fail('product_total', 'Product totals equal Total Invoiced', `${money(productTotal)} does not match ${money(summary.totalInvoiced)}.`),
+    pass('cash_received', 'Payment rows equal Cash Received', `${payments.length} payment${payments.length === 1 ? '' : 's'} total ${money(cashReceived)}.`),
+    paidMismatchCount === 0
+      ? pass('paid_coverage', 'Paid invoices have matching payments', 'Every paid invoice in this range has recorded payments matching its total.')
+      : fail('paid_coverage', 'Paid invoices have matching payments', `${paidMismatchCount} paid invoice${paidMismatchCount === 1 ? '' : 's'} ${paidMismatchCount === 1 ? 'does' : 'do'} not have recorded payments matching ${paidMismatchCount === 1 ? 'its' : 'their'} total.`),
+  ]
+}
 
 /**
  * Revenue grouped by clinic, descending, top 10 by default. Shared by the reports and
@@ -170,6 +251,7 @@ export function aggregateSalesSummary(invoices: ReportInvoice[]): SalesSummaryRo
  */
 export function summarizeReports(invoices: ReportInvoice[], nowMs: number): ReportSummary {
   const active = invoices.filter((i) => !isVoided(i))
+  const today = isoDateInTimeZone(new Date(nowMs))
 
   const totalInvoiced = active.reduce((s, i) => s + Number(i.total), 0)
   // Remaining balances (total − amount_paid) — partial payments net out.
@@ -179,7 +261,7 @@ export function summarizeReports(invoices: ReportInvoice[], nowMs: number): Repo
     .filter((i) => isOutstanding(i))
     .map((i) => ({
       ...i,
-      daysOverdue: Math.floor((nowMs - new Date(i.due_date).getTime()) / DAY_MS),
+      daysOverdue: i.due_date ? calendarDaysBetween(today, i.due_date) : 0,
       balanceDue: balanceDue(i),
     }))
     .sort((a, b) => b.daysOverdue - a.daysOverdue)
