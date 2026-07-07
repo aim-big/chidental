@@ -12,9 +12,9 @@ import { Separator } from '@/components/ui/separator'
 import { cn, formatCurrency, formatDate, todayISODate } from '@/lib/utils'
 import { summarizeCustomerInvoices, arAging } from '@/lib/invoice-status'
 import { creditReasonLabel } from '@/lib/credit'
-import { whatsAppLink } from '@/lib/phone'
-import { Phone, Mail, MapPin, Truck } from 'lucide-react'
+import { MapPin, Truck } from 'lucide-react'
 import { CustomerDetailHeader } from '@/components/customers/CustomerDetailHeader'
+import { CustomerContactChannels } from '@/components/customers/CustomerContactChannels'
 import { CustomerInvoiceHistory } from '@/components/customers/CustomerInvoiceHistory'
 import { IssueCreditDialog } from '@/components/customers/IssueCreditDialog'
 
@@ -35,6 +35,8 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   // and unchanged (credits never get allocated into 0–30/31–60/… buckets).
   const totalCredits = credits.reduce((s, c) => s + Number(c.amount), 0)
   const accountBalance = totalOutstanding - totalCredits
+  const hasContactChannels = Boolean(customer.phone || customer.email)
+  const hasAddresses = Boolean(customer.billing_address || customer.delivery_address)
 
   // The "against invoice" picker offers the clinic's invoices, newest-first
   // (getCustomerDetail already returns them in that order).
@@ -48,26 +50,10 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         <Card className="lg:col-span-2">
           <CardHeader><CardTitle className="text-sm text-muted-foreground">Contact Details</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            {customer.phone && (
-              <div className="flex items-center gap-2 text-sm">
-                <Phone className="h-4 w-4 text-muted-foreground" />
-                <a
-                  href={whatsAppLink(customer.phone) ?? undefined}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  {customer.phone}
-                </a>
-              </div>
+            {hasContactChannels && (
+              <CustomerContactChannels phone={customer.phone} email={customer.email} />
             )}
-            {customer.email && (
-              <div className="flex items-center gap-2 text-sm">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <a href={`mailto:${customer.email}`} className="text-primary hover:underline">{customer.email}</a>
-              </div>
-            )}
-            {(customer.billing_address || customer.delivery_address) && (
+            {hasContactChannels && hasAddresses && (
               <Separator />
             )}
             {customer.billing_address && (
