@@ -43,7 +43,7 @@ export function WorkStageChips({
           const current = stage.id === stageId
           const pill = cn(
             'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium leading-4',
-            current ? (stage.color ?? STAGE_DEFAULT_COLOR) : 'bg-gray-100 text-gray-500',
+            current ? (stage.color ?? STAGE_DEFAULT_COLOR) : 'bg-muted text-muted-foreground',
           )
           if (!interactive) {
             return (
@@ -69,7 +69,7 @@ export function WorkStageChips({
                 pill,
                 current
                   ? 'cursor-default'
-                  : 'cursor-pointer hover:bg-gray-200 hover:text-gray-700 transition-colors',
+                  : 'cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors',
               )}
             >
               {stage.label}
@@ -77,7 +77,7 @@ export function WorkStageChips({
           )
         })}
       </div>
-      <p className="mt-0.5 text-[11px] text-gray-500">{workStatusLabel('in_progress', statusConfigs)}</p>
+      <p className="mt-0.5 text-[11px] text-muted-foreground">{workStatusLabel('in_progress', statusConfigs)}</p>
     </div>
   )
 }

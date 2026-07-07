@@ -51,11 +51,11 @@ const resumeLeadingItem = (resumeStatus: WorkStatus | null, statusConfigs: WorkS
 // "color = stage" rule as the per-status chips.
 const META_CHIP_OUTLINED: Record<'active' | 'all', string> = {
   active: 'bg-white border border-primary text-primary',
-  all:    'bg-white border border-slate-400 text-slate-700',
+  all:    'bg-card border border-border text-muted-foreground',
 }
 const META_CHIP_FILLED: Record<'active' | 'all', string> = {
   active: 'bg-primary text-primary-foreground border border-primary',
-  all:    'bg-slate-700 text-white border border-slate-700',
+  all:    'bg-foreground text-background border border-foreground',
 }
 
 const MOVE_HINT_MS = 4000
@@ -321,7 +321,7 @@ export function WorkQueueClient({
                   onClick={() => setFilter(isSelected ? 'in_progress' : key)}
                   className={cn(
                     'inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium transition-colors',
-                    s.color ?? 'bg-gray-100 text-gray-700',
+                    s.color ?? 'bg-muted text-muted-foreground',
                     isSelected ? 'ring-1 ring-inset ring-current' : 'opacity-75 hover:opacity-100',
                   )}
                 >

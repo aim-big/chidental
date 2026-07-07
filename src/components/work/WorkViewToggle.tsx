@@ -47,7 +47,7 @@ export function WorkViewToggle({
         </div>
 
         {/* List | Board toggle */}
-        <div className="grid w-full grid-cols-2 overflow-hidden rounded-lg border border-border text-sm sm:flex sm:w-auto sm:items-center">
+        <div className="grid w-full grid-cols-2 gap-1 rounded-lg border border-border bg-muted p-1 text-sm sm:flex sm:w-auto sm:items-center">
           <ToggleButton
             active={view === 'list'}
             onClick={() => pickView('list')}
@@ -86,10 +86,10 @@ function ToggleButton({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        'px-3 py-1.5 font-medium transition-colors',
+        'rounded-md px-3 py-1.5 font-medium transition-colors',
         active
-          ? 'bg-primary text-primary-foreground'
-          : 'bg-background text-muted-foreground hover:bg-muted',
+          ? 'bg-card text-foreground shadow-sm'
+          : 'text-muted-foreground hover:text-foreground',
       )}
     >
       {label}

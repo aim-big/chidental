@@ -101,24 +101,26 @@ export function InvoiceListClient({
       </div>
 
       <div className="space-y-3">
-        <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
-          {VIEWS.map(v => {
-            const active = v.key === viewKey
-            return (
-              <button
-                key={v.key}
-                type="button"
-                onClick={() => setView(v.key)}
-                className={cn(
-                  'shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
-                  active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted',
-                )}
-              >
-                {v.label}
-                <span className={cn('ml-1.5 text-xs', active ? 'text-primary-foreground/70' : 'text-muted-foreground/60')}>{counts[v.key]}</span>
-              </button>
-            )
-          })}
+        <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+          <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted p-1">
+            {VIEWS.map(v => {
+              const active = v.key === viewKey
+              return (
+                <button
+                  key={v.key}
+                  type="button"
+                  onClick={() => setView(v.key)}
+                  className={cn(
+                    'shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                    active ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {v.label}
+                  <span className={cn('ml-1.5 text-xs tabular-nums', active ? 'text-muted-foreground' : 'text-muted-foreground/60')}>{counts[v.key]}</span>
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         <div className="relative w-full sm:max-w-sm">
