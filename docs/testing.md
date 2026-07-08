@@ -10,8 +10,9 @@ npm test
 
 Covers the pure domain/lib helpers (`src/domain/**`, `src/lib/**`): money math,
 billing/invoice-status derivation, work-stage rules, the permission catalogue,
-schema validation, report aggregation. Fast, no services required. This is the
-gate that runs in CI.
+schema validation, report aggregation, and a middleware login-redirect tripwire
+(`src/lib/supabase/middleware.test.ts`, `@supabase/ssr` mocked). Fast, no services
+required. This is the gate that runs in CI (`.github/workflows/ci.yml`).
 
 Integration tests are intentionally **excluded** from this run (see
 `vitest.config.ts`), so `npm test` never needs a database.
@@ -74,6 +75,20 @@ public`, and the `ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin` blocks
 postgres` defaults already grant the same. No effect on the already-applied
 production schema.
 
+## End-to-end tests — Playwright (`npm run test:e2e`)
+
+```bash
+supabase start && supabase db reset   # seeded stack (supabase/seed.sql)
+npx playwright install chromium       # one-time, local browser binary
+npm run test:e2e
+```
+
+Real-browser smokes in `e2e/`, run against the app on :6060 pointed at the seeded
+local stack. `e2e/login.smoke.spec.ts` covers the login tripwire end-to-end:
+unauthenticated navigation is gated to `/login`, and the seed user
+(**User ID `seedowner` / PIN `123456`**) can log in and reach the app. Not part of
+the CI gate — it needs Docker + the seeded stack + the Chromium binary.
+
 ## What's still untested (roadmap)
 
 The integration suite above is **Tier 1** (highest blast-radius: money +
@@ -83,6 +98,6 @@ security). Still open:
   mutations' three paths each — happy, permission-denied (clean `ActionResult`,
   asserted via `result.ok === false`), and invalid-input rejection.
 - **Tier 3 — interactive components & E2E**: the role editor's
-  permission-dependency logic and last-superadmin guard, the invoice form, the
-  work queue, and a Playwright smoke of login → invoice → payment → work-status
-  → void.
+  permission-dependency logic and last-superadmin guard, the invoice form, and the
+  work queue. The Playwright **login** smoke now exists (`e2e/login.smoke.spec.ts`);
+  still open is extending it through invoice → payment → work-status → void.

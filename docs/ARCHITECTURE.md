@@ -247,3 +247,27 @@ Detailed references for the four core subsystems. These are the canonical homes 
 | Work status | [`docs/modules/work-status.md`](./modules/work-status.md) | `WorkStatus` enum, `LINEAR_FLOW`, stage subdivision, `encodeWork`/`decodeWork`, `on_hold` round-trip, aggregation |
 | Data model | [`docs/modules/data-model.md`](./modules/data-model.md) | All 11 tables with columns + FKs, `work_status` enum, DB functions/triggers, RLS summary |
 | Permissions | [`docs/modules/permissions.md`](./modules/permissions.md) | The 12 permission keys, `is_system` Super Admin semantics, `permissionGranted`, server-side enforcement seam |
+
+---
+
+## Deployment & environment matrix
+
+The app runs on Vercel (web) against Supabase (Auth + Postgres). Three runtime
+env vars, per environment:
+
+| Var | Scope | Local (`.env.local`) | Vercel Preview | Vercel Production |
+|---|---|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | client + server | local stack (`http://127.0.0.1:54321`) | **staging** project URL | prod project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | client + server | local anon key | staging anon key | prod anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | server only (secret) | local service-role key | staging service-role key | prod service-role key |
+
+Integration tests additionally read optional `SUPABASE_DB_URL` (defaults to the
+local DB `postgresql://postgres:postgres@127.0.0.1:54322/postgres`).
+
+**Rule: Vercel Preview MUST point at the staging Supabase project, never prod
+(ref `xjwkmlmkwpbxjziyngmb`).** Preview deployments run untrusted PR code and must
+not touch production data. Provisioning steps: [`docs/runbooks/staging-provisioning.md`](./runbooks/staging-provisioning.md).
+
+**CI gate:** `.github/workflows/ci.yml` runs `npm test` + `npm run build` on every
+PR (dummy Supabase env at build time — real secrets are only needed at runtime).
+Integration/E2E suites are not in the gate (they need Docker + a seeded stack).
