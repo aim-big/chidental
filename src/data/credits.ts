@@ -22,7 +22,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth/require-permission'
 import { logInvoiceActivity } from '@/lib/audit/audit-log'
-import { creditInputSchema, type CreditInput } from '@/domain/schemas'
+import { creditInputSchema, idSchema, type CreditInput } from '@/domain/schemas'
 import type { Credit } from '@/lib/database.types'
 
 export type { Credit } from '@/lib/database.types'
@@ -32,6 +32,7 @@ export type ActionResult = { ok: true } | { ok: false; error: string }
 // All credits for a clinic, oldest-first (ledger order). RLS allows any
 // authenticated user to read, so the session client is sufficient here.
 export async function getCreditsForCustomer(customerId: string): Promise<Credit[]> {
+  if (!idSchema.safeParse(customerId).success) return []
   const supabase = await createClient()
   const { data } = await supabase
     .from('credits')
@@ -49,6 +50,8 @@ export async function createCreditAction(
 ): Promise<ActionResult> {
   const gate = await requirePermission('invoices.manage')
   if (gate.ok === false) return gate
+
+  if (!idSchema.safeParse(customerId).success) return { ok: false, error: 'Invalid clinic id' }
 
   // Authoritative re-validation: never trust the client's shape.
   const parsed = creditInputSchema.safeParse(input)
