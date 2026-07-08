@@ -64,6 +64,17 @@ import { invoiceSnapshotFromSettings } from '@/lib/billing-settings'
 import { logInvoiceActivity } from '@/lib/audit/audit-log'
 import { diffFields } from '@/lib/audit/diff'
 import { INVOICE_FIELD_LABELS, RECIPIENT_FIELD_LABELS } from '@/lib/audit/action-labels'
+import {
+  createInvoiceInputSchema,
+  updateInvoiceInputSchema,
+  recordPaymentInputSchema,
+  idSchema,
+  caseDetailsSchema,
+  serviceStatusInputSchema,
+  recipientFieldsSchema,
+  workStatusInputSchema,
+  workNoteInputSchema,
+} from '@/domain/schemas'
 
 export type ActionResult = { ok: true } | { ok: false; error: string }
 export type CreateResult = { ok: true; id: string } | { ok: false; error: string }
@@ -110,6 +121,11 @@ function revalidateInvoice(id: string) {
   revalidatePath(`/invoices/${id}`)
 }
 
+// Parse-or-fail for this file's local ActionResult shape.
+function invalid(message: string | undefined): { ok: false; error: string } {
+  return { ok: false, error: message ?? 'Invalid input' }
+}
+
 // Best-effort lookup of an invoice's number for the activity row's entity_label.
 async function invoiceLabel(admin: ReturnType<typeof createAdminClient>, id: string): Promise<string | null> {
   const { data } = await admin.from('invoices').select('invoice_number').eq('id', id).single()
@@ -139,6 +155,9 @@ export async function createInvoiceAction(payload: {
 }): Promise<CreateResult> {
   const gate = await requirePermission('invoices.create')
   if (gate.ok === false) return gate
+
+  const parsed = createInvoiceInputSchema.safeParse(payload)
+  if (!parsed.success) return invalid(parsed.error.issues[0]?.message)
 
   // Server-side money cross-check: refuse a payload whose subtotal/total/line
   // amounts disagree (the DB would happily store the inconsistency).
@@ -176,6 +195,10 @@ export async function updateInvoiceAction(
 ): Promise<ActionResult> {
   const gate = await gateForContentEdit(id)
   if (!gate.ok) return gate
+
+  if (!idSchema.safeParse(id).success) return invalid('Invalid invoice id')
+  const parsed = updateInvoiceInputSchema.safeParse(payload)
+  if (!parsed.success) return invalid(parsed.error.issues[0]?.message)
 
   const moneyErr = invoiceMoneyError(payload.p_invoice, payload.p_items)
   if (moneyErr) return { ok: false, error: moneyErr }
@@ -220,6 +243,10 @@ export async function recordPaymentAction(
   const gate = await requirePermission('invoices.manage')
   if (!gate.ok) return gate
 
+  if (!idSchema.safeParse(id).success) return invalid('Invalid invoice id')
+  const parsed = recordPaymentInputSchema.safeParse(input)
+  if (!parsed.success) return invalid(parsed.error.issues[0]?.message)
+
   const admin = createAdminClient()
   const { error } = await admin.rpc('record_payment', {
     p_invoice_id: id,
@@ -245,6 +272,8 @@ export async function markSentAction(id: string): Promise<ActionResult> {
   const gate = await gateForContentEdit(id)
   if (!gate.ok) return gate
 
+  if (!idSchema.safeParse(id).success) return invalid('Invalid invoice id')
+
   const admin = createAdminClient()
   const { error } = await admin
     .from('invoices')
@@ -268,6 +297,9 @@ export async function updateWorkStatusAction(
 ): Promise<ActionResult> {
   const gate = await requirePermission('invoices.view')
   if (!gate.ok) return gate
+
+  if (!idSchema.safeParse(itemId).success) return invalid('Invalid item id')
+  if (!workStatusInputSchema.safeParse(input).success) return invalid('Invalid work status')
 
   // Use the SSR (session) client, NOT the admin client: RLS's authenticated_all
   // policy permits this write, and keeping the user's auth context lets the
@@ -321,6 +353,9 @@ export async function updateWorkNoteAction(
   const gate = await requirePermission('invoices.view')
   if (!gate.ok) return gate
 
+  if (!idSchema.safeParse(itemId).success) return invalid('Invalid item id')
+  if (!workNoteInputSchema.safeParse({ workNote }).success) return invalid('Invalid note')
+
   const supabase = await createClient()
 
   // Normalize empty/whitespace-only input back to NULL so "cleared" reads as unset.
@@ -350,6 +385,9 @@ export async function updateCaseDetailsAction(
   const gate = await gateForContentEdit(id)
   if (!gate.ok) return gate
 
+  if (!idSchema.safeParse(id).success) return invalid('Invalid invoice id')
+  if (!caseDetailsSchema.safeParse(input).success) return invalid('Invalid case details')
+
   const admin = createAdminClient()
   const { data: before } = await admin.from('invoices').select('patient, doctor, invoice_number').eq('id', id).single()
   const { error } = await admin
@@ -371,6 +409,9 @@ export async function updateCaseDetailsAction(
 export async function updateServiceStatusAction(id: string, serviceStatusId: string | null): Promise<ActionResult> {
   const gate = await gateForContentEdit(id)
   if (!gate.ok) return gate
+
+  if (!idSchema.safeParse(id).success) return invalid('Invalid invoice id')
+  if (!serviceStatusInputSchema.safeParse({ serviceStatusId }).success) return invalid('Invalid service status')
 
   const admin = createAdminClient()
   const { data: before } = await admin.from('invoices').select('service_status_id, invoice_number').eq('id', id).single()
@@ -409,6 +450,10 @@ export async function saveRecipientAction(
 ): Promise<ActionResult> {
   const gate = await gateForContentEdit(id)
   if (!gate.ok) return gate
+
+  if (!idSchema.safeParse(id).success) return invalid('Invalid invoice id')
+  if (!recipientFieldsSchema.safeParse(fields).success) return invalid('Invalid recipient fields')
+  if (opts?.customerId && !idSchema.safeParse(opts.customerId).success) return invalid('Invalid customer id')
 
   const admin = createAdminClient()
   const recipientCols = 'bill_to_name, bill_to_contact, bill_to_phone, billing_address, ship_to_name, ship_to_contact, delivery_address, invoice_number'
