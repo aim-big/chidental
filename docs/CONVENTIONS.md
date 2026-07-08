@@ -144,6 +144,10 @@ permission changes apply immediately with no re-login. Client `hasPermission()` 
 2. **Server Actions for every write.** Each action starts with `requirePermission(...)` and
    returns a discriminated `ActionResult` (`{ ok: true } | { ok: false; error }`).
    - Under `strict: false`, narrow with `result.ok === false`, **not** `!result.ok`.
+   - **Validate the full input at the boundary.** After the permission gate and before
+     the first DB call, `safeParse` every user-supplied argument (payload **and** id/scalar
+     params) through a schema in `src/domain/schemas.ts`; return the issue message on failure.
+     These schemas are the future NestJS DTOs — keep them accurate to the action's input.
 3. **Friendly errors, logged internals.** Catch errors in the action, log the real one with
    `logServerError('scope', err, ctx)` (server-side only), and return a short user-facing
    message. Never leak a raw/digested server error to the user.
@@ -165,7 +169,23 @@ permission changes apply immediately with no re-login. Client `hasPermission()` 
 
 ---
 
-## 7. How to record a new decision
+## 7. CI, environments & deploy safety
+
+- **CI gate.** `.github/workflows/ci.yml` runs `npm test` + `npm run build` on every PR
+  and push to `main`. tsc/lint are **not** gates. The build gets dummy Supabase env
+  (real secrets are only needed at runtime, never to compile).
+- **Two test tiers beyond unit.** Integration (`npm run test:integration`, needs Docker +
+  `supabase start`) and E2E (`npm run test:e2e`, needs the seeded stack + Chromium). Neither
+  runs in the CI gate; see [testing.md](./testing.md).
+- **Preview never touches prod.** Vercel Preview points at a **staging** Supabase project;
+  only Vercel Production is wired to prod (`ref xjwkmlmkwpbxjziyngmb`). Provisioning:
+  [runbooks/staging-provisioning.md](./runbooks/staging-provisioning.md).
+- **Local/staging seed.** `supabase/seed.sql` provisions a login user (`seedowner` / PIN
+  `123456`) + sample data on `supabase db reset`. Never run it against production.
+
+---
+
+## 8. How to record a new decision
 
 When you change terminology, a money rule, a permission boundary, or a UI convention:
 
