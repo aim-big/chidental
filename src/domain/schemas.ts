@@ -25,7 +25,7 @@ export const invoiceInputSchema = z.object({
 export const paymentInputSchema = z.object({
   amount: z.number().positive(),
   payment_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  reference_number: z.string().optional(),
+  reference: z.string().optional(), // matches the live recordPaymentAction input field
   notes: z.string().optional(),
 })
 // Wave 6 — account credit / adjustment. A credit is a non-payment reduction of a
@@ -64,6 +64,92 @@ export const productInputSchema = z
     message: 'min must be <= max',
     path: ['max_unit_price'],
   })
+
+// ── Phase 0: id / primitive guards (defense-in-depth on id + scalar params) ──
+export const idSchema = z.string().uuid()
+export const nullableIdSchema = z.string().uuid().nullable()
+
+// ── Invoice server-action payloads (accurate to invoice-actions.ts inputs) ──
+// These mirror InvoicePayload / InvoiceItemPayload in src/data/invoice-actions.ts
+// and become the Nest DTOs in Phase 3. Keep the field lists in sync.
+export const invoicePayloadSchema = z.object({
+  customer_id: z.string().uuid(),
+  invoice_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  notes: z.string().nullable(),
+  patient: z.string().nullable(),
+  doctor: z.string().nullable(),
+  service_status_id: z.string().uuid().nullable(),
+  bill_to_name: z.string().nullable(),
+  bill_to_contact: z.string().nullable(),
+  bill_to_phone: z.string().nullable(),
+  billing_address: z.string().nullable(),
+  ship_to_name: z.string().nullable(),
+  ship_to_contact: z.string().nullable(),
+  delivery_address: z.string().nullable(),
+  subtotal: z.number().min(0),
+  total: z.number().min(0),
+})
+export const invoiceItemPayloadSchema = z.object({
+  id: z.string().uuid().nullable().optional(),
+  product_id: z.string().uuid().nullable(),
+  description: z.string().min(1),
+  quantity: z.number().positive(),
+  unit_price: z.number().min(0),
+  amount: z.number().min(0),
+})
+export const createInvoiceInputSchema = z.object({
+  p_invoice: invoicePayloadSchema.extend({ status: z.enum(['draft', 'sent']) }),
+  p_items: z.array(invoiceItemPayloadSchema).min(1),
+})
+export const updateInvoiceInputSchema = z.object({
+  p_invoice: invoicePayloadSchema,
+  p_items: z.array(invoiceItemPayloadSchema).min(1),
+})
+
+// Reuse the reconciled paymentInputSchema under the action-scoped name.
+export const recordPaymentInputSchema = paymentInputSchema
+
+export const caseDetailsSchema = z.object({
+  patient: z.string().nullable(),
+  doctor: z.string().nullable(),
+})
+export const serviceStatusInputSchema = z.object({
+  serviceStatusId: z.string().uuid().nullable(),
+})
+export const recipientFieldsSchema = z.object({
+  bill_to_name: z.string().nullable(),
+  bill_to_contact: z.string().nullable(),
+  bill_to_phone: z.string().nullable(),
+  billing_address: z.string().nullable(),
+  ship_to_name: z.string().nullable(),
+  ship_to_contact: z.string().nullable(),
+  delivery_address: z.string().nullable(),
+})
+
+// Mirror of the `work_status` DB enum (src/lib/work-status WORK_STATUSES).
+export const workStatusInputSchema = z.object({
+  work_status: z.enum(['received', 'in_progress', 'ready', 'delivered', 'on_hold']),
+  stage_id: z.string().uuid().nullable(),
+})
+export const workNoteInputSchema = z.object({
+  workNote: z.string().nullable(),
+})
+export const toggleActiveInputSchema = z.object({
+  active: z.boolean(),
+})
+
+// Port of validateBillingSettings (src/lib/billing-settings.ts): required bank
+// fields (after trim) + payment terms >= 1 whole day. Same messages so the error
+// text the UI shows is unchanged.
+export const billingSettingsInputSchema = z.object({
+  bankName: z.string().trim().min(1, 'Bank name is required.'),
+  accountName: z.string().trim().min(1, 'Account name is required.'),
+  accountNumber: z.string().trim().min(1, 'Account number is required.'),
+  paymentNote: z.string(),
+  invoiceNotes: z.array(z.string()),
+  paymentTermsDays: z.number().refine((n) => Number.isFinite(n) && n >= 1, 'Payment terms must be at least 1 day.'),
+})
 
 export type InvoiceInput = z.infer<typeof invoiceInputSchema>
 export type PaymentInput = z.infer<typeof paymentInputSchema>

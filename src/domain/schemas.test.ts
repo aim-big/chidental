@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { paymentInputSchema, invoiceInputSchema, customerInputSchema, productInputSchema, normalizeUnit } from './schemas'
+import {
+  idSchema,
+  invoiceItemPayloadSchema,
+  createInvoiceInputSchema,
+  recordPaymentInputSchema,
+  workStatusInputSchema,
+  billingSettingsInputSchema,
+} from './schemas'
 
 const product = (over: Record<string, unknown> = {}) => ({
   name: 'Crown', description: null, unit_price: 100, unit: 'per unit',
@@ -64,5 +72,79 @@ describe('schemas', () => {
   it('productInputSchema rejects a unit that normalizes to empty', () => {
     expect(productInputSchema.safeParse(product({ unit: 'per ' })).success).toBe(false)
     expect(productInputSchema.safeParse(product({ unit: '' })).success).toBe(false)
+  })
+})
+
+describe('idSchema', () => {
+  it('accepts a uuid', () => {
+    expect(idSchema.safeParse('123e4567-e89b-12d3-a456-426614174000').success).toBe(true)
+  })
+  it('rejects a non-uuid string', () => {
+    expect(idSchema.safeParse('not-an-id').success).toBe(false)
+  })
+})
+
+describe('invoiceItemPayloadSchema', () => {
+  const base = { product_id: null, description: 'Crown', quantity: 1, unit_price: 100, amount: 100 }
+  it('accepts a valid line', () => {
+    expect(invoiceItemPayloadSchema.safeParse(base).success).toBe(true)
+  })
+  it('rejects a non-positive quantity', () => {
+    expect(invoiceItemPayloadSchema.safeParse({ ...base, quantity: 0 }).success).toBe(false)
+  })
+  it('rejects an empty description', () => {
+    expect(invoiceItemPayloadSchema.safeParse({ ...base, description: '' }).success).toBe(false)
+  })
+})
+
+describe('createInvoiceInputSchema', () => {
+  const invoice = {
+    customer_id: '123e4567-e89b-12d3-a456-426614174000',
+    invoice_date: '2026-07-09', due_date: '2026-08-08',
+    notes: null, patient: null, doctor: null, service_status_id: null,
+    bill_to_name: null, bill_to_contact: null, bill_to_phone: null, billing_address: null,
+    ship_to_name: null, ship_to_contact: null, delivery_address: null,
+    subtotal: 100, total: 100, status: 'draft' as const,
+  }
+  const items = [{ id: null, product_id: null, description: 'Crown', quantity: 1, unit_price: 100, amount: 100 }]
+  it('accepts a valid create payload', () => {
+    expect(createInvoiceInputSchema.safeParse({ p_invoice: invoice, p_items: items }).success).toBe(true)
+  })
+  it('rejects an empty items array', () => {
+    expect(createInvoiceInputSchema.safeParse({ p_invoice: invoice, p_items: [] }).success).toBe(false)
+  })
+  it('rejects an unknown status', () => {
+    expect(createInvoiceInputSchema.safeParse({ p_invoice: { ...invoice, status: 'paid' }, p_items: items }).success).toBe(false)
+  })
+})
+
+describe('recordPaymentInputSchema', () => {
+  it('accepts amount + optional reference', () => {
+    expect(recordPaymentInputSchema.safeParse({ amount: 50, reference: 'TXN-1' }).success).toBe(true)
+  })
+  it('rejects a non-positive amount', () => {
+    expect(recordPaymentInputSchema.safeParse({ amount: 0 }).success).toBe(false)
+  })
+})
+
+describe('workStatusInputSchema', () => {
+  it('accepts a known work_status', () => {
+    expect(workStatusInputSchema.safeParse({ work_status: 'in_progress', stage_id: null }).success).toBe(true)
+  })
+  it('rejects an unknown work_status', () => {
+    expect(workStatusInputSchema.safeParse({ work_status: 'shipped', stage_id: null }).success).toBe(false)
+  })
+})
+
+describe('billingSettingsInputSchema', () => {
+  const base = { bankName: 'Maybank', accountName: 'Chi Dental', accountNumber: '123', paymentNote: 'x', invoiceNotes: ['a'], paymentTermsDays: 30 }
+  it('accepts valid settings', () => {
+    expect(billingSettingsInputSchema.safeParse(base).success).toBe(true)
+  })
+  it('rejects a blank bank name', () => {
+    expect(billingSettingsInputSchema.safeParse({ ...base, bankName: '   ' }).success).toBe(false)
+  })
+  it('rejects payment terms below 1 day', () => {
+    expect(billingSettingsInputSchema.safeParse({ ...base, paymentTermsDays: 0 }).success).toBe(false)
   })
 })
