@@ -20,7 +20,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth/require-permission'
-import { productInputSchema, type ProductInput } from '@/domain/schemas'
+import { productInputSchema, idSchema, toggleActiveInputSchema, type ProductInput } from '@/domain/schemas'
 
 export type ActionResult = { ok: true } | { ok: false; error: string }
 export type CreateResult = { ok: true; id: string } | { ok: false; error: string }
@@ -55,6 +55,7 @@ export async function updateProductAction(id: string, input: ProductInput): Prom
   const gate = await requirePermission('products.edit')
   if (gate.ok === false) return gate
 
+  if (!idSchema.safeParse(id).success) return { ok: false, error: 'Invalid product id' }
   const parsed = productInputSchema.safeParse(input)
   if (parsed.success === false) return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
 
@@ -69,6 +70,9 @@ export async function updateProductAction(id: string, input: ProductInput): Prom
 export async function toggleProductActiveAction(id: string, active: boolean): Promise<ActionResult> {
   const gate = await requirePermission('products.edit')
   if (gate.ok === false) return gate
+
+  if (!idSchema.safeParse(id).success) return { ok: false, error: 'Invalid product id' }
+  if (!toggleActiveInputSchema.safeParse({ active }).success) return { ok: false, error: 'Invalid state' }
 
   const admin = createAdminClient()
   const { error } = await admin.from('products').update({ active }).eq('id', id)

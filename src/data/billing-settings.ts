@@ -9,9 +9,9 @@ import { BILLING_SETTINGS_ID, type BillingSettings } from '@/lib/config'
 import {
   billingSettingsFromRow,
   normalizeBillingSettings,
-  validateBillingSettings,
   type BillingSettingsInput,
 } from '@/lib/billing-settings'
+import { billingSettingsInputSchema } from '@/domain/schemas'
 import type { TablesInsert } from '@/lib/database.types'
 
 export async function getBillingSettings(): Promise<BillingSettings> {
@@ -30,8 +30,8 @@ export async function updateBillingSettings(input: BillingSettingsInput): Promis
   const gate = await requirePermission('settings.manage')
   if (gate.ok === false) return fail(gate.error)
 
-  const validationError = validateBillingSettings(input)
-  if (validationError) return fail(validationError)
+  const parsed = billingSettingsInputSchema.safeParse(input)
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid billing settings')
 
   const settings = normalizeBillingSettings(input)
   const update: TablesInsert<'lab_billing_settings'> = {
