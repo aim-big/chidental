@@ -9,6 +9,8 @@
 // Writes live in `./invoice-actions.ts` (`updateWorkStatusAction`).
 
 import { createClient } from '@/lib/supabase/server'
+import { isModuleOnApi } from '@/lib/config'
+import { apiGet } from '@/lib/api/client'
 import type { InvoiceItem, WorkStage, WorkStatus, WorkStatusConfig } from '@chidental/shared'
 
 // One work-queue row: the invoice item fields the page reads, plus the embedded
@@ -43,6 +45,9 @@ export type WorkQueueRow = Pick<
 //   then filter out items whose parent invoice is voided (voided_at != null);
 //   work_stages.select('*').order('sort_order').order('label') (== fetchWorkStages).
 export async function getWorkQueue(): Promise<{ rows: WorkQueueRow[]; stages: WorkStage[]; statusConfigs: WorkStatusConfig[] }> {
+  if (isModuleOnApi('work')) {
+    return apiGet<{ rows: WorkQueueRow[]; stages: WorkStage[]; statusConfigs: WorkStatusConfig[] }>('/work/queue')
+  }
   const supabase = await createClient()
 
   const [itemsRes, stagesRes, statusConfigsRes] = await Promise.all([
