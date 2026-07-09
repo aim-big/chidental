@@ -8,6 +8,8 @@
 // Writes live in `./invoice-actions.ts`.
 
 import { createClient } from '@/lib/supabase/server'
+import { isModuleOnApi } from '@/lib/config'
+import { apiGet, apiGetOrNull } from '@/lib/api/client'
 import type {
   Invoice,
   InvoiceItem,
@@ -71,6 +73,7 @@ export type InvoiceForEdit = {
 //   .select('*, customers(clinic_name), service_statuses(*)')
 //   .order('created_at', { ascending: false })
 export async function getInvoices(): Promise<InvoiceListRow[]> {
+  if (isModuleOnApi('invoices')) return apiGet<InvoiceListRow[]>('/invoices')
   const supabase = await createClient()
   // Explicit cap (PostgREST truncates at 1000 rows anyway): newest-first means
   // the command palette keeps the most recent invoices if the table outgrows
@@ -128,6 +131,13 @@ const INVOICE_SORTERS: Record<string, (r: InvoiceListRow) => string | number> = 
  */
 export async function getInvoicesPage(params: InvoiceListParams = {}): Promise<InvoiceListPage> {
   const { q = '', view = 'all', page = 1, pageSize = 15, sort = null, dir = 'asc' } = params
+
+  if (isModuleOnApi('invoices')) {
+    const qs = new URLSearchParams({ q, view, page: String(page), pageSize: String(pageSize), dir })
+    if (sort) qs.set('sort', sort)
+    return apiGet<InvoiceListPage>(`/invoices/page?${qs.toString()}`)
+  }
+
   const supabase = await createClient()
 
   let query = supabase
@@ -199,6 +209,7 @@ export async function getInvoicesPage(params: InvoiceListParams = {}): Promise<I
  * currently-selected view). Cheap at this scale: one read, counted in JS.
  */
 export async function getInvoiceViewCounts(): Promise<Record<InvoiceView, number>> {
+  if (isModuleOnApi('invoices')) return apiGet<Record<InvoiceView, number>>('/invoices/view-counts')
   const supabase = await createClient()
   const { data } = await supabase
     .from('invoices')
@@ -217,6 +228,7 @@ export async function getInvoiceViewCounts(): Promise<Record<InvoiceView, number
 // plus the history read that depends on the item ids. Returns `null` when the
 // invoice row is missing.
 export async function getInvoiceDetail(id: string): Promise<InvoiceDetailBundle | null> {
+  if (isModuleOnApi('invoices')) return apiGetOrNull<InvoiceDetailBundle>(`/invoices/${id}/detail`)
   const supabase = await createClient()
 
   const [invRes, itemsRes, paymentsRes, ssRes, prodRes, stagesRes, statusConfigsRes] = await Promise.all([
@@ -260,6 +272,7 @@ export async function getInvoiceDetail(id: string): Promise<InvoiceDetailBundle 
 }
 
 export async function getWorkStatusConfigs(): Promise<WorkStatusConfig[]> {
+  if (isModuleOnApi('invoices')) return apiGet<WorkStatusConfig[]>('/invoices/work-status-configs')
   const supabase = await createClient()
   const { data } = await supabase
     .from('work_status_configs')
@@ -274,6 +287,12 @@ export async function getWorkStatusConfigs(): Promise<WorkStatusConfig[]> {
 export async function getInvoiceFormData(
   opts?: { includeCustomerId?: string },
 ): Promise<InvoiceFormData> {
+  if (isModuleOnApi('invoices')) {
+    const qs = opts?.includeCustomerId
+      ? `?includeCustomerId=${encodeURIComponent(opts.includeCustomerId)}`
+      : ''
+    return apiGet<InvoiceFormData>(`/invoices/form-data${qs}`)
+  }
   const supabase = await createClient()
 
   // Picker shows active clinics only — you can't bill an archived clinic. In
@@ -302,6 +321,7 @@ export async function getInvoiceFormData(
 // Edit-mode prefill — mirrors `InvoiceForm.tsx`'s edit-mode reads. Returns
 // `null` when the invoice row is missing.
 export async function getInvoiceForEdit(id: string): Promise<InvoiceForEdit | null> {
+  if (isModuleOnApi('invoices')) return apiGetOrNull<InvoiceForEdit>(`/invoices/${id}/edit`)
   const supabase = await createClient()
   const [invRes, itemsRes] = await Promise.all([
     supabase.from('invoices').select('*').eq('id', id).is('deleted_at', null).single(),

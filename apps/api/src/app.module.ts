@@ -10,6 +10,7 @@ import { HealthModule } from './health/health.module'
 import { ProductsModule } from './products/products.module'
 import { CustomersModule } from './customers/customers.module'
 import { WorkModule } from './work/work.module'
+import { InvoicesModule } from './invoices/invoices.module'
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { WorkModule } from './work/work.module'
     ProductsModule,
     CustomersModule,
     WorkModule,
+    InvoicesModule,
   ],
   providers: [
     // Auth guard runs on every route (opt out with @Public); the DB-backed
