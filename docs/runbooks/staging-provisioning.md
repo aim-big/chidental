@@ -1,13 +1,27 @@
 # Runbook — Provision the staging Supabase project + Vercel Preview
 
-> **Owner action.** These steps touch cloud consoles and secrets, so they are not
-> automated by the codebase. Do them once; after that, every PR's Vercel Preview
-> runs against staging, never production.
+> **STATUS: DEFERRED (2026-07-09).** A permanent staging project (~$10/mo) isn't
+> worth it for an app this size, so we're not provisioning one now. This runbook
+> stays as the reference for when it's actually needed (Phase 1's risky deploy).
+>
+> **⚠️ Current reality:** on the Vercel project `big-pos`, `NEXT_PUBLIC_SUPABASE_URL`
+> / anon key / service-role key are shared across **Production AND Preview**, so
+> **Preview deployments currently read/write PRODUCTION data.** Low practical risk
+> while few/no PR previews are created, but real. Zero-cost mitigation: disable
+> preview deployments for `big-pos` (Vercel → Settings → Git) until staging exists.
 
-**Why:** Vercel Preview deployments run untrusted PR code. They must point at a
-**staging** Supabase project so a preview can never read or mutate production
-data. Production (`ref xjwkmlmkwpbxjziyngmb`) stays wired only to the Vercel
-Production environment.
+**Cheapest way to isolate Preview when you do need it (Phase 1):** instead of a
+permanent project, create an **ephemeral Supabase preview branch** off prod for
+the few days of the Phase 1 PR (~$0.30/day while active), point Preview at it,
+then delete it. Only reach for a full separate project (below) if you want
+staging to be permanent.
+
+**Why isolate at all:** Vercel Preview deployments run untrusted PR code. They
+must point at a non-prod database so a preview can never read or mutate
+production data. Production (`ref xjwkmlmkwpbxjziyngmb`) stays wired only to the
+Vercel Production environment.
+
+## 1. Create the staging Supabase project
 
 ## 1. Create the staging Supabase project
 
