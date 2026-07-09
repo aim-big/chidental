@@ -6,18 +6,23 @@
 
 ## At a glance
 
-**Every hard structural / infra / architectural problem is solved and merged.**
-What remains is (a) mechanical read modules on a proven pattern, (b) money/audit
-write modules, and (c) owner-run prod cutovers (flag-flip + soak).
+**The migration is CODE-COMPLETE.** All 9 data modules (6 reads + 3 writes) run on
+the NestJS API behind per-module flags, each verified end-to-end. Every module is
+**inert by default** (flags off) — Next.js still serves 100% of production until
+you flip a flag. What remains is **owner-run**: roll the flags out in prod one at
+a time with a soak between each (see the Rollout runbook below), then the
+post-soak code tidy.
 
 ```
-Foundation  ██████████████████████████  100%   (phases 0–2 + shared + keystone)
-Read modules ██████████████████████████  100%   (6 of 6 done ✅)
-Write modules ██████████████████████████  100%   (3 of 3 done ✅)
-Phase 4 cleanup ░░░░░░░░░░░░░░░░░░░░░░░░    0%
+Foundation      ██████████████████████████  100%   phases 0–2 + shared + keystone
+Read modules    ██████████████████████████  100%   6 of 6 ✅
+Write modules   ██████████████████████████  100%   3 of 3 ✅
+Prod rollout    ░░░░░░░░░░░░░░░░░░░░░░░░░░    0%   👤 owner — flag-flip + soak
+Post-soak tidy  ░░░░░░░░░░░░░░░░░░░░░░░░░░    0%   after every module has soaked
 ```
 
-**All 9 data modules migrated to the API + verified E2E.** Only Phase 4 cleanup (owner-run flag rollouts + code tidy) remains.
+**All 9 data modules migrated + E2E-verified (PRs #6, #7, #9, #11–#16).** The API
+serves zero production traffic until an owner flips a flag.
 
 ## Legend
 
@@ -75,15 +80,44 @@ The **write seam** (`apiSend` in `apps/web/src/lib/api/client.ts`): POST/PATCH/D
 | Item | Status | Unblocks |
 |------|--------|----------|
 | **Reconcile duplicate status logic** → single `@chidental/shared` `domain/invoice-status` kernel; web `@/lib/invoice-status` is now a re-export shim; `billing.ts` keeps only `canTransition`. Behavior-neutral (`due_date` is `NOT NULL`, so the two `isOverdue`s were identical). | ✅ #12 | landmine removed; unblocks write-side money logic |
-| Port audit / billing-settings / production / statement to API | ⬜ | invoice writes |
+| Port audit (`ActivityLogService`), billing-snapshot, diff/labels to API; `forUser` client for trigger `auth.uid()` | ✅ #15/#16 | work + invoice writes |
 
 > Note: dashboard/reports reads turned out **types-only** — `getDashboardData`/`getReport*` return raw rows; the aggregation (`@/lib/dashboard`, `@/lib/reports`) runs in the page and stays in web. The API mirrors the queries + normalization only.
 
-## Owner-run steps (👤 — not codeable)
+## 👤 Rollout runbook (owner-run — not codeable)
 
-1. Per merged module: set `USE_API_MODULES=<module>` (append) in Vercel → redeploy → soak ≥1 week, watch errors/latency.
-2. Wire Railway ↔ GitHub auto-deploy (currently manual `railway up` / relies on Railway build on push).
-3. Roll back instantly by removing the module from `USE_API_MODULES` if anything regresses.
+The code is done; putting the API into production is a controlled, reversible
+rollout **you** drive. Nothing here is automatic.
+
+**One-time setup**
+1. In Vercel (project `chidental-lab`), set `NEXT_PUBLIC_API_URL=https://chidental-api-production.up.railway.app` (Production).
+2. Confirm the Railway API is healthy: `GET /health` → `{"status":"ok","shared":true}`. (`shared:true` proves the API's shared runtime link is intact.)
+3. Leave `USE_API_MODULES` **empty** — everything still runs on Next.
+
+**Per-module cutover — repeat for each, in this order (lowest blast radius first):**
+
+> `products → customers → work → dashboard → reports → invoices → customer-actions → work-actions → invoice-actions`
+
+For module `M`:
+1. **Append** `M` to `USE_API_MODULES` in Vercel Production (comma-separated) → redeploy.
+2. **Smoke test** that module's page(s) in prod: it should render/behave identically (it's calling the API now).
+3. **Soak ≥1 week.** Watch Railway logs + Vercel runtime errors + latency. For write modules, spot-check the audit trail (invoice activity / status history) shows the right actor.
+4. **Rollback (instant):** remove `M` from `USE_API_MODULES` → redeploy. The Next path is untouched and resumes immediately — no data migration, no risk.
+5. Only after a clean soak, move to the next module.
+
+**Notes**
+- **Reads lead writes.** Roll out a module's read flag and soak it before its write flag (`customers` before `customer-actions`, `invoices`+`work` before `invoice-actions`/`work-actions`).
+- **`invoice-actions` is last** — it's the money + audit path.
+- Also wire **Railway ↔ GitHub auto-deploy** (currently a manual `railway up` / build-on-push) so API changes ship automatically.
+
+## Post-soak code tidy (only after ALL modules have soaked in prod)
+
+Deferred on purpose — these delete the safety net, so they must wait until the API
+is proven in prod for every module:
+- Remove the `isModuleOnApi(...)` branches + the now-dead local Next query/action paths from `apps/web/src/data/*`.
+- Retire the `apps/web/src/lib/invoice-status.ts` re-export shim (import from `@chidental/shared` directly at the ~13 call sites).
+- Scope the API's Supabase key down from full service-role where feasible.
+- Remove `USE_API_MODULES` / `isModuleOnApi` once every module is API-only.
 
 ## Key facts
 
