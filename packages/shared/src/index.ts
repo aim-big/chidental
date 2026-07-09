@@ -3,5 +3,6 @@
 export * from './database.types'
 export * from './domain/money'
 export * from './domain/billing'
+export * from './domain/invoice-status'
 export * from './domain/schemas'
 export * from './domain/permissions'
