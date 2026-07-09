@@ -5,6 +5,18 @@ export const COMPANY = {
   email: 'chidentallab@gmail.com',
 }
 
+// Strangler-migration flag: which data modules are served by the NestJS API
+// instead of Next server queries. Comma-separated (e.g. USE_API_MODULES=products,reports).
+// Unset/empty => every module is served by Next, exactly as today. Read via this
+// one helper so a module can be flipped (or flipped back) with a single env change.
+export function isModuleOnApi(module: string): boolean {
+  return (process.env.USE_API_MODULES ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .includes(module)
+}
+
 // Default SST tax rate (%) prefilled on a new invoice (Wave 5). Ships at 0 — the
 // tax line stays hidden until the accountant confirms the service-tax rate +
 // threshold, at which point only this constant changes (and existing invoices

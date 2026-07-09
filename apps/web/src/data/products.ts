@@ -7,12 +7,19 @@
 // Writes live in `./product-actions.ts`.
 
 import { createClient } from '@/lib/supabase/server'
+import { isModuleOnApi } from '@/lib/config'
+import { apiGet } from '@/lib/api/client'
 import type { Product, Unit } from '@chidental/shared'
 
 // List query — mirrors `products/page.tsx`: `.select('*').order('name')`.
 // Returns ALL products (active + inactive); the admin catalogue shows both,
 // dimming the inactive ones. (Invoice/work reads filter to active separately.)
+//
+// Strangler seam: when the `products` module is flipped to the API
+// (USE_API_MODULES=products), this delegates to the NestJS API; otherwise it runs
+// the exact Next query as before. The signature never changes — components untouched.
 export async function getProducts(): Promise<Product[]> {
+  if (isModuleOnApi('products')) return apiGet<Product[]>('/products')
   const supabase = await createClient()
   const { data } = await supabase.from('products').select('*').order('name')
   return (data ?? []) as Product[]
@@ -55,6 +62,13 @@ const PRODUCT_SORT_COLUMNS: Record<string, string> = {
  */
 export async function getProductsPage(params: ProductListParams = {}): Promise<ProductListPage> {
   const { q = '', view = 'active', page = 1, pageSize = 10, sort = null, dir = 'asc' } = params
+
+  if (isModuleOnApi('products')) {
+    const qs = new URLSearchParams({ q, view, page: String(page), pageSize: String(pageSize), dir })
+    if (sort) qs.set('sort', sort)
+    return apiGet<ProductListPage>(`/products/page?${qs.toString()}`)
+  }
+
   const supabase = await createClient()
 
   const sortCol = (sort && PRODUCT_SORT_COLUMNS[sort]) || 'name'
@@ -95,6 +109,7 @@ export async function getProductsPage(params: ProductListParams = {}): Promise<P
 // Inactive units are excluded; a product already using a now-inactive unit
 // keeps it via the form's option-preservation (see buildUnitOptions).
 export async function getActiveUnits(): Promise<Unit[]> {
+  if (isModuleOnApi('products')) return apiGet<Unit[]>('/products/units')
   const supabase = await createClient()
   const { data } = await supabase
     .from('units')
