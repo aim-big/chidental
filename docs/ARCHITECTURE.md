@@ -264,9 +264,13 @@ env vars, per environment:
 Integration tests additionally read optional `SUPABASE_DB_URL` (defaults to the
 local DB `postgresql://postgres:postgres@127.0.0.1:54322/postgres`).
 
-**Rule: Vercel Preview MUST point at the staging Supabase project, never prod
-(ref `xjwkmlmkwpbxjziyngmb`).** Preview deployments run untrusted PR code and must
-not touch production data. Provisioning steps: [`docs/runbooks/staging-provisioning.md`](./runbooks/staging-provisioning.md).
+**Goal: Vercel Preview should point at a non-prod Supabase DB** so preview PR code
+can't touch production. **⚠️ Not yet true:** on the `big-pos` Vercel project the
+`NEXT_PUBLIC_SUPABASE_URL`/keys are shared across Production + Preview, so previews
+currently hit prod (ref `xjwkmlmkwpbxjziyngmb`). Staging is **deferred** (cost, small
+app) until Phase 1 — isolate it then via an ephemeral Supabase branch or a staging
+project ([`docs/runbooks/staging-provisioning.md`](./runbooks/staging-provisioning.md)).
+The Preview column above is the target state, not today's.
 
 **CI gate:** `.github/workflows/ci.yml` runs `npm test` + `npm run build` on every
 PR (dummy Supabase env at build time — real secrets are only needed at runtime).

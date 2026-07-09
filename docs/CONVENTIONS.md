@@ -177,9 +177,11 @@ permission changes apply immediately with no re-login. Client `hasPermission()` 
 - **Two test tiers beyond unit.** Integration (`npm run test:integration`, needs Docker +
   `supabase start`) and E2E (`npm run test:e2e`, needs the seeded stack + Chromium). Neither
   runs in the CI gate; see [testing.md](./testing.md).
-- **Preview never touches prod.** Vercel Preview points at a **staging** Supabase project;
-  only Vercel Production is wired to prod (`ref xjwkmlmkwpbxjziyngmb`). Provisioning:
-  [runbooks/staging-provisioning.md](./runbooks/staging-provisioning.md).
+- **Preview isolation (goal, not yet in place).** Vercel Preview *should* point at a non-prod
+  Supabase DB so preview PR code can't touch prod. **Today it does NOT** — on the `big-pos`
+  Vercel project, `NEXT_PUBLIC_SUPABASE_URL`/keys are shared across Production + Preview, so
+  previews hit prod. Staging is deferred (cost) until Phase 1; isolate it then via an ephemeral
+  Supabase branch or a staging project. See [runbooks/staging-provisioning.md](./runbooks/staging-provisioning.md).
 - **Local/staging seed.** `supabase/seed.sql` provisions a login user (`seedowner` / PIN
   `123456`) + sample data on `supabase db reset`. Never run it against production.
 
