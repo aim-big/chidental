@@ -70,10 +70,10 @@ in Vercel per module and soak ≥1 week. Flag OFF by default = zero behavior cha
 
 | Item | Status | Unblocks |
 |------|--------|----------|
-| Make dashboard aggregation (`@/lib/dashboard`) reachable by API | ⬜ | dashboard read |
-| Make reports aggregation (`@/lib/reports`) reachable by API | ⬜ | reports read |
+| **Reconcile duplicate status logic** → single `@chidental/shared` `domain/invoice-status` kernel; web `@/lib/invoice-status` is now a re-export shim; `billing.ts` keeps only `canTransition`. Behavior-neutral (`due_date` is `NOT NULL`, so the two `isOverdue`s were identical). | ✅ #12 | dashboard/reports aggregation in API — landmine removed |
+| Move dashboard aggregation (`@/lib/dashboard`) → shared, reachable by API | ⬜ | dashboard read |
+| Move reports aggregation (`@/lib/reports`) → shared, reachable by API | ⬜ | reports read |
 | Port audit / billing-settings / production / statement to API | ⬜ | invoice writes |
-| **Reconcile duplicate status logic**: `@/lib/invoice-status` vs `@chidental/shared` `domain/billing.ts` both define `isVoided`/`isOutstanding`/`isOverdue`/`nextStatusAfterPayment` — with a subtly *different* `isOverdue` (web's guards null/empty `due_date`; billing's doesn't). Consolidate into shared. | ⬜ (Phase 4) | dashboard/reports aggregation in API + removes a money-logic landmine |
 
 ## Owner-run steps (👤 — not codeable)
 
