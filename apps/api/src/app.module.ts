@@ -9,6 +9,7 @@ import { AllExceptionsFilter } from './common/all-exceptions.filter'
 import { HealthModule } from './health/health.module'
 import { ProductsModule } from './products/products.module'
 import { CustomersModule } from './customers/customers.module'
+import { WorkModule } from './work/work.module'
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { CustomersModule } from './customers/customers.module'
     HealthModule,
     ProductsModule,
     CustomersModule,
+    WorkModule,
   ],
   providers: [
     // Auth guard runs on every route (opt out with @Public); the DB-backed
