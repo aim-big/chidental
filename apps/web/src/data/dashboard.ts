@@ -4,6 +4,8 @@
 
 import { differenceInCalendarDays, addDays, format, subYears } from 'date-fns'
 import { createClient } from '@/lib/supabase/server'
+import { isModuleOnApi } from '@/lib/config'
+import { apiGet } from '@/lib/api/client'
 import type {
   DashboardInvoice, DashboardPayment, DashboardPriorInvoice, DashboardOutstandingInvoice,
   DashboardWorkItem,
@@ -54,6 +56,10 @@ function priorRange(from: string, to: string): { from: string; to: string } {
 }
 
 export async function getDashboardData(from: string, to: string): Promise<DashboardData> {
+  if (isModuleOnApi('dashboard')) {
+    const qs = new URLSearchParams({ from, to })
+    return apiGet<DashboardData>(`/dashboard?${qs.toString()}`)
+  }
   const supabase = await createClient()
   const prior = priorRange(from, to)
   // The same calendar window one year earlier, for the YoY comparison.
