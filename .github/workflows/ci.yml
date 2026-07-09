@@ -26,10 +26,16 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Unit tests
+      - name: Unit tests (web)
         run: npm test
 
-      - name: Build
+      - name: Unit tests (api)
+        run: npm test -w apps/api
+
+      - name: Build (api)
+        run: npm run build -w apps/api
+
+      - name: Build (web)
         # Dummy Supabase vars: the client factories read these lazily, but a
         # statically-prerendered page (e.g. /login) still evaluates one at build.
         # Real secrets are never needed to compile — only to run.
