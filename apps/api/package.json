@@ -1,0 +1,34 @@
+{
+  "name": "@chidental/api",
+  "private": true,
+  "version": "0.0.0",
+  "engines": {
+    "node": ">=20.12.0"
+  },
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.6",
+    "@nestjs/config": "^4.0.2",
+    "@nestjs/core": "^11.1.6",
+    "@nestjs/platform-express": "^11.1.6",
+    "@supabase/supabase-js": "^2.108.2",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.10",
+    "@nestjs/testing": "^11.1.6",
+    "@types/express": "^5.0.0",
+    "@types/node": "^24.12.2",
+    "source-map-support": "^0.5.21",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.8"
+  }
+}
