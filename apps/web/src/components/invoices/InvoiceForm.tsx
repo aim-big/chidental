@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Combobox } from '@/components/ui/combobox'
 import { formatCurrency, cn } from '@/lib/utils'
 import { ArrowLeft, ChevronDown, ChevronRight, RotateCcw, Trash2 } from 'lucide-react'
-import type { InvoiceStatus, Product } from '@/lib/database.types'
+import type { InvoiceStatus, Product } from '@chidental/shared'
 import { addDays, format } from 'date-fns'
 import { DEFAULT_COLOR } from '@/lib/service-status'
 import { canEditInvoice } from '@/lib/invoice-permissions'

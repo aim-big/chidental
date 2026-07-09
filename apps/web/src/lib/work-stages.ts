@@ -1,4 +1,4 @@
-import type { WorkStage, WorkStatus } from './database.types'
+import type { WorkStage, WorkStatus } from '@chidental/shared'
 import { workStatusColor, workStatusLabel, type WorkStatusDisplay } from './work-status-config'
 
 // Pill color used when a stage has no color set (mirrors service-status DEFAULT_COLOR).

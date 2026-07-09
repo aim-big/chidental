@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { permissionGranted } from '@/domain/permissions'
+import { permissionGranted } from '@chidental/shared'
 
 export type PermissionCheck =
   | { ok: true; userId: string; actorName: string }

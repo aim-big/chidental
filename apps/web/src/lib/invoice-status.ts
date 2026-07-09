@@ -1,5 +1,5 @@
 import { differenceInCalendarDays } from 'date-fns'
-import type { Invoice } from '@/lib/database.types'
+import type { Invoice } from '@chidental/shared'
 
 type VoidFields = Pick<Invoice, 'voided_at'>
 type CountFields = Pick<Invoice, 'voided_at' | 'status'>

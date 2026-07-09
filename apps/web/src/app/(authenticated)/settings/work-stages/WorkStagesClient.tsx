@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ActiveSwitch, TableActionButton } from '@/components/ui/table-actions'
 import { ArrowDown, ArrowUp, PencilLine, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { WorkStage } from '@/lib/database.types'
+import type { WorkStage } from '@chidental/shared'
 import { COLOR_PRESETS, DEFAULT_COLOR } from '@/lib/service-status'
 import { useAuth } from '@/contexts/AuthContext'
 

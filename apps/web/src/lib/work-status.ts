@@ -1,4 +1,4 @@
-import type { WorkStatus } from './database.types'
+import type { WorkStatus } from '@chidental/shared'
 
 export const WORK_STATUSES: WorkStatus[] = [
   'received',

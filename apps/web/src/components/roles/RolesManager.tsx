@@ -11,9 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Checkbox } from '@/components/ui/checkbox'
 import { TableActionButton } from '@/components/ui/table-actions'
 import { ArrowLeft, PencilLine, Plus, ShieldCheck, Trash2 } from 'lucide-react'
-import { PERMISSION_GROUPS, PERMISSION_REQUIRES, type Permission } from '@/domain/permissions'
+import { PERMISSION_GROUPS, PERMISSION_REQUIRES, type Permission } from '@chidental/shared'
 import { createRole, updateRole, deleteRole } from '@/lib/auth/role-actions'
-import type { Role } from '@/lib/database.types'
+import type { Role } from '@chidental/shared'
 
 // Flat list of every assignable permission key — used by the select-all toggle.
 const ALL_PERMISSION_KEYS: Permission[] = PERMISSION_GROUPS.flatMap(g => g.permissions.map(p => p.key))

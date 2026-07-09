@@ -13,7 +13,7 @@ import {
   ClipboardList, ListChecks, UserCog, ShieldCheck, Ruler, SlidersHorizontal,
   Landmark, ShieldAlert,
 } from 'lucide-react'
-import type { Permission } from '@/domain/permissions'
+import type { Permission } from '@chidental/shared'
 
 export type NavArea = 'main' | 'settings'
 

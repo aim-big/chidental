@@ -5,7 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth/require-permission'
 import { usernameToEmail, USERNAME_PATTERN } from '@/lib/auth/username'
-import { wouldRemoveLastSuperadmin } from '@/domain/permissions'
+import { wouldRemoveLastSuperadmin } from '@chidental/shared'
 
 export type ActionResult = { ok: true } | { ok: false; error: string }
 

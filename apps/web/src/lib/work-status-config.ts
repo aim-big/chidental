@@ -1,4 +1,4 @@
-import type { WorkStatus, WorkStatusConfig } from './database.types'
+import type { WorkStatus, WorkStatusConfig } from '@chidental/shared'
 import { WORK_STATUSES, WORK_STATUS_COLORS, WORK_STATUS_LABELS } from './work-status'
 
 export type WorkStatusDisplay = Pick<WorkStatusConfig, 'status' | 'label' | 'color' | 'sort_order'>

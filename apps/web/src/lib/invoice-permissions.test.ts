@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { Invoice } from './database.types'
+import type { Invoice } from '@chidental/shared'
 import { canEditInvoice } from './invoice-permissions'
 
 const inv = (status: string, voided_at: string | null = null): Pick<Invoice, 'status' | 'voided_at'> => ({ status, voided_at })

@@ -22,10 +22,10 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth/require-permission'
 import { logInvoiceActivity } from '@/lib/audit/audit-log'
-import { creditInputSchema, idSchema, type CreditInput } from '@/domain/schemas'
-import type { Credit } from '@/lib/database.types'
+import { creditInputSchema, idSchema, type CreditInput } from '@chidental/shared'
+import type { Credit } from '@chidental/shared'
 
-export type { Credit } from '@/lib/database.types'
+export type { Credit } from '@chidental/shared'
 
 export type ActionResult = { ok: true } | { ok: false; error: string }
 

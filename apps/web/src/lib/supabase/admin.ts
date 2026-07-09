@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import type { Database } from '@/lib/database.types'
+import type { Database } from '@chidental/shared'
 
 // Service-role client: bypasses RLS and can use the Auth admin API (create users,
 // set passwords, ban). It must NEVER reach the browser — only import this from

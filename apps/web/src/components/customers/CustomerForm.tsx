@@ -13,9 +13,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/components/feedback/toast'
-import { customerInputSchema, type CustomerInput, type CustomerFormInput } from '@/domain/schemas'
+import { customerInputSchema, type CustomerInput, type CustomerFormInput } from '@chidental/shared'
 import { createCustomerAction, updateCustomerAction } from '@/data/customer-actions'
-import type { Customer } from '@/lib/database.types'
+import type { Customer } from '@chidental/shared'
 
 // Create/edit form for a customer. Edit-mode prefill arrives as `initialData`
 // from the Server Component (`getCustomerForEdit`) — no browser-singleton read.

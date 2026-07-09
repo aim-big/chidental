@@ -19,7 +19,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { WorkStatusSelect, ADVANCE_VALUE } from '@/components/work-status-select'
 import { Search, ChevronRight, ChevronDown, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { WorkStatus, WorkStage, WorkStatusConfig } from '@/lib/database.types'
+import type { WorkStatus, WorkStage, WorkStatusConfig } from '@chidental/shared'
 import { WORK_STATUSES } from '@/lib/work-status'
 import { workStatusColor, workStatusLabel, type WorkStatusDisplay } from '@/lib/work-status-config'
 import {

@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Plus, Search } from 'lucide-react'
 import { formatCurrency, cn } from '@/lib/utils'
-import type { Product } from '@/lib/database.types'
+import type { Product } from '@chidental/shared'
 
 export function ProductSearchAdd({
   products,

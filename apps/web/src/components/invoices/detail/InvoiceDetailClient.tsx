@@ -12,7 +12,7 @@ import { canEditInvoice } from '@/lib/invoice-permissions'
 import { isVoided } from '@/lib/invoice-status'
 import { ActionsBar } from './ActionsBar'
 import { InvoiceDocument } from './InvoiceDocument'
-import type { InvoiceItem, Product, ServiceStatus, WorkStage, WorkStatusConfig } from '@/lib/database.types'
+import type { InvoiceItem, Product, ServiceStatus, WorkStage, WorkStatusConfig } from '@chidental/shared'
 import type { InvoiceDetail } from '@/data/invoices'
 import type { BillingSettings } from '@/lib/config'
 

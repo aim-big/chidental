@@ -16,7 +16,7 @@
 import { cn } from '@/lib/utils'
 import { STAGE_DEFAULT_COLOR } from '@/lib/work-stages'
 import { workStatusLabel, type WorkStatusDisplay } from '@/lib/work-status-config'
-import type { WorkStage, WorkStatus } from '@/lib/database.types'
+import type { WorkStage, WorkStatus } from '@chidental/shared'
 
 export function WorkStageChips({
   activeStages,

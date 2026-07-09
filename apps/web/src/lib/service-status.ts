@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { ServiceStatus } from './database.types'
+import type { ServiceStatus } from '@chidental/shared'
 
 export const DEFAULT_COLOR = 'bg-gray-100 text-gray-700'
 

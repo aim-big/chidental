@@ -17,7 +17,7 @@ import { canEditInvoice } from '@/lib/invoice-permissions'
 import { DEFAULT_COLOR } from '@/lib/service-status'
 import { cn } from '@/lib/utils'
 import { updateCaseDetailsAction, updateServiceStatusAction } from '@/data/invoice-actions'
-import type { ServiceStatus } from '@/lib/database.types'
+import type { ServiceStatus } from '@chidental/shared'
 import type { InvoiceDetail } from '@/data/invoices'
 
 export type CaseDetailsEditorProps = {

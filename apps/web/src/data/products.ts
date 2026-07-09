@@ -7,7 +7,7 @@
 // Writes live in `./product-actions.ts`.
 
 import { createClient } from '@/lib/supabase/server'
-import type { Product, Unit } from '@/lib/database.types'
+import type { Product, Unit } from '@chidental/shared'
 
 // List query — mirrors `products/page.tsx`: `.select('*').order('name')`.
 // Returns ALL products (active + inactive); the admin catalogue shows both,

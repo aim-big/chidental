@@ -3,7 +3,7 @@
 import { SelectItem } from '@/components/ui/select'
 import { DEFAULT_COLOR } from '@/lib/service-status'
 import { cn } from '@/lib/utils'
-import type { ServiceStatus } from '@/lib/database.types'
+import type { ServiceStatus } from '@chidental/shared'
 
 type ServiceStatusSelectItemProps = {
   status: Pick<ServiceStatus, 'id' | 'label' | 'color'>

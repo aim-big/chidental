@@ -22,7 +22,7 @@ import { Plus } from 'lucide-react'
 import { todayISODate } from '@/lib/utils'
 import { CREDIT_REASON_OPTIONS } from '@/lib/credit'
 import { createCreditAction } from '@/data/credits'
-import type { CreditReason } from '@/lib/database.types'
+import type { CreditReason } from '@chidental/shared'
 
 // The minimal invoice shape the "against invoice" picker needs.
 export type CreditInvoiceOption = {

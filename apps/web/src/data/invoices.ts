@@ -18,7 +18,7 @@ import type {
   ServiceStatus,
   WorkStage,
   WorkStatusConfig,
-} from '@/lib/database.types'
+} from '@chidental/shared'
 import { isVoided } from '@/lib/invoice-status'
 import { getBillingSettings } from '@/data/billing-settings'
 import { paginate } from '@/lib/pagination'

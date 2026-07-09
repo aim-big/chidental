@@ -56,9 +56,9 @@ import { createClient } from '@/lib/supabase/server'
 import { requirePermission } from '@/lib/auth/require-permission'
 import type { PermissionCheck } from '@/lib/auth/require-permission'
 import { isVoided } from '@/lib/invoice-status'
-import { invoiceMoneyError } from '@/domain/money'
+import { invoiceMoneyError } from '@chidental/shared'
 import { hold } from '@/domain/production'
-import type { Json, TablesUpdate, WorkStatus } from '@/lib/database.types'
+import type { Json, TablesUpdate, WorkStatus } from '@chidental/shared'
 import { getBillingSettings } from '@/data/billing-settings'
 import { invoiceSnapshotFromSettings } from '@/lib/billing-settings'
 import { logInvoiceActivity } from '@/lib/audit/audit-log'
@@ -74,7 +74,7 @@ import {
   recipientFieldsSchema,
   workStatusInputSchema,
   workNoteInputSchema,
-} from '@/domain/schemas'
+} from '@chidental/shared'
 
 export type ActionResult = { ok: true } | { ok: false; error: string }
 export type CreateResult = { ok: true; id: string } | { ok: false; error: string }
