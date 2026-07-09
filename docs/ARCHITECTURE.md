@@ -265,7 +265,7 @@ Integration tests additionally read optional `SUPABASE_DB_URL` (defaults to the
 local DB `postgresql://postgres:postgres@127.0.0.1:54322/postgres`).
 
 **Goal: Vercel Preview should point at a non-prod Supabase DB** so preview PR code
-can't touch production. **⚠️ Not yet true:** on the `big-pos` Vercel project the
+can't touch production. **⚠️ Not yet true:** on the `chidental-lab` Vercel project the
 `NEXT_PUBLIC_SUPABASE_URL`/keys are shared across Production + Preview, so previews
 currently hit prod (ref `xjwkmlmkwpbxjziyngmb`). Staging is **deferred** (cost, small
 app) until Phase 1 — isolate it then via an ephemeral Supabase branch or a staging

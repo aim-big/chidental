@@ -8,7 +8,7 @@
 
 ## Why coupled
 
-- Today Vercel builds `big-pos` from the **repo root** (where the Next app used to be).
+- Today Vercel builds `chidental-lab` from the **repo root** (where the Next app used to be).
 - After merge, `main` has the Next app at **`apps/web/`** and only a workspace manifest
   at the root — so a root-directory build would fail.
 - Therefore: flip Vercel Root Directory to `apps/web` **and** land the restructure on
@@ -17,7 +17,7 @@
 
 ## Steps (low-traffic window)
 
-1. **Change Vercel Root Directory.** Vercel → `big-pos` → Settings → Build & Deployment →
+1. **Change Vercel Root Directory.** Vercel → `chidental-lab` → Settings → Build & Deployment →
    **Root Directory = `apps/web`**. Save. (Vercel auto-detects the npm workspace and installs
    from the repo root.)
 2. **Redeploy the PR preview** (Vercel → the PR's deployment → Redeploy) and confirm the
