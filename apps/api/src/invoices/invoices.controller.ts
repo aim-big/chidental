@@ -1,5 +1,25 @@
-import { Controller, Get, NotFoundException, Param, Query } from '@nestjs/common'
+import { Body, Controller, Get, NotFoundException, Param, Patch, Post, Query } from '@nestjs/common'
+import {
+  createInvoiceInputSchema,
+  updateInvoiceInputSchema,
+  recordPaymentInputSchema,
+  caseDetailsSchema,
+  serviceStatusInputSchema,
+  recipientFieldsSchema,
+  idSchema,
+  invoiceMoneyError,
+} from '@chidental/shared'
 import { SupabaseService } from '../supabase/supabase.service'
+import { RequirePermission } from '../auth/require-permission.decorator'
+import { Auth } from '../auth/auth-context.decorator'
+import { PermissionsService, type AuthContext } from '../auth/permissions.service'
+import { ActivityLogService } from '../audit/activity-log.service'
+import { BillingSnapshotService } from './billing-snapshot.service'
+import { diffFields, INVOICE_FIELD_LABELS, RECIPIENT_FIELD_LABELS } from './audit-diff'
+
+type Ok = { ok: true } | { ok: true; id: string }
+type Fail = { ok: false; error: string }
+type Res = Ok | Fail
 
 // Read endpoints for the invoices module (strangler migration, module 4).
 // Mirrors apps/web `src/data/invoices.ts` verbatim (same .select strings,
@@ -53,7 +73,12 @@ const SORTERS: Record<string, (r: Row) => string | number> = {
 
 @Controller('invoices')
 export class InvoicesController {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly permissions: PermissionsService,
+    private readonly activity: ActivityLogService,
+    private readonly billing: BillingSnapshotService,
+  ) {}
 
   // Mirrors getInvoices(): newest-first, non-deleted, capped at 1000.
   @Get()
@@ -284,5 +309,240 @@ export class InvoicesController {
     ])
     if (!invRes.data) throw new NotFoundException('invoice not found')
     return { invoice: invRes.data, items: itemsRes.data ?? [] }
+  }
+
+  // --- Writes (strangler module 9: invoice-actions — money + audit) ---------
+  // Each mirrors apps/web `src/data/invoice-actions.ts` verbatim: same Zod
+  // schema, same money cross-check, same RPCs (which take the actor as a param —
+  // no auth.uid() dependency, so the admin client is correct), same activity
+  // rows, same permission gating. `revalidatePath` stays in the web action.
+
+  // Content-edit gate — replicates gateForContentEdit: voided → locked for
+  // everyone; drafts need invoices.edit, sent/others need invoices.manage. The
+  // required permission depends on invoice STATE, so it can't be a static
+  // @RequirePermission; it's resolved here from the DB + the AuthContext.
+  private async gateContentEdit(id: string, ctx: AuthContext): Promise<Res> {
+    const { data, error } = await this.supabase.admin
+      .from('invoices')
+      .select('status, voided_at')
+      .eq('id', id)
+      .single()
+    if (error || !data) return { ok: false, error: error?.message ?? 'Invoice not found' }
+    if (data.voided_at != null) return { ok: false, error: 'This invoice is voided and cannot be edited.' }
+    const need = data.status === 'draft' ? 'invoices.edit' : 'invoices.manage'
+    if (!this.permissions.has(ctx, need)) return { ok: false, error: 'You do not have permission to do this.' }
+    return { ok: true }
+  }
+
+  private async invoiceLabel(id: string): Promise<string | null> {
+    const { data } = await this.supabase.admin.from('invoices').select('invoice_number').eq('id', id).single()
+    return (data?.invoice_number as string | null) ?? null
+  }
+
+  // Mirrors createInvoiceAction(): validate + money cross-check → snapshot (if
+  // issued) → create_invoice_with_items RPC → activity → { ok, id }.
+  @Post()
+  @RequirePermission('invoices.create')
+  async create(@Body() body: { p_invoice: Record<string, unknown> & { status: 'draft' | 'sent' }; p_items: unknown[] }, @Auth() ctx: AuthContext): Promise<Res> {
+    const parsed = createInvoiceInputSchema.safeParse(body)
+    if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+
+    const moneyErr = invoiceMoneyError(body.p_invoice as never, body.p_items as never)
+    if (moneyErr) return { ok: false, error: moneyErr }
+
+    const invoicePayload = {
+      ...body.p_invoice,
+      created_by: ctx.userId,
+      ...(body.p_invoice.status === 'draft' ? {} : await this.billing.invoiceSnapshot()),
+    }
+    const { data, error } = await this.supabase.admin.rpc('create_invoice_with_items', {
+      p_invoice: invoicePayload as never,
+      p_items: body.p_items as never,
+    })
+    if (error || !data) return { ok: false, error: error?.message ?? 'Failed to create invoice' }
+    const newId = data as string
+    await this.activity.logInvoiceActivity({
+      invoiceId: newId, actorId: ctx.userId, actorName: ctx.actorName,
+      action: 'invoice.created', entityLabel: await this.invoiceLabel(newId),
+      metadata: { status: body.p_invoice.status },
+    })
+    return { ok: true, id: newId }
+  }
+
+  // Mirrors recordPaymentAction(): record_payment RPC → activity.
+  @Post(':id/payment')
+  @RequirePermission('invoices.manage')
+  async recordPayment(
+    @Param('id') id: string,
+    @Body() input: { amount: number; payment_date?: string; reference?: string; notes?: string },
+    @Auth() ctx: AuthContext,
+  ): Promise<Res> {
+    if (!idSchema.safeParse(id).success) return { ok: false, error: 'Invalid invoice id' }
+    const parsed = recordPaymentInputSchema.safeParse(input)
+    if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+
+    const { error } = await this.supabase.admin.rpc('record_payment', {
+      p_invoice_id: id,
+      p_amount: input.amount,
+      p_created_by: ctx.userId,
+      p_payment_date: input.payment_date,
+      p_reference: input.reference,
+      p_notes: input.notes,
+    })
+    if (error) return { ok: false, error: error.message }
+    await this.activity.logInvoiceActivity({
+      invoiceId: id, actorId: ctx.userId, actorName: ctx.actorName,
+      action: 'payment.recorded', entityLabel: await this.invoiceLabel(id),
+      metadata: { amount: input.amount, payment_date: input.payment_date ?? null, reference_number: input.reference ?? null },
+    })
+    return { ok: true }
+  }
+
+  // Mirrors markSentAction(): content-edit gate → status=sent + snapshot → activity.
+  @Post(':id/mark-sent')
+  async markSent(@Param('id') id: string, @Auth() ctx: AuthContext): Promise<Res> {
+    const gate = await this.gateContentEdit(id, ctx)
+    if (!gate.ok) return gate
+    if (!idSchema.safeParse(id).success) return { ok: false, error: 'Invalid invoice id' }
+
+    const { error } = await this.supabase.admin
+      .from('invoices')
+      .update({ status: 'sent', ...(await this.billing.invoiceSnapshot()) })
+      .eq('id', id)
+    if (error) return { ok: false, error: error.message }
+    await this.activity.logInvoiceActivity({
+      invoiceId: id, actorId: ctx.userId, actorName: ctx.actorName,
+      action: 'invoice.issued', entityLabel: await this.invoiceLabel(id),
+    })
+    return { ok: true }
+  }
+
+  // Mirrors updateCaseDetailsAction(): patient/doctor + diffed activity.
+  @Patch(':id/case')
+  async updateCase(@Param('id') id: string, @Body() input: { patient: string | null; doctor: string | null }, @Auth() ctx: AuthContext): Promise<Res> {
+    const gate = await this.gateContentEdit(id, ctx)
+    if (!gate.ok) return gate
+    if (!idSchema.safeParse(id).success) return { ok: false, error: 'Invalid invoice id' }
+    if (!caseDetailsSchema.safeParse(input).success) return { ok: false, error: 'Invalid case details' }
+
+    const { data: before } = await this.supabase.admin.from('invoices').select('patient, doctor, invoice_number').eq('id', id).single()
+    const { error } = await this.supabase.admin.from('invoices').update({ patient: input.patient, doctor: input.doctor }).eq('id', id)
+    if (error) return { ok: false, error: error.message }
+    const changes = diffFields((before ?? {}) as Record<string, unknown>, input as unknown as Record<string, unknown>, { patient: 'Patient', doctor: 'Doctor' })
+    if (changes.length > 0) {
+      await this.activity.logInvoiceActivity({
+        invoiceId: id, actorId: ctx.userId, actorName: ctx.actorName,
+        action: 'invoice.case_changed', entityLabel: (before?.invoice_number as string | null) ?? null, changes,
+      })
+    }
+    return { ok: true }
+  }
+
+  // Mirrors updateServiceStatusAction().
+  @Patch(':id/service-status')
+  async updateServiceStatus(@Param('id') id: string, @Body() input: { serviceStatusId: string | null }, @Auth() ctx: AuthContext): Promise<Res> {
+    const gate = await this.gateContentEdit(id, ctx)
+    if (!gate.ok) return gate
+    if (!idSchema.safeParse(id).success) return { ok: false, error: 'Invalid invoice id' }
+    if (!serviceStatusInputSchema.safeParse({ serviceStatusId: input.serviceStatusId }).success) return { ok: false, error: 'Invalid service status' }
+
+    const { data: before } = await this.supabase.admin.from('invoices').select('service_status_id, invoice_number').eq('id', id).single()
+    const { error } = await this.supabase.admin.from('invoices').update({ service_status_id: input.serviceStatusId }).eq('id', id)
+    if (error) return { ok: false, error: error.message }
+    if ((before?.service_status_id ?? null) !== (input.serviceStatusId ?? null)) {
+      await this.activity.logInvoiceActivity({
+        invoiceId: id, actorId: ctx.userId, actorName: ctx.actorName,
+        action: 'invoice.service_status_changed', entityLabel: (before?.invoice_number as string | null) ?? null,
+        changes: [{ field: 'service_status_id', label: 'Service status', from: before?.service_status_id ?? null, to: input.serviceStatusId ?? null }],
+      })
+    }
+    return { ok: true }
+  }
+
+  // Mirrors saveRecipientAction(): recipient fields (+ optional push to clinic).
+  @Patch(':id/recipient')
+  async saveRecipient(
+    @Param('id') id: string,
+    @Body() body: { fields: Record<string, string | null>; alsoSaveToCustomer?: boolean; customerId?: string },
+    @Auth() ctx: AuthContext,
+  ): Promise<Res> {
+    const gate = await this.gateContentEdit(id, ctx)
+    if (!gate.ok) return gate
+    const { fields, alsoSaveToCustomer, customerId } = body
+    if (!idSchema.safeParse(id).success) return { ok: false, error: 'Invalid invoice id' }
+    if (!recipientFieldsSchema.safeParse(fields).success) return { ok: false, error: 'Invalid recipient fields' }
+    if (customerId && !idSchema.safeParse(customerId).success) return { ok: false, error: 'Invalid customer id' }
+
+    const recipientCols = 'bill_to_name, bill_to_contact, bill_to_phone, billing_address, ship_to_name, ship_to_contact, delivery_address, invoice_number'
+    const { data: before } = await this.supabase.admin.from('invoices').select(recipientCols).eq('id', id).single()
+    const { error } = await this.supabase.admin.from('invoices').update(fields).eq('id', id)
+    if (error) return { ok: false, error: error.message }
+
+    if (alsoSaveToCustomer && customerId) {
+      const customerUpdate: Record<string, string | null> = {
+        contact_person: fields.bill_to_contact,
+        phone: fields.bill_to_phone,
+        billing_address: fields.billing_address,
+        delivery_address: fields.delivery_address,
+      }
+      if (fields.bill_to_name) customerUpdate.clinic_name = fields.bill_to_name
+      const { error: custErr } = await this.supabase.admin.from('customers').update(customerUpdate).eq('id', customerId)
+      if (custErr) return { ok: false, error: custErr.message }
+    }
+
+    const changes = diffFields((before ?? {}) as Record<string, unknown>, fields as Record<string, unknown>, RECIPIENT_FIELD_LABELS)
+    if (changes.length > 0) {
+      await this.activity.logInvoiceActivity({
+        invoiceId: id, actorId: ctx.userId, actorName: ctx.actorName,
+        action: 'invoice.recipient_changed',
+        entityLabel: ((before as { invoice_number?: string } | null)?.invoice_number as string | null) ?? null,
+        changes,
+      })
+    }
+    return { ok: true }
+  }
+
+  // Mirrors updateInvoiceAction(): content-edit gate → money check →
+  // update_invoice_with_items RPC → diffed activity. Declared last so its bare
+  // `:id` doesn't shadow the two-segment PATCH routes above.
+  @Patch(':id')
+  async update(@Param('id') id: string, @Body() body: { p_invoice: Record<string, unknown>; p_items: Array<{ id?: string | null }> }, @Auth() ctx: AuthContext): Promise<Res> {
+    const gate = await this.gateContentEdit(id, ctx)
+    if (!gate.ok) return gate
+    if (!idSchema.safeParse(id).success) return { ok: false, error: 'Invalid invoice id' }
+    const parsed = updateInvoiceInputSchema.safeParse(body)
+    if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+
+    const moneyErr = invoiceMoneyError(body.p_invoice as never, body.p_items as never)
+    if (moneyErr) return { ok: false, error: moneyErr }
+
+    const { data: beforeInv } = await this.supabase.admin
+      .from('invoices')
+      .select('invoice_date, due_date, notes, patient, doctor, service_status_id, subtotal, total, invoice_number')
+      .eq('id', id).single()
+    const { data: beforeItems } = await this.supabase.admin.from('invoice_items').select('id').eq('invoice_id', id)
+    const beforeCount = beforeItems?.length ?? 0
+
+    const { error } = await this.supabase.admin.rpc('update_invoice_with_items', {
+      p_invoice_id: id,
+      p_invoice: body.p_invoice as never,
+      p_items: body.p_items as never,
+    })
+    if (error) return { ok: false, error: error.message }
+
+    const headerChanges = diffFields((beforeInv ?? {}) as Record<string, unknown>, body.p_invoice as Record<string, unknown>, INVOICE_FIELD_LABELS)
+    const keptIds = new Set(body.p_items.filter((i) => i.id).map((i) => i.id))
+    const removed = (beforeItems ?? []).filter((b) => !keptIds.has(b.id)).length
+    const added = body.p_items.filter((i) => !i.id).length
+    const itemsChanged = added > 0 || removed > 0
+    if (headerChanges.length > 0 || itemsChanged) {
+      await this.activity.logInvoiceActivity({
+        invoiceId: id, actorId: ctx.userId, actorName: ctx.actorName,
+        action: 'invoice.edited', entityLabel: (beforeInv?.invoice_number as string | null) ?? null,
+        changes: headerChanges.length > 0 ? headerChanges : null,
+        metadata: itemsChanged ? { items: { before_count: beforeCount, after_count: body.p_items.length, added, removed } } : null,
+      })
+    }
+    return { ok: true }
   }
 }
