@@ -4,11 +4,11 @@
 > worth it for an app this size, so we're not provisioning one now. This runbook
 > stays as the reference for when it's actually needed (Phase 1's risky deploy).
 >
-> **⚠️ Current reality:** on the Vercel project `big-pos`, `NEXT_PUBLIC_SUPABASE_URL`
+> **⚠️ Current reality:** on the Vercel project `chidental-lab`, `NEXT_PUBLIC_SUPABASE_URL`
 > / anon key / service-role key are shared across **Production AND Preview**, so
 > **Preview deployments currently read/write PRODUCTION data.** Low practical risk
 > while few/no PR previews are created, but real. Zero-cost mitigation: disable
-> preview deployments for `big-pos` (Vercel → Settings → Git) until staging exists.
+> preview deployments for `chidental-lab` (Vercel → Settings → Git) until staging exists.
 
 **Cheapest way to isolate Preview when you do need it (Phase 1):** instead of a
 permanent project, create an **ephemeral Supabase preview branch** off prod for
