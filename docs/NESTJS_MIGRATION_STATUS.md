@@ -13,11 +13,11 @@ write modules, and (c) owner-run prod cutovers (flag-flip + soak).
 ```
 Foundation  ██████████████████████████  100%   (phases 0–2 + shared + keystone)
 Read modules ██████████████████████████  100%   (6 of 6 done ✅)
-Write modules ░░░░░░░░░░░░░░░░░░░░░░░░░░    0%   (0 of 3)
+Write modules █████████░░░░░░░░░░░░░░░░░   33%   (1 of 3 — write seam proven)
 Phase 4 cleanup ░░░░░░░░░░░░░░░░░░░░░░░░    0%
 ```
 
-**Code migrated to the API: 6 of ~9 modules — all reads done.** No architectural unknowns remain; only the write modules (money/audit) + Phase 4 cleanup left.
+**Code migrated to the API: 7 of ~9 modules.** All reads + the first write done; the write seam is proven end-to-end.
 
 ## Legend
 
@@ -60,10 +60,12 @@ in Vercel per module and soak ≥1 week. Flag OFF by default = zero behavior cha
 
 ### Writes (data mutation — money / audit critical, **invoices last**)
 
+The **write seam** (`apiSend` in `apps/web/src/lib/api/client.ts`): POST/PATCH/DELETE a JSON body; the controller returns the `ActionResult` as a **200/201 body** for validation + DB outcomes (messages verbatim), and the guard status-codes auth/permission (401/403) which `apiSend` maps back to the exact `requirePermission` strings. `revalidatePath` stays in the web action. Each write endpoint carries `@RequirePermission(key)` — the API enforces the gate itself (it's public; can't trust the web gate).
+
 | # | Module | Status | PR | Needs | Notes |
 |---|--------|--------|----|-------|-------|
-| 7 | customer-actions | ⬜ | — | shared Zod DTOs at runtime (✅ keystone) | permission gate + validation |
-| 8 | work-actions (status) | ⬜ | — | shared Zod DTOs, production logic | status transitions + history |
+| 7 | customer-actions | ✅ | #14 | shared Zod DTOs at runtime (✅ keystone) | create/update/archive/restore — E2E mutation-verified + cleanup |
+| 8 | work-actions (status) | ⬜ next | — | shared Zod DTOs, production logic | status transitions + history |
 | 9 | invoice-actions | 🔒 last | — | audit log, billing-settings, production, statement in API | money + audit — highest care |
 
 ## Prerequisite work items
