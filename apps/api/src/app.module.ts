@@ -8,6 +8,7 @@ import { SupabaseAuthGuard } from './auth/supabase-auth.guard'
 import { AllExceptionsFilter } from './common/all-exceptions.filter'
 import { HealthModule } from './health/health.module'
 import { ProductsModule } from './products/products.module'
+import { CustomersModule } from './customers/customers.module'
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ProductsModule } from './products/products.module'
     AuthModule,
     HealthModule,
     ProductsModule,
+    CustomersModule,
   ],
   providers: [
     // Auth guard runs on every route (opt out with @Public); the DB-backed
