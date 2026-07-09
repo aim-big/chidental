@@ -26,7 +26,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { cn, formatCurrency, todayISODate } from '@/lib/utils'
 import { ArrowLeft, Printer, CreditCard, Ban, Pencil, ChevronDown, FileText, Truck, CheckCircle2, Trash2, ArchiveRestore } from 'lucide-react'
 import { canEditInvoice } from '@/lib/invoice-permissions'
-import { isVoided } from '@/lib/invoice-status'
+import { isVoided } from '@chidental/shared'
 import { statusBadgeVariant, paymentStatusLabel } from '@/lib/status-badge'
 import {
   markSentAction,

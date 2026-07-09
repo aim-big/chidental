@@ -22,7 +22,7 @@ import { ServiceStatusSelectItem } from '@/components/invoices/ServiceStatusSele
 import { ManageOptionsLink } from '@/components/ui/manage-options-link'
 import { formatCurrency, formatDate, cn } from '@/lib/utils'
 import { Printer, Pencil, Plus, Trash2 } from 'lucide-react'
-import { isVoided } from '@/lib/invoice-status'
+import { isVoided } from '@chidental/shared'
 import { saveRecipientAction } from '@/data/invoice-actions'
 import type { InvoiceItem, Product, ServiceStatus, WorkStage, WorkStatusConfig } from '@chidental/shared'
 import type { InvoiceDetail } from '@/data/invoices'

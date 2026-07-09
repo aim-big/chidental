@@ -1,4 +1,4 @@
-import { isVoided } from '@/lib/invoice-status'
+import { isVoided } from '@chidental/shared'
 
 // Data-integrity classifier for a single invoice. Mirrors the SQL "health check"
 // used by the Super Admin Data Health panel and by the DB guard's intent: an

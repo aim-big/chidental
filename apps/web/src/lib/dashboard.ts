@@ -5,7 +5,7 @@
 // table), monthly sales-vs-payment trend, and period-over-period growth.
 
 import { differenceInCalendarDays, eachMonthOfInterval, format } from 'date-fns'
-import { isVoided, isOutstanding, isOverdue, balanceDue } from '@/lib/invoice-status'
+import { isVoided, isOutstanding, isOverdue, balanceDue } from '@chidental/shared'
 import {
   aggregateByCustomer,
   aggregateByProduct,

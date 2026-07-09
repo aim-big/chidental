@@ -9,7 +9,7 @@
 import { useRef, type ReactNode } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { canEditInvoice } from '@/lib/invoice-permissions'
-import { isVoided } from '@/lib/invoice-status'
+import { isVoided } from '@chidental/shared'
 import { ActionsBar } from './ActionsBar'
 import { InvoiceDocument } from './InvoiceDocument'
 import type { InvoiceItem, Product, ServiceStatus, WorkStage, WorkStatusConfig } from '@chidental/shared'
