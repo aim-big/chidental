@@ -1,5 +1,22 @@
-import { Controller, Get, NotFoundException, Param, Query } from '@nestjs/common'
+import { Body, Controller, Get, NotFoundException, Param, Patch, Post, Query } from '@nestjs/common'
+import { customerInputSchema, idSchema, type CustomerInput } from '@chidental/shared'
 import { SupabaseService } from '../supabase/supabase.service'
+import { RequirePermission } from '../auth/require-permission.decorator'
+
+// Map validated input to the DB row — mirrors apps/web customer-actions.ts toRow:
+// empty strings collapse to null so optional columns stay clean.
+function toRow(input: CustomerInput) {
+  return {
+    clinic_name: input.clinic_name,
+    ssm_no: input.ssm_no || null,
+    contact_person: input.contact_person || null,
+    phone: input.phone || null,
+    email: input.email || null,
+    billing_address: input.billing_address || null,
+    delivery_address: input.delivery_address || null,
+    notes: input.notes || null,
+  }
+}
 
 // Read endpoints for the customers module (strangler migration, module 2).
 // Mirrors apps/web `src/data/customers.ts` verbatim (same .select/.order/.filter
@@ -145,5 +162,62 @@ export class CustomersController {
       .single()
     if (!data) throw new NotFoundException('customer not found')
     return data
+  }
+
+  // --- Writes (strangler module 7: customer-actions) ------------------------
+  // Each mirrors apps/web `src/data/customer-actions.ts` and gates on
+  // customers.edit (same key the UI uses). The global guard enforces the
+  // permission (403 → the seam maps it to the exact string); validation + DB
+  // outcomes are returned as a 200 ActionResult body so their messages pass
+  // through verbatim. `revalidatePath` stays in the web action.
+
+  // Mirrors createCustomerAction(): validate → insert → { ok, id }.
+  @Post()
+  @RequirePermission('customers.edit')
+  async create(@Body() body: unknown) {
+    const parsed = customerInputSchema.safeParse(body)
+    if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+    const { data, error } = await this.supabase.admin
+      .from('customers')
+      .insert(toRow(parsed.data))
+      .select('id')
+      .single()
+    if (error) return { ok: false, error: error.message }
+    return { ok: true, id: data.id as string }
+  }
+
+  // Mirrors updateCustomerAction(): validate id + input → update → { ok }.
+  @Patch(':id')
+  @RequirePermission('customers.edit')
+  async update(@Param('id') id: string, @Body() body: unknown) {
+    if (!idSchema.safeParse(id).success) return { ok: false, error: 'Invalid clinic id' }
+    const parsed = customerInputSchema.safeParse(body)
+    if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+    const { error } = await this.supabase.admin.from('customers').update(toRow(parsed.data)).eq('id', id)
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
+  }
+
+  // Mirrors archiveCustomerAction(): soft-delete via archived_at = now().
+  @Post(':id/archive')
+  @RequirePermission('customers.edit')
+  async archive(@Param('id') id: string) {
+    if (!idSchema.safeParse(id).success) return { ok: false, error: 'Invalid clinic id' }
+    const { error } = await this.supabase.admin
+      .from('customers')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('id', id)
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
+  }
+
+  // Mirrors restoreCustomerAction(): clear archived_at.
+  @Post(':id/restore')
+  @RequirePermission('customers.edit')
+  async restore(@Param('id') id: string) {
+    if (!idSchema.safeParse(id).success) return { ok: false, error: 'Invalid clinic id' }
+    const { error } = await this.supabase.admin.from('customers').update({ archived_at: null }).eq('id', id)
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
   }
 }

@@ -17,6 +17,8 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth/require-permission'
+import { isModuleOnApi } from '@/lib/config'
+import { apiSend } from '@/lib/api/client'
 import { customerInputSchema, idSchema, type CustomerInput } from '@chidental/shared'
 
 export type ActionResult = { ok: true } | { ok: false; error: string }
@@ -38,6 +40,12 @@ function toRow(input: CustomerInput) {
 }
 
 export async function createCustomerAction(input: CustomerInput): Promise<CreateResult> {
+  if (isModuleOnApi('customer-actions')) {
+    const res = await apiSend<CreateResult>('POST', '/customers', input)
+    if (res.ok) revalidatePath('/customers')
+    return res
+  }
+
   const gate = await requirePermission('customers.edit')
   if (gate.ok === false) return gate
 
@@ -53,6 +61,15 @@ export async function createCustomerAction(input: CustomerInput): Promise<Create
 }
 
 export async function updateCustomerAction(id: string, input: CustomerInput): Promise<ActionResult> {
+  if (isModuleOnApi('customer-actions')) {
+    const res = await apiSend<ActionResult>('PATCH', `/customers/${id}`, input)
+    if (res.ok) {
+      revalidatePath('/customers')
+      revalidatePath(`/customers/${id}`)
+    }
+    return res
+  }
+
   const gate = await requirePermission('customers.edit')
   if (gate.ok === false) return gate
 
@@ -73,6 +90,15 @@ export async function updateCustomerAction(id: string, input: CustomerInput): Pr
 // new-invoice picker, but keeps all historical invoices/statements intact. Gated
 // on customers.edit (same as create/update) — no separate delete permission.
 export async function archiveCustomerAction(id: string): Promise<ActionResult> {
+  if (isModuleOnApi('customer-actions')) {
+    const res = await apiSend<ActionResult>('POST', `/customers/${id}/archive`)
+    if (res.ok) {
+      revalidatePath('/customers')
+      revalidatePath(`/customers/${id}`)
+    }
+    return res
+  }
+
   const gate = await requirePermission('customers.edit')
   if (gate.ok === false) return gate
 
@@ -91,6 +117,15 @@ export async function archiveCustomerAction(id: string): Promise<ActionResult> {
 }
 
 export async function restoreCustomerAction(id: string): Promise<ActionResult> {
+  if (isModuleOnApi('customer-actions')) {
+    const res = await apiSend<ActionResult>('POST', `/customers/${id}/restore`)
+    if (res.ok) {
+      revalidatePath('/customers')
+      revalidatePath(`/customers/${id}`)
+    }
+    return res
+  }
+
   const gate = await requirePermission('customers.edit')
   if (gate.ok === false) return gate
 
