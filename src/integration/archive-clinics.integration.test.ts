@@ -34,12 +34,19 @@ describe('clinic archive: column + gating', () => {
     if (restore.ok) expect(restore.rows[0].archived_at).toBeNull()
   })
 
-  it('a view-only user cannot archive (RLS denies the update)', async () => {
+  it('a view-only user cannot archive (RLS silently denies the update)', async () => {
     const viewer = await seedUser(['customers.view'])
     const id = await seedCustomer('Protected')
+    // The customers_write RLS policy (USING auth_has_permission('customers.edit'))
+    // filters the row out of the UPDATE for a view-only user, so Postgres affects
+    // ZERO rows WITHOUT raising — only INSERT/WITH CHECK violations raise, not a
+    // USING-filtered UPDATE. The security guarantee is "the row is not modified",
+    // asserted directly below.
     const res = await asUser(viewer, 'update customers set archived_at = now() where id = $1 returning id', [id])
-    expect(res.ok).toBe(false)
-    if (res.ok === false) expect(res.error).toMatch(/row-level security/i)
+    expect(res.ok).toBe(true)
+    if (res.ok) expect(res.rows.length).toBe(0)
+    const check = await sql('select archived_at from customers where id = $1', [id])
+    expect(check.rows[0].archived_at).toBeNull()
   })
 })
 
