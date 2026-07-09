@@ -13,11 +13,11 @@ write modules, and (c) owner-run prod cutovers (flag-flip + soak).
 ```
 Foundation  ██████████████████████████  100%   (phases 0–2 + shared + keystone)
 Read modules ██████████████████████████  100%   (6 of 6 done ✅)
-Write modules █████████░░░░░░░░░░░░░░░░░   33%   (1 of 3 — write seam proven)
+Write modules █████████████████░░░░░░░░░   67%   (2 of 3 — invoice-actions left)
 Phase 4 cleanup ░░░░░░░░░░░░░░░░░░░░░░░░    0%
 ```
 
-**Code migrated to the API: 7 of ~9 modules.** All reads + the first write done; the write seam is proven end-to-end.
+**Code migrated to the API: 8 of ~9 modules.** Only invoice-actions (money/audit) + Phase 4 left.
 
 ## Legend
 
@@ -65,8 +65,10 @@ The **write seam** (`apiSend` in `apps/web/src/lib/api/client.ts`): POST/PATCH/D
 | # | Module | Status | PR | Needs | Notes |
 |---|--------|--------|----|-------|-------|
 | 7 | customer-actions | ✅ | #14 | shared Zod DTOs at runtime (✅ keystone) | create/update/archive/restore — E2E mutation-verified + cleanup |
-| 8 | work-actions (status) | ⬜ next | — | shared Zod DTOs, production logic | status transitions + history |
-| 9 | invoice-actions | 🔒 last | — | audit log, billing-settings, production, statement in API | money + audit — highest care |
+| 8 | work-actions (status/note) | ✅ | #15 | user-scoped client + activity log | E2E: history `changed_by`=real actor (not null), on_hold round-trip, note+activity |
+| 9 | invoice-actions | 🔒 next/last | — | billing-settings, production, statement, diff/labels in API | money + audit — highest care |
+
+**Write infra built (reused by module 9):** `SupabaseService.forUser(token)` (user-scoped client so trigger `auth.uid()` records the real actor), `@Auth()`/`@AccessToken()` param decorators, `AuthContext.actorName`, global `ActivityLogService.logInvoiceActivity` (mirrors `@/lib/audit/audit-log`).
 
 ## Prerequisite work items
 

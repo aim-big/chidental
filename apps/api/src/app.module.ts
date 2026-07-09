@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config'
 import { APP_FILTER, APP_GUARD } from '@nestjs/core'
 import { validateEnv } from './config/env.validation'
 import { SupabaseModule } from './supabase/supabase.module'
+import { AuditModule } from './audit/audit.module'
 import { AuthModule } from './auth/auth.module'
 import { SupabaseAuthGuard } from './auth/supabase-auth.guard'
 import { AllExceptionsFilter } from './common/all-exceptions.filter'
@@ -18,6 +19,7 @@ import { ReportsModule } from './reports/reports.module'
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
     SupabaseModule,
+    AuditModule,
     AuthModule,
     HealthModule,
     ProductsModule,

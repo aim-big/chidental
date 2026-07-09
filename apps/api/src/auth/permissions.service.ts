@@ -6,6 +6,9 @@ export type AuthContext = {
   email: string | null
   isSuperAdmin: boolean
   permissions: Set<string>
+  // Display-name snapshot for audit/activity rows — full_name, then username
+  // (mirrors the web requirePermission actorName).
+  actorName: string
 }
 
 /**
@@ -23,7 +26,7 @@ export class PermissionsService {
     // Active profile + its role.
     const { data: profile } = await this.supabase.admin
       .from('profiles')
-      .select('id, active, role_id, roles(is_system)')
+      .select('id, active, role_id, full_name, username, roles(is_system)')
       .eq('id', userId)
       .maybeSingle()
 
@@ -41,7 +44,10 @@ export class PermissionsService {
       permissions = new Set((perms ?? []).map((p) => p.permission as string))
     }
 
-    return { userId, email, isSuperAdmin, permissions }
+    const actorName =
+      (profile.full_name as string | null) ?? (profile.username as string | null) ?? '(unknown)'
+
+    return { userId, email, isSuperAdmin, permissions, actorName }
   }
 
   has(ctx: AuthContext, permission: string): boolean {

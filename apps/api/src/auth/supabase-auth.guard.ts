@@ -12,8 +12,10 @@ import { PermissionsService, type AuthContext } from './permissions.service'
 import { IS_PUBLIC } from './public.decorator'
 import { REQUIRE_PERMISSION } from './require-permission.decorator'
 
-// The request carries the resolved auth context once the guard passes.
-export type AuthedRequest = Request & { auth?: AuthContext }
+// The request carries the resolved auth context + the caller's access token once
+// the guard passes. The token is needed by handlers that must act AS the user
+// (SupabaseService.forUser) so DB triggers record the real actor.
+export type AuthedRequest = Request & { auth?: AuthContext; accessToken?: string }
 
 /**
  * Global guard:
@@ -57,6 +59,7 @@ export class SupabaseAuthGuard implements CanActivate {
     }
 
     req.auth = ctx
+    req.accessToken = token
     return true
   }
 
