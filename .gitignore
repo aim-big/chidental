@@ -38,8 +38,8 @@ build
 *.sw?
 .vercel
 
-# Playwright
-/test-results/
-/playwright-report/
-/blob-report/
-/playwright/.cache/
+# Playwright (unanchored — artifacts live under apps/web after the monorepo move)
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
