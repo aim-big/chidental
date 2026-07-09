@@ -26,6 +26,13 @@ jobs:
       - name: Install
         run: npm ci
 
+      # Build shared to its CJS dist first: apps/api consumes @chidental/shared
+      # at runtime through the package's `require` → dist condition, so the API
+      # build (and any Node consumer) needs dist present. Bundler consumers
+      # (web, vitest) use the TS source directly and don't depend on this.
+      - name: Build (shared)
+        run: npm run build -w @chidental/shared
+
       - name: Unit tests (shared)
         run: npm test -w packages/shared
 

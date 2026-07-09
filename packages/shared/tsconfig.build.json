@@ -1,0 +1,22 @@
+{
+  // CommonJS build for Node consumers (apps/api runs `node dist/main.js`, which
+  // `require()`s this package). Bundlers (Next, vitest) keep consuming the TS
+  // source directly via the package's `exports.import` condition — this build is
+  // only for the `require` condition. Emits .js (CJS) + .d.ts to ./dist; a
+  // sibling dist/package.json ({"type":"commonjs"}) marks the .js as CJS even
+  // though the package root is `"type": "module"`.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2022",
+    "declaration": true,
+    "noEmit": false,
+    "emitDeclarationOnly": false,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "sourceMap": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "dist", "node_modules"]
+}
