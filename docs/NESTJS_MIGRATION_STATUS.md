@@ -85,26 +85,19 @@ The **write seam** (`apiSend` in `apps/web/src/lib/api/client.ts`): POST/PATCH/D
 
 > Note: dashboard/reports reads turned out **types-only** — `getDashboardData`/`getReport*` return raw rows; the aggregation (`@/lib/dashboard`, `@/lib/reports`) runs in the page and stays in web. The API mirrors the queries + normalization only.
 
-## 👤 What the owner must do (the code is API-only — this is now required)
+## Production go-live — DONE (2026-07-09)
 
-Because the fallback is gone, the API is a hard dependency. Do this **before/at**
-the next production deploy or prod pages will throw:
+Prod is live on Next + Nest. Completed:
+1. ✅ **Railway API redeployed** with all 9 module controllers — `/health` → `{"shared":true}`, all 10 routes present + guarded, pointed at **prod** Supabase.
+2. ✅ **`NEXT_PUBLIC_API_URL`** set in Vercel Production → `https://chidental-api-production.up.railway.app`.
+3. ✅ **Vercel prod redeployed** (`chidental.vercel.app`) with the env baked in — site serves, `/` → `/login`.
 
-1. **Vercel (project `chidental-lab`, Production env):** set
-   `NEXT_PUBLIC_API_URL=https://chidental-api-production.up.railway.app`.
-2. **Confirm the Railway API is healthy + reachable:** `GET /health` →
-   `{"status":"ok","shared":true}` (`shared:true` proves the shared runtime link).
-   Make sure the API points at the **prod** Supabase and stays up (it's now on the
-   critical path — consider uptime monitoring + a min instance).
-3. **Deploy web.** Smoke-test each area (products, clinics, work, invoices,
-   dashboard, reports) + one write (edit a clinic) + a spot-check that the invoice
-   activity/status-history rows show the right actor.
-4. **Rollback** (if needed): revert the cutover commit (`git revert`) to restore
-   the local Next fallbacks, or roll Vercel back to the prior deployment.
-5. **Local dev now needs the API running:** `npm run dev -w apps/api` alongside
-   `npm run dev` (web), with `NEXT_PUBLIC_API_URL=http://127.0.0.1:6061`.
-6. Wire **Railway ↔ GitHub auto-deploy** (currently manual `railway up`) so API
-   changes ship automatically.
+### 👤 Still on the owner
+- **Authenticated smoke test (only you can — needs a real prod login/PIN):** log in and open Products, Clinics, Work, Invoices, Dashboard, Reports; edit a clinic; record a test payment / issue an invoice; confirm the invoice **activity timeline shows your name**. If anything errors → rollback below.
+- **Rollback:** `git revert <cutover-sha>` + push (restores local fallbacks), or `vercel rollback` to the prior deployment. The Railway API can stay as-is.
+- **Keep the API up** — it's on the critical path now. Add uptime/latency monitoring; consider a Railway min-instance.
+- Wire **Railway ↔ GitHub auto-deploy** so API changes ship on push (currently manual `railway up`).
+- **Local dev now needs the API:** run `npm run dev -w apps/api` alongside `npm run dev`, with `NEXT_PUBLIC_API_URL=http://127.0.0.1:6061`.
 
 ## Remaining nice-to-haves (optional, non-blocking)
 
