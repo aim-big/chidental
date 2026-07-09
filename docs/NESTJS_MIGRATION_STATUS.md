@@ -6,23 +6,24 @@
 
 ## At a glance
 
-**The migration is CODE-COMPLETE.** All 9 data modules (6 reads + 3 writes) run on
-the NestJS API behind per-module flags, each verified end-to-end. Every module is
-**inert by default** (flags off) — Next.js still serves 100% of production until
-you flip a flag. What remains is **owner-run**: roll the flags out in prod one at
-a time with a soak between each (see the Rollout runbook below), then the
-post-soak code tidy.
+**The migration is DONE — the app is API-only.** All 9 data modules run on the
+NestJS API, the per-module flags + local Next fallbacks are removed, and the app
+is now a thin client of `apps/api`. Every `src/data/*` read/write calls the API.
 
 ```
 Foundation      ██████████████████████████  100%   phases 0–2 + shared + keystone
 Read modules    ██████████████████████████  100%   6 of 6 ✅
 Write modules   ██████████████████████████  100%   3 of 3 ✅
-Prod rollout    ░░░░░░░░░░░░░░░░░░░░░░░░░░    0%   👤 owner — flag-flip + soak
-Post-soak tidy  ░░░░░░░░░░░░░░░░░░░░░░░░░░    0%   after every module has soaked
+Cutover (API-only) ███████████████████████  100%   ✅ flags + fallbacks removed
 ```
 
-**All 9 data modules migrated + E2E-verified (PRs #6, #7, #9, #11–#16).** The API
-serves zero production traffic until an owner flips a flag.
+**All 9 modules migrated + E2E-verified, then hard-cut-over to API-only (PRs
+#6–#18).** The one thing left is an owner env flip in prod (below) — the code is
+final.
+
+> ⚠️ **The app now has a hard dependency on the API.** `NEXT_PUBLIC_API_URL` MUST
+> be set (web) and the Railway API MUST be up, or pages throw. There is no local
+> fallback anymore — see "What the owner must do" below.
 
 ## Legend
 
@@ -84,40 +85,32 @@ The **write seam** (`apiSend` in `apps/web/src/lib/api/client.ts`): POST/PATCH/D
 
 > Note: dashboard/reports reads turned out **types-only** — `getDashboardData`/`getReport*` return raw rows; the aggregation (`@/lib/dashboard`, `@/lib/reports`) runs in the page and stays in web. The API mirrors the queries + normalization only.
 
-## 👤 Rollout runbook (owner-run — not codeable)
+## 👤 What the owner must do (the code is API-only — this is now required)
 
-The code is done; putting the API into production is a controlled, reversible
-rollout **you** drive. Nothing here is automatic.
+Because the fallback is gone, the API is a hard dependency. Do this **before/at**
+the next production deploy or prod pages will throw:
 
-**One-time setup**
-1. In Vercel (project `chidental-lab`), set `NEXT_PUBLIC_API_URL=https://chidental-api-production.up.railway.app` (Production).
-2. Confirm the Railway API is healthy: `GET /health` → `{"status":"ok","shared":true}`. (`shared:true` proves the API's shared runtime link is intact.)
-3. Leave `USE_API_MODULES` **empty** — everything still runs on Next.
+1. **Vercel (project `chidental-lab`, Production env):** set
+   `NEXT_PUBLIC_API_URL=https://chidental-api-production.up.railway.app`.
+2. **Confirm the Railway API is healthy + reachable:** `GET /health` →
+   `{"status":"ok","shared":true}` (`shared:true` proves the shared runtime link).
+   Make sure the API points at the **prod** Supabase and stays up (it's now on the
+   critical path — consider uptime monitoring + a min instance).
+3. **Deploy web.** Smoke-test each area (products, clinics, work, invoices,
+   dashboard, reports) + one write (edit a clinic) + a spot-check that the invoice
+   activity/status-history rows show the right actor.
+4. **Rollback** (if needed): revert the cutover commit (`git revert`) to restore
+   the local Next fallbacks, or roll Vercel back to the prior deployment.
+5. **Local dev now needs the API running:** `npm run dev -w apps/api` alongside
+   `npm run dev` (web), with `NEXT_PUBLIC_API_URL=http://127.0.0.1:6061`.
+6. Wire **Railway ↔ GitHub auto-deploy** (currently manual `railway up`) so API
+   changes ship automatically.
 
-**Per-module cutover — repeat for each, in this order (lowest blast radius first):**
+## Remaining nice-to-haves (optional, non-blocking)
 
-> `products → customers → work → dashboard → reports → invoices → customer-actions → work-actions → invoice-actions`
-
-For module `M`:
-1. **Append** `M` to `USE_API_MODULES` in Vercel Production (comma-separated) → redeploy.
-2. **Smoke test** that module's page(s) in prod: it should render/behave identically (it's calling the API now).
-3. **Soak ≥1 week.** Watch Railway logs + Vercel runtime errors + latency. For write modules, spot-check the audit trail (invoice activity / status history) shows the right actor.
-4. **Rollback (instant):** remove `M` from `USE_API_MODULES` → redeploy. The Next path is untouched and resumes immediately — no data migration, no risk.
-5. Only after a clean soak, move to the next module.
-
-**Notes**
-- **Reads lead writes.** Roll out a module's read flag and soak it before its write flag (`customers` before `customer-actions`, `invoices`+`work` before `invoice-actions`/`work-actions`).
-- **`invoice-actions` is last** — it's the money + audit path.
-- Also wire **Railway ↔ GitHub auto-deploy** (currently a manual `railway up` / build-on-push) so API changes ship automatically.
-
-## Post-soak code tidy (only after ALL modules have soaked in prod)
-
-Deferred on purpose — these delete the safety net, so they must wait until the API
-is proven in prod for every module:
-- Remove the `isModuleOnApi(...)` branches + the now-dead local Next query/action paths from `apps/web/src/data/*`.
-- Retire the `apps/web/src/lib/invoice-status.ts` re-export shim (import from `@chidental/shared` directly at the ~13 call sites).
-- Scope the API's Supabase key down from full service-role where feasible.
-- Remove `USE_API_MODULES` / `isModuleOnApi` once every module is API-only.
+- Scope the API's Supabase key down from full service-role where feasible (it
+  currently relies on service-role + its own permission checks).
+- Add uptime/latency monitoring on the Railway API (now on the critical path).
 
 ## Key facts
 

@@ -6,7 +6,7 @@
  */
 
 import { differenceInCalendarDays } from 'date-fns'
-import type { ArAging } from './invoice-status'
+import type { ArAging } from '@chidental/shared'
 
 // ── Input types ──────────────────────────────────────────────────────────────
 

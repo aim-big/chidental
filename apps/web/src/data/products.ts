@@ -1,28 +1,18 @@
 // Server-side READ query functions for the products module.
 //
-// Runs inside Server Components via the SSR client (`await createClient()`),
-// RLS-aware through the session cookie. Mirrors the query the current client
-// page runs today, so the move to server-first rendering is behaviour-preserving.
+// The products module is served entirely by the NestJS API. Each function is a
+// thin, typed proxy over an API endpoint; the signatures are unchanged so the
+// components that call them are untouched.
 //
 // Writes live in `./product-actions.ts`.
 
-import { createClient } from '@/lib/supabase/server'
-import { isModuleOnApi } from '@/lib/config'
 import { apiGet } from '@/lib/api/client'
 import type { Product, Unit } from '@chidental/shared'
 
-// List query — mirrors `products/page.tsx`: `.select('*').order('name')`.
-// Returns ALL products (active + inactive); the admin catalogue shows both,
-// dimming the inactive ones. (Invoice/work reads filter to active separately.)
-//
-// Strangler seam: when the `products` module is flipped to the API
-// (USE_API_MODULES=products), this delegates to the NestJS API; otherwise it runs
-// the exact Next query as before. The signature never changes — components untouched.
+// List query: ALL products (active + inactive), name asc — the admin catalogue
+// shows both, dimming the inactive ones.
 export async function getProducts(): Promise<Product[]> {
-  if (isModuleOnApi('products')) return apiGet<Product[]>('/products')
-  const supabase = await createClient()
-  const { data } = await supabase.from('products').select('*').order('name')
-  return (data ?? []) as Product[]
+  return apiGet<Product[]>('/products')
 }
 
 // --- Paginated list (URL-driven) -------------------------------------------
@@ -48,73 +38,15 @@ export interface ProductListPage {
   pageEnd: number
 }
 
-// Sortable columns → DB column names. Default order is name asc.
-const PRODUCT_SORT_COLUMNS: Record<string, string> = {
-  name: 'name',
-  unit: 'unit',
-  price: 'unit_price',
-}
-
-/**
- * URL-driven products list: server-side active filter + search + sort +
- * pagination via `.order().range()` with an exact count. Search spans
- * name / description / unit (all base-table columns), so the filter is all SQL.
- */
+/** URL-driven products list: server-side view filter + search + sort + pagination. */
 export async function getProductsPage(params: ProductListParams = {}): Promise<ProductListPage> {
   const { q = '', view = 'active', page = 1, pageSize = 10, sort = null, dir = 'asc' } = params
-
-  if (isModuleOnApi('products')) {
-    const qs = new URLSearchParams({ q, view, page: String(page), pageSize: String(pageSize), dir })
-    if (sort) qs.set('sort', sort)
-    return apiGet<ProductListPage>(`/products/page?${qs.toString()}`)
-  }
-
-  const supabase = await createClient()
-
-  const sortCol = (sort && PRODUCT_SORT_COLUMNS[sort]) || 'name'
-
-  let query = supabase
-    .from('products')
-    .select('*', { count: 'exact' })
-    .order(sortCol, { ascending: dir !== 'desc' })
-
-  if (view === 'active') query = query.eq('active', true)
-  else if (view === 'inactive') query = query.eq('active', false)
-
-  const term = q.trim()
-  if (term) {
-    const safe = term.replace(/[%,]/g, ' ')
-    query = query.or(`name.ilike.%${safe}%,description.ilike.%${safe}%,unit.ilike.%${safe}%`)
-  }
-
-  const safePage = Math.max(1, page)
-  const from = (safePage - 1) * pageSize
-  const { data, count } = await query.range(from, from + pageSize - 1)
-
-  const total = count ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const clamped = Math.min(safePage, totalPages)
-  const rows = (data ?? []) as Product[]
-  return {
-    rows,
-    total,
-    page: clamped,
-    totalPages,
-    pageStart: total === 0 ? 0 : from + 1,
-    pageEnd: from + rows.length,
-  }
+  const qs = new URLSearchParams({ q, view, page: String(page), pageSize: String(pageSize), dir })
+  if (sort) qs.set('sort', sort)
+  return apiGet<ProductListPage>(`/products/page?${qs.toString()}`)
 }
 
 // Active units for the product form's unit dropdown, ordered for display.
-// Inactive units are excluded; a product already using a now-inactive unit
-// keeps it via the form's option-preservation (see buildUnitOptions).
 export async function getActiveUnits(): Promise<Unit[]> {
-  if (isModuleOnApi('products')) return apiGet<Unit[]>('/products/units')
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from('units')
-    .select('*')
-    .eq('is_active', true)
-    .order('sort_order')
-  return (data ?? []) as Unit[]
+  return apiGet<Unit[]>('/products/units')
 }

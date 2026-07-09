@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { isVoided } from '@/lib/invoice-status'
+import { isVoided } from '@chidental/shared'
 import { statusBadgeVariant, paymentStatusLabel } from '@/lib/status-badge'
 import type { Invoice } from '@chidental/shared'
 

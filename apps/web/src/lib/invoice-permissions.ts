@@ -1,5 +1,5 @@
 import type { Invoice, Permission } from '@chidental/shared'
-import { isVoided } from '@/lib/invoice-status'
+import { isVoided } from '@chidental/shared'
 
 /**
  * Whether an invoice's content (header fields, line items, recipient,

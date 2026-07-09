@@ -3,7 +3,7 @@
 // in-render math the old client page did.
 
 import type { Invoice } from '@chidental/shared'
-import { balanceDue, countsAsRevenue, isOutstanding, isVoided } from '@/lib/invoice-status'
+import { balanceDue, countsAsRevenue, isOutstanding, isVoided } from '@chidental/shared'
 import { isoDateInTimeZone } from '@/lib/utils'
 
 export type ReportInvoiceItem = {

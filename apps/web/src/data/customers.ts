@@ -1,14 +1,11 @@
 // Server-side READ query functions for the customers module.
 //
-// These run inside Server Components via the SSR client (`await createClient()`),
-// which is RLS-aware through the session cookie. They mirror, verbatim, the
-// queries the current client pages run today — same `.select(...)` strings and
-// ordering — so the move to server-first rendering is behavior-preserving.
+// The customers module is served entirely by the NestJS API. Each function is a
+// thin, typed proxy over an API endpoint; the signatures are unchanged so the
+// components that call them are untouched.
 //
 // Writes live in `./customer-actions.ts`.
 
-import { createClient } from '@/lib/supabase/server'
-import { isModuleOnApi } from '@/lib/config'
 import { apiGet, apiGetOrNull } from '@/lib/api/client'
 import type { Customer, Invoice } from '@chidental/shared'
 import type { StatementInvoiceRow, ActivityPaymentRow, StatementCreditRow } from '@/lib/statement'
@@ -19,23 +16,14 @@ export type CustomerDetail = {
   invoices: Invoice[]
 }
 
-// List query — mirrors `customers/page.tsx`:
-//   .select('*').order('clinic_name')
+// List query: active (non-archived) clinics, clinic_name asc.
 export async function getCustomers(): Promise<Customer[]> {
-  if (isModuleOnApi('customers')) return apiGet<Customer[]>('/customers')
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from('customers')
-    .select('*')
-    .is('archived_at', null)
-    .order('clinic_name')
-  return (data ?? []) as Customer[]
+  return apiGet<Customer[]>('/customers')
 }
 
 // --- Paginated list (URL-driven) -------------------------------------------
 
-// The clinics list active/archived filter rides the `view` URL slot (mirrors
-// the products catalogue's active/inactive/all filter).
+// The clinics list active/archived filter rides the `view` URL slot.
 export type CustomerView = 'active' | 'archived' | 'all'
 
 export interface CustomerListParams {
@@ -56,86 +44,21 @@ export interface CustomerListPage {
   pageEnd: number
 }
 
-// Sortable columns → DB column names. Default order is clinic_name asc.
-const CUSTOMER_SORT_COLUMNS: Record<string, string> = {
-  clinic: 'clinic_name',
-  contact: 'contact_person',
-  registered: 'created_at',
-}
-
-/**
- * URL-driven clinics list: server-side search + sort + pagination via
- * `.order().range()` with an exact count. Search spans clinic name / contact /
- * phone (all base-table columns, so the whole filter lives in SQL).
- */
+/** URL-driven clinics list: server-side search + sort + pagination. */
 export async function getCustomersPage(params: CustomerListParams = {}): Promise<CustomerListPage> {
   const { q = '', page = 1, pageSize = 15, sort = null, dir = 'asc', view = 'active' } = params
-
-  if (isModuleOnApi('customers')) {
-    const qs = new URLSearchParams({ q, view, page: String(page), pageSize: String(pageSize), dir })
-    if (sort) qs.set('sort', sort)
-    return apiGet<CustomerListPage>(`/customers/page?${qs.toString()}`)
-  }
-
-  const supabase = await createClient()
-
-  const sortCol = (sort && CUSTOMER_SORT_COLUMNS[sort]) || 'clinic_name'
-
-  let query = supabase
-    .from('customers')
-    .select('*', { count: 'exact' })
-    .order(sortCol, { ascending: dir !== 'desc' })
-
-  // Active view (default) hides archived clinics; "Archived" shows only them;
-  // "All" shows both (archived rows are badged + dimmed in the client).
-  if (view === 'active') query = query.is('archived_at', null)
-  else if (view === 'archived') query = query.not('archived_at', 'is', null)
-
-  const term = q.trim()
-  if (term) {
-    const safe = term.replace(/[%,]/g, ' ')
-    query = query.or(`clinic_name.ilike.%${safe}%,contact_person.ilike.%${safe}%,phone.ilike.%${safe}%`)
-  }
-
-  const safePage = Math.max(1, page)
-  const from = (safePage - 1) * pageSize
-  const { data, count } = await query.range(from, from + pageSize - 1)
-
-  const total = count ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const clamped = Math.min(safePage, totalPages)
-  const rows = (data ?? []) as Customer[]
-  return {
-    rows,
-    total,
-    page: clamped,
-    totalPages,
-    pageStart: total === 0 ? 0 : from + 1,
-    pageEnd: from + rows.length,
-  }
+  const qs = new URLSearchParams({ q, view, page: String(page), pageSize: String(pageSize), dir })
+  if (sort) qs.set('sort', sort)
+  return apiGet<CustomerListPage>(`/customers/page?${qs.toString()}`)
 }
 
-// Detail bundle — mirrors the 2 parallel reads in `[id]/page.tsx`. Returns
-// `null` when the customer row is missing.
+// Detail bundle — the customer plus its invoice history. `null` when missing.
 export async function getCustomerDetail(id: string): Promise<CustomerDetail | null> {
-  if (isModuleOnApi('customers')) return apiGetOrNull<CustomerDetail>(`/customers/${id}/detail`)
-  const supabase = await createClient()
-  const [cRes, iRes] = await Promise.all([
-    supabase.from('customers').select('*').eq('id', id).single(),
-    supabase.from('invoices').select('*').eq('customer_id', id).is('deleted_at', null).order('invoice_date', { ascending: false }),
-  ])
-  if (!cRes.data) return null
-  return {
-    customer: cRes.data as Customer,
-    invoices: (iRes.data ?? []) as Invoice[],
-  }
+  return apiGetOrNull<CustomerDetail>(`/customers/${id}/detail`)
 }
 
-// Statement bundle — fetches the clinic row, its non-voided invoices (fields
-// needed by buildStatement), and all payment rows for those invoices. The
-// payment rows carry date + reference so the same bundle feeds both the
-// open-item and the activity (period-ledger) statement builders. Returns
-// `null` when the clinic row is missing.
+// Statement bundle — clinic + non-voided invoices + payments + credits. `null`
+// when the clinic row is missing.
 export type ClinicStatementBundle = {
   clinic: Customer
   invoices: StatementInvoiceRow[]
@@ -144,55 +67,10 @@ export type ClinicStatementBundle = {
 }
 
 export async function getClinicStatement(id: string): Promise<ClinicStatementBundle | null> {
-  if (isModuleOnApi('customers')) return apiGetOrNull<ClinicStatementBundle>(`/customers/${id}/statement`)
-  const supabase = await createClient()
-
-  // Fetch clinic + non-voided invoices + the clinic's account credits in parallel.
-  const [cRes, iRes, crRes] = await Promise.all([
-    supabase.from('customers').select('*').eq('id', id).single(),
-    supabase
-      .from('invoices')
-      .select('id, invoice_number, invoice_date, due_date, patient, total, status, voided_at')
-      .eq('customer_id', id)
-      .is('voided_at', null)
-      .is('deleted_at', null)
-      .order('invoice_date', { ascending: true }),
-    supabase
-      .from('credits')
-      .select('credit_date, amount, reason, invoice_id')
-      .eq('customer_id', id)
-      .order('credit_date', { ascending: true }),
-  ])
-
-  if (!cRes.data) return null
-
-  const invoices = (iRes.data ?? []) as StatementInvoiceRow[]
-  const credits = (crRes.data ?? []) as StatementCreditRow[]
-
-  // Fetch payments for these invoices (empty result set if no invoices)
-  let payments: ActivityPaymentRow[] = []
-  if (invoices.length > 0) {
-    const invoiceIds = invoices.map((i) => i.id)
-    const { data: pData } = await supabase
-      .from('payments')
-      .select('invoice_id, amount, payment_date, reference_number')
-      .in('invoice_id', invoiceIds)
-    payments = (pData ?? []) as ActivityPaymentRow[]
-  }
-
-  return {
-    clinic: cRes.data as Customer,
-    invoices,
-    payments,
-    credits,
-  }
+  return apiGetOrNull<ClinicStatementBundle>(`/customers/${id}/statement`)
 }
 
-// Edit-mode prefill — mirrors `CustomerForm`'s edit-mode read. Returns `null`
-// when the customer row is missing.
+// Edit-mode prefill — a single clinic row. `null` when missing.
 export async function getCustomerForEdit(id: string): Promise<Customer | null> {
-  if (isModuleOnApi('customers')) return apiGetOrNull<Customer>(`/customers/${id}`)
-  const supabase = await createClient()
-  const { data } = await supabase.from('customers').select('*').eq('id', id).single()
-  return (data ?? null) as Customer | null
+  return apiGetOrNull<Customer>(`/customers/${id}`)
 }
