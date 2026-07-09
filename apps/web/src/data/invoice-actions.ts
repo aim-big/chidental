@@ -155,6 +155,12 @@ export async function createInvoiceAction(payload: {
   p_invoice: InvoicePayload & { status: 'draft' | 'sent' }
   p_items: InvoiceItemPayload[]
 }): Promise<CreateResult> {
+  if (isModuleOnApi('invoice-actions')) {
+    const res = await apiSend<CreateResult>('POST', '/invoices', payload)
+    if (res.ok) revalidatePath('/invoices')
+    return res
+  }
+
   const gate = await requirePermission('invoices.create')
   if (gate.ok === false) return gate
 
@@ -195,6 +201,12 @@ export async function updateInvoiceAction(
   id: string,
   payload: { p_invoice: InvoicePayload; p_items: InvoiceItemPayload[] },
 ): Promise<ActionResult> {
+  if (isModuleOnApi('invoice-actions')) {
+    const res = await apiSend<ActionResult>('PATCH', `/invoices/${id}`, payload)
+    if (res.ok) revalidateInvoice(id)
+    return res
+  }
+
   const gate = await gateForContentEdit(id)
   if (!gate.ok) return gate
 
@@ -242,6 +254,12 @@ export async function recordPaymentAction(
   id: string,
   input: { amount: number; payment_date?: string; reference?: string; notes?: string },
 ): Promise<ActionResult> {
+  if (isModuleOnApi('invoice-actions')) {
+    const res = await apiSend<ActionResult>('POST', `/invoices/${id}/payment`, input)
+    if (res.ok) revalidateInvoice(id)
+    return res
+  }
+
   const gate = await requirePermission('invoices.manage')
   if (!gate.ok) return gate
 
@@ -269,6 +287,12 @@ export async function recordPaymentAction(
 }
 
 export async function markSentAction(id: string): Promise<ActionResult> {
+  if (isModuleOnApi('invoice-actions')) {
+    const res = await apiSend<ActionResult>('POST', `/invoices/${id}/mark-sent`)
+    if (res.ok) revalidateInvoice(id)
+    return res
+  }
+
   // Route through the content-edit gate so a voided draft can't be marked sent
   // (it also yields invoices.edit for a draft, matching the original UI gating).
   const gate = await gateForContentEdit(id)
@@ -400,6 +424,12 @@ export async function updateCaseDetailsAction(
   id: string,
   input: { patient: string | null; doctor: string | null },
 ): Promise<ActionResult> {
+  if (isModuleOnApi('invoice-actions')) {
+    const res = await apiSend<ActionResult>('PATCH', `/invoices/${id}/case`, input)
+    if (res.ok) revalidateInvoice(id)
+    return res
+  }
+
   const gate = await gateForContentEdit(id)
   if (!gate.ok) return gate
 
@@ -425,6 +455,12 @@ export async function updateCaseDetailsAction(
 }
 
 export async function updateServiceStatusAction(id: string, serviceStatusId: string | null): Promise<ActionResult> {
+  if (isModuleOnApi('invoice-actions')) {
+    const res = await apiSend<ActionResult>('PATCH', `/invoices/${id}/service-status`, { serviceStatusId })
+    if (res.ok) revalidateInvoice(id)
+    return res
+  }
+
   const gate = await gateForContentEdit(id)
   if (!gate.ok) return gate
 
@@ -466,6 +502,14 @@ export async function saveRecipientAction(
   fields: RecipientFields,
   opts?: { alsoSaveToCustomer?: boolean; customerId?: string },
 ): Promise<ActionResult> {
+  if (isModuleOnApi('invoice-actions')) {
+    const res = await apiSend<ActionResult>('PATCH', `/invoices/${id}/recipient`, {
+      fields, alsoSaveToCustomer: opts?.alsoSaveToCustomer, customerId: opts?.customerId,
+    })
+    if (res.ok) revalidateInvoice(id)
+    return res
+  }
+
   const gate = await gateForContentEdit(id)
   if (!gate.ok) return gate
 
