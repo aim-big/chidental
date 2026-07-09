@@ -8,7 +8,7 @@
 import { SlidersHorizontal } from 'lucide-react'
 import { SelectSeparator } from '@/components/ui/select'
 import { useAuth } from '@/contexts/AuthContext'
-import type { Permission } from '@/domain/permissions'
+import type { Permission } from '@chidental/shared'
 import { cn } from '@/lib/utils'
 
 type ManageOptionsLinkProps = {

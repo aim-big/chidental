@@ -28,7 +28,7 @@ import { updateWorkStatusAction } from '@/data/invoice-actions'
 import { WorkStageChips } from '@/components/work/WorkStageChips'
 import { WorkStatusSelect, ADVANCE_VALUE } from '@/components/work-status-select'
 import { decodeWork, encodeWork, nextWorkStep } from '@/lib/work-stages'
-import type { WorkStatus, WorkStage } from '@/lib/database.types'
+import type { WorkStatus, WorkStage } from '@chidental/shared'
 import type { WorkQueueRow } from '@/data/work'
 
 // ─── Optimistic state ───────────────────────────────────────────────────────

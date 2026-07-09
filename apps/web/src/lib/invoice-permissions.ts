@@ -1,4 +1,4 @@
-import type { Invoice, Permission } from '@/lib/database.types'
+import type { Invoice, Permission } from '@chidental/shared'
 import { isVoided } from '@/lib/invoice-status'
 
 /**

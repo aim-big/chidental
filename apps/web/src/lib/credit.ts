@@ -1,6 +1,6 @@
 // Display vocabulary for account credits (Wave 6). A credit's `reason` is one
 // of `remake | return | goodwill` (see `CreditReason` in database.types.ts).
-import type { CreditReason } from '@/lib/database.types'
+import type { CreditReason } from '@chidental/shared'
 
 export const CREDIT_REASON_LABELS: Record<CreditReason, string> = {
   remake: 'Remake',

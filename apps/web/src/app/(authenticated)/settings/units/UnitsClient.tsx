@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ActiveSwitch, TableActionButton } from '@/components/ui/table-actions'
 import { ArrowDown, ArrowUp, PencilLine, Plus } from 'lucide-react'
-import type { Unit } from '@/lib/database.types'
+import type { Unit } from '@chidental/shared'
 import { useAuth } from '@/contexts/AuthContext'
 
 const schema = z.object({

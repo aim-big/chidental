@@ -11,8 +11,8 @@ import {
   normalizeBillingSettings,
   type BillingSettingsInput,
 } from '@/lib/billing-settings'
-import { billingSettingsInputSchema } from '@/domain/schemas'
-import type { TablesInsert } from '@/lib/database.types'
+import { billingSettingsInputSchema } from '@chidental/shared'
+import type { TablesInsert } from '@chidental/shared'
 
 export async function getBillingSettings(): Promise<BillingSettings> {
   const supabase = await createClient()

@@ -17,7 +17,7 @@ import { WorkStatusBadge } from '@/components/work-status-badge'
 import { WorkStatusSelect, ADVANCE_VALUE } from '@/components/work-status-select'
 import { encodeWork, decodeWork, nextWorkStep, workLabel, workColor } from '@/lib/work-stages'
 import { updateWorkStatusAction, updateWorkNoteAction } from '@/data/invoice-actions'
-import type { InvoiceItem, InvoiceItemStatusHistory, WorkStage, WorkStatusConfig } from '@/lib/database.types'
+import type { InvoiceItem, InvoiceItemStatusHistory, WorkStage, WorkStatusConfig } from '@chidental/shared'
 
 export type WorkStatusEditorProps = {
   items: InvoiceItem[]

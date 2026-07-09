@@ -2,7 +2,7 @@
 // can be unit-tested and so the page stays a thin Server Component. Mirrors the
 // in-render math the old client page did.
 
-import type { Invoice } from '@/lib/database.types'
+import type { Invoice } from '@chidental/shared'
 import { balanceDue, countsAsRevenue, isOutstanding, isVoided } from '@/lib/invoice-status'
 import { isoDateInTimeZone } from '@/lib/utils'
 

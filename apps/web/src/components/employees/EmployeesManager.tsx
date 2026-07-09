@@ -14,7 +14,7 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/comp
 import { ActiveSwitch, TableActionButton } from '@/components/ui/table-actions'
 import { ArrowLeft, KeyRound, PencilLine, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { Profile, Role } from '@/lib/database.types'
+import type { Profile, Role } from '@chidental/shared'
 import { createEmployee, updateEmployee, resetPin, setActive, deleteEmployee } from '@/lib/auth/employee-actions'
 import { selectableRoles } from './role-filter'
 

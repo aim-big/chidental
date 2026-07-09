@@ -8,7 +8,7 @@
 // Writes live in `./customer-actions.ts`.
 
 import { createClient } from '@/lib/supabase/server'
-import type { Customer, Invoice } from '@/lib/database.types'
+import type { Customer, Invoice } from '@chidental/shared'
 import type { StatementInvoiceRow, ActivityPaymentRow, StatementCreditRow } from '@/lib/statement'
 
 // The bundle the detail page needs: the customer plus its invoice history.

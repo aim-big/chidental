@@ -20,7 +20,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth/require-permission'
-import { productInputSchema, idSchema, toggleActiveInputSchema, type ProductInput } from '@/domain/schemas'
+import { productInputSchema, idSchema, toggleActiveInputSchema, type ProductInput } from '@chidental/shared'
 
 export type ActionResult = { ok: true } | { ok: false; error: string }
 export type CreateResult = { ok: true; id: string } | { ok: false; error: string }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { Invoice } from './database.types'
+import type { Invoice } from '@chidental/shared'
 import { isVoided, countsAsRevenue, isOutstanding, isOverdue, nextStatusAfterPayment, summarizeCustomerInvoices, arAging, balanceDue } from './invoice-status'
 
 const inv = (status: string, voided_at: string | null = null): Pick<Invoice, 'status' | 'voided_at'> =>

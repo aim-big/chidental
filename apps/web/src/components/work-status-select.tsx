@@ -17,7 +17,7 @@ import {
 } from '@/lib/work-stages'
 import { workStatusColor, workStatusLabel, type WorkStatusDisplay } from '@/lib/work-status-config'
 import { Check, ArrowRight } from 'lucide-react'
-import type { WorkStage, WorkStatus } from '@/lib/database.types'
+import type { WorkStage, WorkStatus } from '@chidental/shared'
 
 // Sentinel emitted by the "Advance to next" row. Parents resolve it with
 // nextWorkStep() against the item's current (work_status, stage_id).

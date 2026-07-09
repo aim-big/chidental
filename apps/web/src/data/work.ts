@@ -9,7 +9,7 @@
 // Writes live in `./invoice-actions.ts` (`updateWorkStatusAction`).
 
 import { createClient } from '@/lib/supabase/server'
-import type { InvoiceItem, WorkStage, WorkStatus, WorkStatusConfig } from '@/lib/database.types'
+import type { InvoiceItem, WorkStage, WorkStatus, WorkStatusConfig } from '@chidental/shared'
 
 // One work-queue row: the invoice item fields the page reads, plus the embedded
 // invoice + customer shape the select returns. Composed from the schema-driven

@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import type { WorkStatus } from '@/lib/database.types'
+import type { WorkStatus } from '@chidental/shared'
 import { workStatusColor, workStatusLabel, type WorkStatusDisplay } from '@/lib/work-status-config'
 
 export function WorkStatusBadge({

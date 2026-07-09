@@ -3,7 +3,7 @@
 // dominantWorkStatus and summarizeWorkStatuses are intentionally omitted —
 // they live in the aggregation module (Task 7).
 
-import type { WorkStage, WorkStatus } from '@/lib/database.types'
+import type { WorkStage, WorkStatus } from '@chidental/shared'
 import { workStatusColor, workStatusLabel, type WorkStatusDisplay } from '@/lib/work-status-config'
 
 // ---------------------------------------------------------------------------

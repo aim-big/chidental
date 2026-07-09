@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { KanbanBoard } from '@/components/work/KanbanBoard'
 import { WorkQueueClient } from '@/components/work/WorkQueueClient'
-import type { WorkStage, WorkStatusConfig } from '@/lib/database.types'
+import type { WorkStage, WorkStatusConfig } from '@chidental/shared'
 import type { WorkQueueRow } from '@/data/work'
 
 type ViewMode = 'board' | 'list'

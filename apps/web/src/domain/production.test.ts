@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { WorkStage } from '@/lib/database.types'
+import type { WorkStage } from '@chidental/shared'
 import type { WorkStatusDisplay } from '@/lib/work-status-config'
 import {
   WORK_STATUSES, WORK_STATUS_LABELS, WORK_STATUS_COLORS,

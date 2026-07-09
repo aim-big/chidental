@@ -16,7 +16,7 @@ import { listViewState } from '@/lib/list-view-state'
 import { Plus, Users } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { useListUrlState, type ListUrlState } from '@/lib/use-list-url-state'
-import type { Customer } from '@/lib/database.types'
+import type { Customer } from '@chidental/shared'
 import type { CustomerListPage, CustomerView } from '@/data/customers'
 import { useAuth } from '@/contexts/AuthContext'
 

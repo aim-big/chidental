@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Pagination } from '@/components/ui/pagination'
 import { WorkStatusBadge } from '@/components/work-status-badge'
 import { cn, formatRelativeTime, formatDateTime, formatCurrency } from '@/lib/utils'
-import type { WorkStatus } from '@/lib/database.types'
+import type { WorkStatus } from '@chidental/shared'
 import type { WorkStatusDisplay } from '@/lib/work-status-config'
 import type { TimelineEvent } from '@/data/invoice-activity'
 

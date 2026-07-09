@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { isVoided } from '@/lib/invoice-status'
 import { statusBadgeVariant, paymentStatusLabel } from '@/lib/status-badge'
-import type { Invoice } from '@/lib/database.types'
+import type { Invoice } from '@chidental/shared'
 
 // Read-only invoice history for a customer, with rows that navigate to the
 // invoice. Client island only because the rows are clickable; the data is
