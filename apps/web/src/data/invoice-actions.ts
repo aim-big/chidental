@@ -53,6 +53,8 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { isModuleOnApi } from '@/lib/config'
+import { apiSend } from '@/lib/api/client'
 import { requirePermission } from '@/lib/auth/require-permission'
 import type { PermissionCheck } from '@/lib/auth/require-permission'
 import { isVoided } from '@/lib/invoice-status'
@@ -295,6 +297,14 @@ export async function updateWorkStatusAction(
   itemId: string,
   input: { work_status: WorkStatus; stage_id: string | null },
 ): Promise<ActionResult> {
+  if (isModuleOnApi('work-actions')) {
+    const res = await apiSend<{ ok: boolean; invoiceId?: string | null; error?: string }>(
+      'POST', `/work/items/${itemId}/status`, input,
+    )
+    if (res.ok && res.invoiceId) revalidateInvoice(res.invoiceId)
+    return res.ok ? { ok: true } : { ok: false, error: res.error ?? 'Failed to update work status' }
+  }
+
   const gate = await requirePermission('invoices.view')
   if (!gate.ok) return gate
 
@@ -350,6 +360,14 @@ export async function updateWorkNoteAction(
   itemId: string,
   workNote: string | null,
 ): Promise<ActionResult> {
+  if (isModuleOnApi('work-actions')) {
+    const res = await apiSend<{ ok: boolean; invoiceId?: string | null; error?: string }>(
+      'POST', `/work/items/${itemId}/note`, { workNote },
+    )
+    if (res.ok && res.invoiceId) revalidateInvoice(res.invoiceId)
+    return res.ok ? { ok: true } : { ok: false, error: res.error ?? 'Failed to save note' }
+  }
+
   const gate = await requirePermission('invoices.view')
   if (!gate.ok) return gate
 

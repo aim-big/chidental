@@ -14,11 +14,28 @@ import type { Env } from '../config/env.validation'
 @Injectable()
 export class SupabaseService {
   readonly admin: SupabaseClient
+  private readonly url: string
+  private readonly anonKey: string
 
   constructor(private readonly config: ConfigService<Env, true>) {
-    const url = this.config.get('SUPABASE_URL', { infer: true })
+    this.url = this.config.get('SUPABASE_URL', { infer: true })
     const serviceRoleKey = this.config.get('SUPABASE_SERVICE_ROLE_KEY', { infer: true })
-    this.admin = createClient(url, serviceRoleKey, {
+    this.anonKey = this.config.get('SUPABASE_ANON_KEY', { infer: true })
+    this.admin = createClient(this.url, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+  }
+
+  /**
+   * A Supabase client scoped to a specific user's access token: PostgREST runs
+   * the request AS that authenticated user, so RLS applies and `auth.uid()` /
+   * `auth.jwt()` resolve inside triggers. Required where a DB trigger records the
+   * actor (e.g. invoice_item_status_history) — the service-role `admin` client
+   * has no session and would log a null actor.
+   */
+  forUser(accessToken: string): SupabaseClient {
+    return createClient(this.url, this.anonKey, {
+      global: { headers: { Authorization: `Bearer ${accessToken}` } },
       auth: { autoRefreshToken: false, persistSession: false },
     })
   }
