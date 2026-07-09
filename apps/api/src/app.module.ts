@@ -11,6 +11,8 @@ import { ProductsModule } from './products/products.module'
 import { CustomersModule } from './customers/customers.module'
 import { WorkModule } from './work/work.module'
 import { InvoicesModule } from './invoices/invoices.module'
+import { DashboardModule } from './dashboard/dashboard.module'
+import { ReportsModule } from './reports/reports.module'
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { InvoicesModule } from './invoices/invoices.module'
     CustomersModule,
     WorkModule,
     InvoicesModule,
+    DashboardModule,
+    ReportsModule,
   ],
   providers: [
     // Auth guard runs on every route (opt out with @Public); the DB-backed

@@ -2,9 +2,15 @@
 // query the old client page ran; aggregation happens in `@/lib/reports`.
 
 import { createClient } from '@/lib/supabase/server'
+import { isModuleOnApi } from '@/lib/config'
+import { apiGet } from '@/lib/api/client'
 import type { ReportInvoice, ReportPayment } from '@/lib/reports'
 
 export async function getReportInvoices(from: string, to: string): Promise<ReportInvoice[]> {
+  if (isModuleOnApi('reports')) {
+    const qs = new URLSearchParams({ from, to })
+    return apiGet<ReportInvoice[]>(`/reports/invoices?${qs.toString()}`)
+  }
   const supabase = await createClient()
   const { data } = await supabase
     .from('invoices')
@@ -21,6 +27,10 @@ export async function getReportInvoices(from: string, to: string): Promise<Repor
 // The nested relations are to-one; supabase-js may return them as an object or
 // a single-element array depending on FK detection, so normalise both.
 export async function getReportPayments(from: string, to: string): Promise<ReportPayment[]> {
+  if (isModuleOnApi('reports')) {
+    const qs = new URLSearchParams({ from, to })
+    return apiGet<ReportPayment[]>(`/reports/payments?${qs.toString()}`)
+  }
   const supabase = await createClient()
   const { data } = await supabase
     .from('payments')

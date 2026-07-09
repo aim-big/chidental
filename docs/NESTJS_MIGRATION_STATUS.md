@@ -12,12 +12,12 @@ write modules, and (c) owner-run prod cutovers (flag-flip + soak).
 
 ```
 Foundation  ██████████████████████████  100%   (phases 0–2 + shared + keystone)
-Read modules █████████████████░░░░░░░░░   67%   (4 of 6 done)
+Read modules ██████████████████████████  100%   (6 of 6 done ✅)
 Write modules ░░░░░░░░░░░░░░░░░░░░░░░░░░    0%   (0 of 3)
 Phase 4 cleanup ░░░░░░░░░░░░░░░░░░░░░░░░    0%
 ```
 
-**Code migrated to the API: 4 of ~9 modules.** No architectural unknowns remain.
+**Code migrated to the API: 6 of ~9 modules — all reads done.** No architectural unknowns remain; only the write modules (money/audit) + Phase 4 cleanup left.
 
 ## Legend
 
@@ -55,8 +55,8 @@ in Vercel per module and soak ≥1 week. Flag OFF by default = zero behavior cha
 | 2 | customers | ✅ | #7 | types only | E2E curl (incl. 404→null, 401) |
 | 3 | work | ✅ | #9 | types only | E2E curl |
 | 4 | invoices (read) | ✅ | #11 | types only (`isVoided`/`paginate` inlined) | E2E curl — 7 endpoints incl. sort, counts, 404, 401 |
-| 5 | dashboard | ⬜ | — | dashboard aggregation reachable by API | — |
-| 6 | reports | ⬜ | — | reports aggregation reachable by API | — |
+| 5 | dashboard | ✅ | #13 | types only (queries + date math + normalize) | E2E curl — bundle shape, payment/work normalize, 401 |
+| 6 | reports | ✅ | #13 | types only (queries + to-one normalize) | E2E curl — invoices + payments (flattened), 401 |
 
 ### Writes (data mutation — money / audit critical, **invoices last**)
 
@@ -70,10 +70,10 @@ in Vercel per module and soak ≥1 week. Flag OFF by default = zero behavior cha
 
 | Item | Status | Unblocks |
 |------|--------|----------|
-| **Reconcile duplicate status logic** → single `@chidental/shared` `domain/invoice-status` kernel; web `@/lib/invoice-status` is now a re-export shim; `billing.ts` keeps only `canTransition`. Behavior-neutral (`due_date` is `NOT NULL`, so the two `isOverdue`s were identical). | ✅ #12 | dashboard/reports aggregation in API — landmine removed |
-| Move dashboard aggregation (`@/lib/dashboard`) → shared, reachable by API | ⬜ | dashboard read |
-| Move reports aggregation (`@/lib/reports`) → shared, reachable by API | ⬜ | reports read |
+| **Reconcile duplicate status logic** → single `@chidental/shared` `domain/invoice-status` kernel; web `@/lib/invoice-status` is now a re-export shim; `billing.ts` keeps only `canTransition`. Behavior-neutral (`due_date` is `NOT NULL`, so the two `isOverdue`s were identical). | ✅ #12 | landmine removed; unblocks write-side money logic |
 | Port audit / billing-settings / production / statement to API | ⬜ | invoice writes |
+
+> Note: dashboard/reports reads turned out **types-only** — `getDashboardData`/`getReport*` return raw rows; the aggregation (`@/lib/dashboard`, `@/lib/reports`) runs in the page and stays in web. The API mirrors the queries + normalization only.
 
 ## Owner-run steps (👤 — not codeable)
 
