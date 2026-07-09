@@ -8,6 +8,8 @@
 // Writes live in `./customer-actions.ts`.
 
 import { createClient } from '@/lib/supabase/server'
+import { isModuleOnApi } from '@/lib/config'
+import { apiGet, apiGetOrNull } from '@/lib/api/client'
 import type { Customer, Invoice } from '@chidental/shared'
 import type { StatementInvoiceRow, ActivityPaymentRow, StatementCreditRow } from '@/lib/statement'
 
@@ -20,6 +22,7 @@ export type CustomerDetail = {
 // List query — mirrors `customers/page.tsx`:
 //   .select('*').order('clinic_name')
 export async function getCustomers(): Promise<Customer[]> {
+  if (isModuleOnApi('customers')) return apiGet<Customer[]>('/customers')
   const supabase = await createClient()
   const { data } = await supabase
     .from('customers')
@@ -67,6 +70,13 @@ const CUSTOMER_SORT_COLUMNS: Record<string, string> = {
  */
 export async function getCustomersPage(params: CustomerListParams = {}): Promise<CustomerListPage> {
   const { q = '', page = 1, pageSize = 15, sort = null, dir = 'asc', view = 'active' } = params
+
+  if (isModuleOnApi('customers')) {
+    const qs = new URLSearchParams({ q, view, page: String(page), pageSize: String(pageSize), dir })
+    if (sort) qs.set('sort', sort)
+    return apiGet<CustomerListPage>(`/customers/page?${qs.toString()}`)
+  }
+
   const supabase = await createClient()
 
   const sortCol = (sort && CUSTOMER_SORT_COLUMNS[sort]) || 'clinic_name'
@@ -108,6 +118,7 @@ export async function getCustomersPage(params: CustomerListParams = {}): Promise
 // Detail bundle — mirrors the 2 parallel reads in `[id]/page.tsx`. Returns
 // `null` when the customer row is missing.
 export async function getCustomerDetail(id: string): Promise<CustomerDetail | null> {
+  if (isModuleOnApi('customers')) return apiGetOrNull<CustomerDetail>(`/customers/${id}/detail`)
   const supabase = await createClient()
   const [cRes, iRes] = await Promise.all([
     supabase.from('customers').select('*').eq('id', id).single(),
@@ -133,6 +144,7 @@ export type ClinicStatementBundle = {
 }
 
 export async function getClinicStatement(id: string): Promise<ClinicStatementBundle | null> {
+  if (isModuleOnApi('customers')) return apiGetOrNull<ClinicStatementBundle>(`/customers/${id}/statement`)
   const supabase = await createClient()
 
   // Fetch clinic + non-voided invoices + the clinic's account credits in parallel.
@@ -179,6 +191,7 @@ export async function getClinicStatement(id: string): Promise<ClinicStatementBun
 // Edit-mode prefill — mirrors `CustomerForm`'s edit-mode read. Returns `null`
 // when the customer row is missing.
 export async function getCustomerForEdit(id: string): Promise<Customer | null> {
+  if (isModuleOnApi('customers')) return apiGetOrNull<Customer>(`/customers/${id}`)
   const supabase = await createClient()
   const { data } = await supabase.from('customers').select('*').eq('id', id).single()
   return (data ?? null) as Customer | null
