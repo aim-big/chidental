@@ -6,7 +6,7 @@
 //
 // Writes live in `./product-actions.ts`.
 
-import { apiGet } from '@/lib/api/client'
+import { apiGet, apiGetCached } from '@/lib/api/client'
 import type { Product, Unit } from '@chidental/shared'
 
 // List query: ALL products (active + inactive), name asc — the admin catalogue
@@ -47,6 +47,7 @@ export async function getProductsPage(params: ProductListParams = {}): Promise<P
 }
 
 // Active units for the product form's unit dropdown, ordered for display.
+// Global reference data — briefly cached to avoid a Railway round-trip per render.
 export async function getActiveUnits(): Promise<Unit[]> {
-  return apiGet<Unit[]>('/products/units')
+  return apiGetCached<Unit[]>('/products/units')
 }

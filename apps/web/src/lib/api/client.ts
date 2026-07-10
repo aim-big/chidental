@@ -27,6 +27,26 @@ export async function apiGet<T>(path: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
+// Like apiGet, but opts into the Next Data Cache with a short time-based
+// revalidation window. ONLY for globally-shared reference data (same response for
+// every user) — caching keys on the URL, so all users share one cached entry that
+// auto-refreshes after `revalidate` seconds. This turns a per-render Railway
+// round-trip into (at most) one call per window. Bounded staleness is fine for
+// rarely-edited config; never use this for per-user or per-row data. The explicit
+// `next.revalidate` caches the fetch even though the route is `force-dynamic`.
+export async function apiGetCached<T>(
+  path: string,
+  opts: { revalidate?: number } = {},
+): Promise<T> {
+  if (!API_URL) throw new Error('NEXT_PUBLIC_API_URL is not set — cannot route module to the API')
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: await authHeaders(),
+    next: { revalidate: opts.revalidate ?? 60 },
+  })
+  if (!res.ok) throw new Error(`API GET ${path} failed: ${res.status}`)
+  return res.json() as Promise<T>
+}
+
 // Like apiGet, but a 404 resolves to `null` instead of throwing. The seam for
 // "fetch a single row, may not exist" reads (detail/edit/statement), where the
 // Next query returns `null` for a missing row and the API answers 404. Other
