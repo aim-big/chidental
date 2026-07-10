@@ -1,7 +1,11 @@
 // Server-side client for the NestJS API. Attaches the current user's Supabase
 // access token so the API's auth guard can verify the session + permissions.
-// Every `src/data/*` read/write goes through here — the app is API-only, so
-// NEXT_PUBLIC_API_URL must be set (a page throws loudly if it isn't).
+// Modules migrated to the API (customers, invoices, payments, products-read,
+// dashboard, reports, work) route through here; the strangler migration is still
+// in progress, so some modules (settings config, roles/employees, admin/void,
+// billing, credits, invoice-activity) remain on server-side Supabase for now.
+// For any module that IS on the API, NEXT_PUBLIC_API_URL must be set (calls throw
+// loudly if it isn't).
 import { createClient } from '@/lib/supabase/server'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL

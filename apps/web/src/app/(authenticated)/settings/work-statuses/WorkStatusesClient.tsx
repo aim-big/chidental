@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { PencilLine } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { getWorkStatusConfigs, updateWorkStatusConfig } from '@/data/settings-taxonomies'
+import type { Tables } from '@chidental/shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,11 +25,12 @@ const schema = z.object({
 })
 type FormData = z.infer<typeof schema>
 
-export default function WorkStatusesPage() {
+export default function WorkStatusesPage({ initialRows }: { initialRows: Tables<'work_status_configs'>[] }) {
   const { hasPermission } = useAuth()
   const canEdit = hasPermission('settings.manage')
-  const [rows, setRows] = useState<WorkStatusDisplay[]>(DEFAULT_WORK_STATUS_CONFIGS)
-  const [loading, setLoading] = useState(true)
+  const [rows, setRows] = useState<WorkStatusDisplay[]>(
+    initialRows.length ? workStatusDisplays(initialRows) : DEFAULT_WORK_STATUS_CONFIGS,
+  )
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<WorkStatusDisplay | null>(null)
   const [saving, setSaving] = useState(false)
@@ -41,17 +43,7 @@ export default function WorkStatusesPage() {
   const watchedColor = useWatch({ control, name: 'color' })
   const watchedLabel = useWatch({ control, name: 'label' })
 
-  const load = () =>
-    supabase
-      .from('work_status_configs')
-      .select('*')
-      .order('sort_order')
-      .then(({ data }) => {
-        setRows(workStatusDisplays(data ?? []))
-        setLoading(false)
-      })
-
-  useEffect(() => { load() }, [])
+  const load = () => getWorkStatusConfigs().then(data => setRows(workStatusDisplays(data)))
 
   const openEdit = (row: WorkStatusDisplay) => {
     setEditing(row)
@@ -64,13 +56,10 @@ export default function WorkStatusesPage() {
     if (!canEdit || !editing) return
     setSaving(true)
     setError(null)
-    const { error } = await supabase
-      .from('work_status_configs')
-      .update({ label: data.label.trim(), color: data.color })
-      .eq('status', editing.status)
+    const res = await updateWorkStatusConfig(editing.status, data.label, data.color)
     setSaving(false)
-    if (error) {
-      setError(error.message)
+    if (res.ok === false) {
+      setError(res.error)
       return
     }
     setOpen(false)
@@ -99,8 +88,7 @@ export default function WorkStatusesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading && <TableRow><TableCell colSpan={3} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>}
-              {!loading && rows.map(row => (
+              {rows.map(row => (
                 <TableRow key={row.status}>
                   <TableCell className="font-mono text-xs text-muted-foreground">{row.status}</TableCell>
                   <TableCell>

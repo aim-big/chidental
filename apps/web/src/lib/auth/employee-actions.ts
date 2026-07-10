@@ -5,9 +5,32 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth/require-permission'
 import { usernameToEmail, USERNAME_PATTERN } from '@/lib/auth/username'
-import { wouldRemoveLastSuperadmin } from '@chidental/shared'
+import { wouldRemoveLastSuperadmin, type Profile, type Role } from '@chidental/shared'
 
 export type ActionResult = { ok: true } | { ok: false; error: string }
+
+// Gated server reads for the Employees screen. These replace the previous
+// browser Supabase reads of the full staff directory (which relied on a
+// world-readable RLS SELECT policy). They run via the service-role client, so
+// they MUST re-gate on staff.manage — a server action is a callable endpoint.
+export async function listEmployees(): Promise<Profile[]> {
+  const gate = await requirePermission('staff.manage')
+  if (!gate.ok) return []
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('profiles')
+    .select('*, roles(id, name, is_system)')
+    .order('full_name')
+  return (data as Profile[] | null) ?? []
+}
+
+export async function listAssignableRoles(): Promise<Role[]> {
+  const gate = await requirePermission('staff.manage')
+  if (!gate.ok) return []
+  const admin = createAdminClient()
+  const { data } = await admin.from('roles').select('*').order('name')
+  return (data as Role[] | null) ?? []
+}
 
 const PIN_PATTERN = /^\d{6}$/
 // Ban far into the future to disable sign-in + token refresh (~100 years).

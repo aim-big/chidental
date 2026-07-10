@@ -1,3 +1,4 @@
+import 'server-only' // compile-time tripwire: any client-component import fails the build
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@chidental/shared'
 

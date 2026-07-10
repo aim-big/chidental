@@ -1,10 +1,16 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { supabase } from '@/lib/supabase'
+import {
+  getServiceStatuses,
+  createServiceStatus,
+  updateServiceStatus,
+  toggleServiceStatus,
+  moveServiceStatus,
+} from '@/data/settings-taxonomies'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,11 +30,10 @@ const schema = z.object({
 })
 type FormData = z.infer<typeof schema>
 
-export default function ServiceStatusesPage() {
+export default function ServiceStatusesPage({ initialRows }: { initialRows: ServiceStatus[] }) {
   const { hasPermission } = useAuth()
   const canEdit = hasPermission('settings.manage')
-  const [rows, setRows] = useState<ServiceStatus[]>([])
-  const [loading, setLoading] = useState(true)
+  const [rows, setRows] = useState<ServiceStatus[]>(initialRows)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<ServiceStatus | null>(null)
   const [saving, setSaving] = useState(false)
@@ -41,18 +46,7 @@ export default function ServiceStatusesPage() {
   const watchedColor = useWatch({ control, name: 'color' })
   const watchedLabel = useWatch({ control, name: 'label' })
 
-  const load = () =>
-    supabase
-      .from('service_statuses')
-      .select('*')
-      .order('sort_order')
-      .order('label')
-      .then(({ data }) => {
-        setRows(data ?? [])
-        setLoading(false)
-      })
-
-  useEffect(() => { load() }, [])
+  const load = () => getServiceStatuses().then(setRows)
 
   const openNew = () => {
     setEditing(null)
@@ -72,42 +66,27 @@ export default function ServiceStatusesPage() {
     if (!canEdit) return
     setSaving(true)
     setError(null)
-    if (editing) {
-      const { error } = await supabase
-        .from('service_statuses')
-        .update({ label: data.label.trim(), color: data.color })
-        .eq('id', editing.id)
-      if (error) setError(error.message)
-    } else {
-      const nextOrder = (rows.at(-1)?.sort_order ?? 0) + 10
-      const { error } = await supabase.from('service_statuses').insert({
-        label: data.label.trim(),
-        color: data.color,
-        sort_order: nextOrder,
-        is_active: true,
-      })
-      if (error) setError(error.message)
-    }
+    const res = editing
+      ? await updateServiceStatus(editing.id, data.label, data.color)
+      : await createServiceStatus(data.label, data.color)
     setSaving(false)
-    if (!error) {
+    if (res.ok === false) {
+      setError(res.error)
+    } else {
       setOpen(false)
       load()
     }
   }
 
   const toggleActive = async (s: ServiceStatus) => {
-    await supabase.from('service_statuses').update({ is_active: !s.is_active }).eq('id', s.id)
+    await toggleServiceStatus(s.id, !s.is_active)
     load()
   }
 
   const move = async (index: number, dir: -1 | 1) => {
-    const target = rows[index + dir]
     const current = rows[index]
-    if (!target || !current) return
-    await Promise.all([
-      supabase.from('service_statuses').update({ sort_order: target.sort_order }).eq('id', current.id),
-      supabase.from('service_statuses').update({ sort_order: current.sort_order }).eq('id', target.id),
-    ])
+    if (!current) return
+    await moveServiceStatus(current.id, dir)
     load()
   }
 
@@ -135,8 +114,7 @@ export default function ServiceStatusesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading && <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>}
-              {!loading && rows.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No statuses yet</TableCell></TableRow>}
+              {rows.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No statuses yet</TableCell></TableRow>}
               {rows.map((s, i) => (
                 <TableRow key={s.id} className={s.is_active ? '' : 'opacity-50'}>
                   <TableCell>
