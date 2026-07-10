@@ -1,8 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,8 +11,11 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { TableActionButton } from '@/components/ui/table-actions'
 import { ArrowLeft, PencilLine, Plus, ShieldCheck, Trash2 } from 'lucide-react'
 import { PERMISSION_GROUPS, PERMISSION_REQUIRES, type Permission } from '@chidental/shared'
-import { createRole, updateRole, deleteRole } from '@/lib/auth/role-actions'
+import { createRole, updateRole, deleteRole, listRolesWithMeta, type RoleWithMeta } from '@/lib/auth/role-actions'
 import type { Role } from '@chidental/shared'
+
+// Map the server shape (permissions[]) to the client row shape (Set for lookups).
+const toRow = (r: RoleWithMeta): RoleRow => ({ ...r, perms: new Set(r.permissions), userCount: r.userCount })
 
 // Flat list of every assignable permission key — used by the select-all toggle.
 const ALL_PERMISSION_KEYS: Permission[] = PERMISSION_GROUPS.flatMap(g => g.permissions.map(p => p.key))
@@ -21,36 +23,14 @@ const ALL_PERMISSION_KEYS: Permission[] = PERMISSION_GROUPS.flatMap(g => g.permi
 type RoleRow = Role & { perms: Set<string>; userCount: number }
 type DialogState = { mode: 'closed' } | { mode: 'create' } | { mode: 'edit'; role: RoleRow }
 
-export default function RolesManager() {
-  const [rows, setRows] = useState<RoleRow[]>([])
-  const [loading, setLoading] = useState(true)
+export default function RolesManager({ initialRows }: { initialRows: RoleWithMeta[] }) {
+  const [rows, setRows] = useState<RoleRow[]>(initialRows.map(toRow))
   const [dialog, setDialog] = useState<DialogState>({ mode: 'closed' })
 
   const load = async () => {
-    const { data: roles } = await supabase
-      .from('roles')
-      .select('*, role_permissions(permission)')
-      .order('is_system', { ascending: false })
-      .order('name')
-    const { data: profiles } = await supabase.from('profiles').select('role_id')
-    const counts = new Map<string, number>()
-    for (const p of profiles ?? []) {
-      if (p.role_id) counts.set(p.role_id, (counts.get(p.role_id) ?? 0) + 1)
-    }
-    const mapped: RoleRow[] = ((roles as (Role & { role_permissions: { permission: string }[] })[]) ?? []).map(r => ({
-      ...r,
-      perms: new Set(r.role_permissions.map(rp => rp.permission)),
-      userCount: counts.get(r.id) ?? 0,
-    }))
-    setRows(mapped)
-    setLoading(false)
+    const data = await listRolesWithMeta()
+    setRows(data.map(toRow))
   }
-
-  // `load` fetches asynchronously; its setState calls run after the await (post-
-  // fetch), not synchronously during the effect, so they don't cause the cascading
-  // re-render this rule guards against.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { load() }, [])
 
   const remove = async (role: RoleRow) => {
     if (!confirm(`Delete the “${role.name}” role?`)) return
@@ -74,8 +54,7 @@ export default function RolesManager() {
 
       <Card>
         <CardContent className="p-0 divide-y">
-          {loading && <p className="text-center py-8 text-muted-foreground">Loading…</p>}
-          {!loading && rows.map(role => (
+          {rows.map(role => (
             <div key={role.id} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:gap-4 sm:px-5">
               <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
                 <ShieldCheck className="h-5 w-5" />

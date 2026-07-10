@@ -3,9 +3,37 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireSuperadmin } from '@/lib/auth/require-permission'
-import { PERMISSIONS } from '@chidental/shared'
+import { PERMISSIONS, type Role } from '@chidental/shared'
 
 export type ActionResult = { ok: true } | { ok: false; error: string }
+
+// One role + its permission keys + how many people hold it. Shape the Roles
+// screen renders. Replaces the browser reads of roles/role_permissions/profiles.
+export type RoleWithMeta = Role & { permissions: string[]; userCount: number }
+
+// Gated server read for the Roles screen (Super Admin only) — runs via the
+// service-role client, so it re-gates like the mutations below.
+export async function listRolesWithMeta(): Promise<RoleWithMeta[]> {
+  const gate = await requireSuperadmin()
+  if (!gate.ok) return []
+  const admin = createAdminClient()
+  const { data: roles } = await admin
+    .from('roles')
+    .select('*, role_permissions(permission)')
+    .order('is_system', { ascending: false })
+    .order('name')
+  const { data: profiles } = await admin.from('profiles').select('role_id')
+  const counts = new Map<string, number>()
+  for (const p of profiles ?? []) {
+    if (p.role_id) counts.set(p.role_id, (counts.get(p.role_id) ?? 0) + 1)
+  }
+  const withPerms = (roles as (Role & { role_permissions: { permission: string }[] })[] | null) ?? []
+  return withPerms.map(r => ({
+    ...r,
+    permissions: r.role_permissions.map(rp => rp.permission),
+    userCount: counts.get(r.id) ?? 0,
+  }))
+}
 
 const VALID = new Set<string>(Object.values(PERMISSIONS))
 

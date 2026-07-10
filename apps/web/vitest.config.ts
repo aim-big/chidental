@@ -5,6 +5,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // `server-only` throws outside an RSC build; stub it so server modules
+      // (e.g. those importing the service-role client) can be unit-tested.
+      'server-only': fileURLToPath(new URL('./test-shims/server-only.ts', import.meta.url)),
     },
   },
   test: {
