@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { permissionGranted } from '@chidental/shared'
+import { permissionGranted, type Permission } from '@chidental/shared'
 
 export type PermissionCheck =
   | { ok: true; userId: string; actorName: string }
@@ -48,6 +48,23 @@ export async function requirePermission(permission: string): Promise<PermissionC
   )
   if (!granted) return { ok: false, error: 'You do not have permission to do this.' }
   return { ok: true, userId, actorName: actorNameOf(profile) }
+}
+
+// Server-side permission snapshot for nav/redirect decisions (e.g. the /settings
+// index). Mirrors AuthContext's client-side hasPermission but resolved on the
+// server so the page can redirect() without a client round-trip/flash. Returns a
+// deny-all snapshot when not signed in / inactive.
+export async function getNavPermissions(): Promise<{
+  hasPermission: (p: Permission) => boolean
+  isSuperadmin: boolean
+}> {
+  const loaded = await loadRole()
+  if (!loaded || !loaded.profile.active || !loaded.profile.roles) {
+    return { hasPermission: () => false, isSuperadmin: false }
+  }
+  const isSuperadmin = loaded.profile.roles.is_system
+  const perms = new Set(loaded.profile.roles.role_permissions.map(p => p.permission))
+  return { isSuperadmin, hasPermission: (p: Permission) => isSuperadmin || perms.has(p) }
 }
 
 // Gate for role management — Super Admin only.
