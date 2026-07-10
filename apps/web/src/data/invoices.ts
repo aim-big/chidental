@@ -6,7 +6,7 @@
 //
 // Writes live in `./invoice-actions.ts`.
 
-import { apiGet, apiGetOrNull } from '@/lib/api/client'
+import { apiGet, apiGetOrNull, apiGetCached } from '@/lib/api/client'
 import type {
   Invoice,
   InvoiceItem,
@@ -103,8 +103,9 @@ export async function getInvoiceDetail(id: string): Promise<InvoiceDetailBundle 
   return apiGetOrNull<InvoiceDetailBundle>(`/invoices/${id}/detail`)
 }
 
+// Global reference data — briefly cached to avoid a Railway round-trip per render.
 export async function getWorkStatusConfigs(): Promise<WorkStatusConfig[]> {
-  return apiGet<WorkStatusConfig[]>('/invoices/work-status-configs')
+  return apiGetCached<WorkStatusConfig[]>('/invoices/work-status-configs')
 }
 
 // Reference data the create/edit form needs on mount.

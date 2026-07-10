@@ -1,8 +1,7 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,7 +14,7 @@ import { ActiveSwitch, TableActionButton } from '@/components/ui/table-actions'
 import { ArrowLeft, KeyRound, PencilLine, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Profile, Role } from '@chidental/shared'
-import { createEmployee, updateEmployee, resetPin, setActive, deleteEmployee } from '@/lib/auth/employee-actions'
+import { createEmployee, updateEmployee, resetPin, setActive, deleteEmployee, listEmployees } from '@/lib/auth/employee-actions'
 import { selectableRoles } from './role-filter'
 
 type DialogState =
@@ -24,28 +23,23 @@ type DialogState =
   | { mode: 'edit'; employee: Profile }
   | { mode: 'resetPin'; employee: Profile }
 
-export default function EmployeesManager({ currentUserId }: { currentUserId: string }) {
-  const [rows, setRows] = useState<Profile[]>([])
-  const [loading, setLoading] = useState(true)
+export default function EmployeesManager({
+  currentUserId,
+  initialRows,
+  initialRoles,
+}: {
+  currentUserId: string
+  initialRows: Profile[]
+  initialRoles: Role[]
+}) {
+  const [rows, setRows] = useState<Profile[]>(initialRows)
   const [dialog, setDialog] = useState<DialogState>({ mode: 'closed' })
   const [busyId, setBusyId] = useState<string | null>(null)
   const [, startTransition] = useTransition()
-  const [roles, setRoles] = useState<Role[]>([])
+  // Roles only change on the Roles screen, not from employee actions — seed once.
+  const roles = initialRoles
 
-  const load = () =>
-    supabase
-      .from('profiles')
-      .select('*, roles(id, name, is_system)')
-      .order('full_name')
-      .then(({ data }) => {
-        setRows((data as Profile[]) ?? [])
-        setLoading(false)
-      })
-
-  useEffect(() => {
-    load()
-    supabase.from('roles').select('*').order('name').then(({ data }) => setRoles((data as Role[]) ?? []))
-  }, [])
+  const load = () => listEmployees().then(setRows)
 
   const toggleActive = (p: Profile) => {
     if (p.id === currentUserId) return
@@ -114,8 +108,7 @@ export default function EmployeesManager({ currentUserId }: { currentUserId: str
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>}
-              {!loading && rows.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No employees yet</TableCell></TableRow>}
+              {rows.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No employees yet</TableCell></TableRow>}
               {rows.map(p => (
                 <TableRow key={p.id} className={p.active ? '' : 'opacity-60'}>
                   <TableCell className="font-medium text-foreground">

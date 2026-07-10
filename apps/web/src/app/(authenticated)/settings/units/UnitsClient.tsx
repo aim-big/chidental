@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { supabase } from '@/lib/supabase'
+import { getUnits, createUnit, updateUnit, toggleUnit, moveUnit } from '@/data/settings-taxonomies'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,11 +22,10 @@ const schema = z.object({
 })
 type FormData = z.infer<typeof schema>
 
-export default function UnitsPage() {
+export default function UnitsPage({ initialRows }: { initialRows: Unit[] }) {
   const { hasPermission } = useAuth()
   const canEdit = hasPermission('settings.manage')
-  const [rows, setRows] = useState<Unit[]>([])
-  const [loading, setLoading] = useState(true)
+  const [rows, setRows] = useState<Unit[]>(initialRows)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Unit | null>(null)
   const [saving, setSaving] = useState(false)
@@ -37,18 +36,7 @@ export default function UnitsPage() {
     defaultValues: { label: '' },
   })
 
-  const load = () =>
-    supabase
-      .from('units')
-      .select('*')
-      .order('sort_order')
-      .order('label')
-      .then(({ data }) => {
-        setRows(data ?? [])
-        setLoading(false)
-      })
-
-  useEffect(() => { load() }, [])
+  const load = () => getUnits().then(setRows)
 
   const openNew = () => {
     setEditing(null)
@@ -68,25 +56,12 @@ export default function UnitsPage() {
     if (!canEdit) return
     setSaving(true)
     setError(null)
-    let saveError: string | null = null
-    if (editing) {
-      const { error } = await supabase
-        .from('units')
-        .update({ label: data.label.trim() })
-        .eq('id', editing.id)
-      if (error) saveError = error.message
-    } else {
-      const nextOrder = (rows.at(-1)?.sort_order ?? 0) + 10
-      const { error } = await supabase.from('units').insert({
-        label: data.label.trim(),
-        sort_order: nextOrder,
-        is_active: true,
-      })
-      if (error) saveError = error.message
-    }
+    const res = editing
+      ? await updateUnit(editing.id, data.label)
+      : await createUnit(data.label)
     setSaving(false)
-    if (saveError) {
-      setError(saveError)
+    if (res.ok === false) {
+      setError(res.error)
     } else {
       setOpen(false)
       load()
@@ -94,18 +69,14 @@ export default function UnitsPage() {
   }
 
   const toggleActive = async (u: Unit) => {
-    await supabase.from('units').update({ is_active: !u.is_active }).eq('id', u.id)
+    await toggleUnit(u.id, !u.is_active)
     load()
   }
 
   const move = async (index: number, dir: -1 | 1) => {
-    const target = rows[index + dir]
     const current = rows[index]
-    if (!target || !current) return
-    await Promise.all([
-      supabase.from('units').update({ sort_order: target.sort_order }).eq('id', current.id),
-      supabase.from('units').update({ sort_order: current.sort_order }).eq('id', target.id),
-    ])
+    if (!current) return
+    await moveUnit(current.id, dir)
     load()
   }
 
@@ -134,8 +105,7 @@ export default function UnitsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading && <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>}
-              {!loading && rows.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No units yet</TableCell></TableRow>}
+              {rows.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No units yet</TableCell></TableRow>}
               {rows.map((u, i) => (
                 <TableRow key={u.id} className={u.is_active ? '' : 'opacity-50'}>
                   <TableCell>

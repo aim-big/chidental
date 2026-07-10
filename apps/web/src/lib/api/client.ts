@@ -1,7 +1,11 @@
 // Server-side client for the NestJS API. Attaches the current user's Supabase
 // access token so the API's auth guard can verify the session + permissions.
-// Every `src/data/*` read/write goes through here — the app is API-only, so
-// NEXT_PUBLIC_API_URL must be set (a page throws loudly if it isn't).
+// Modules migrated to the API (customers, invoices, payments, products-read,
+// dashboard, reports, work) route through here; the strangler migration is still
+// in progress, so some modules (settings config, roles/employees, admin/void,
+// billing, credits, invoice-activity) remain on server-side Supabase for now.
+// For any module that IS on the API, NEXT_PUBLIC_API_URL must be set (calls throw
+// loudly if it isn't).
 import { createClient } from '@/lib/supabase/server'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
@@ -18,6 +22,26 @@ export async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     headers: await authHeaders(),
     cache: 'no-store',
+  })
+  if (!res.ok) throw new Error(`API GET ${path} failed: ${res.status}`)
+  return res.json() as Promise<T>
+}
+
+// Like apiGet, but opts into the Next Data Cache with a short time-based
+// revalidation window. ONLY for globally-shared reference data (same response for
+// every user) — caching keys on the URL, so all users share one cached entry that
+// auto-refreshes after `revalidate` seconds. This turns a per-render Railway
+// round-trip into (at most) one call per window. Bounded staleness is fine for
+// rarely-edited config; never use this for per-user or per-row data. The explicit
+// `next.revalidate` caches the fetch even though the route is `force-dynamic`.
+export async function apiGetCached<T>(
+  path: string,
+  opts: { revalidate?: number } = {},
+): Promise<T> {
+  if (!API_URL) throw new Error('NEXT_PUBLIC_API_URL is not set — cannot route module to the API')
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: await authHeaders(),
+    next: { revalidate: opts.revalidate ?? 60 },
   })
   if (!res.ok) throw new Error(`API GET ${path} failed: ${res.status}`)
   return res.json() as Promise<T>
