@@ -1,12 +1,13 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { Money } from '@/components/ui/money'
+import { StatusPill, statusTone } from '@/components/ui/status-pill'
+import { formatDate } from '@/lib/utils'
 import { isVoided } from '@chidental/shared'
-import { statusBadgeVariant, paymentStatusLabel } from '@/lib/status-badge'
+import { paymentStatusLabel } from '@/lib/status-badge'
 import type { Invoice } from '@chidental/shared'
 
 // Read-only invoice history for a customer, with rows that navigate to the
@@ -34,13 +35,13 @@ export function CustomerInvoiceHistory({ invoices }: { invoices: Invoice[] }) {
             )}
             {invoices.map(inv => (
               <TableRow key={inv.id} className="cursor-pointer" onClick={() => router.push(`/invoices/${inv.id}`)}>
-                <TableCell className="font-medium text-primary">{inv.invoice_number}</TableCell>
+                <TableCell className="font-medium text-brand">{inv.invoice_number}</TableCell>
                 <TableCell className="text-muted-foreground text-sm">{formatDate(inv.invoice_date)}</TableCell>
-                <TableCell className="font-medium">{formatCurrency(inv.total)}</TableCell>
+                <TableCell className="font-medium"><Money amount={Number(inv.total)} /></TableCell>
                 <TableCell>
                   {isVoided(inv)
-                    ? <Badge variant="destructive" className="uppercase">Voided</Badge>
-                    : <Badge variant={statusBadgeVariant('payment', inv.status)}>{paymentStatusLabel(inv.status)}</Badge>}
+                    ? <StatusPill tone="danger">Voided</StatusPill>
+                    : <StatusPill tone={statusTone('payment', inv.status)}>{paymentStatusLabel(inv.status)}</StatusPill>}
                 </TableCell>
               </TableRow>
             ))}

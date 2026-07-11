@@ -17,14 +17,15 @@ import { useToast } from '@/components/feedback/toast'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { WorkStatusSelect, ADVANCE_VALUE } from '@/components/work-status-select'
+import { StatusPill, statusTone, toneChipClass } from '@/components/ui/status-pill'
 import { Search, ChevronRight, ChevronDown, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { WorkStatus, WorkStage, WorkStatusConfig } from '@chidental/shared'
 import { WORK_STATUSES } from '@/lib/work-status'
-import { workStatusColor, workStatusLabel, type WorkStatusDisplay } from '@/lib/work-status-config'
+import { workStatusLabel, type WorkStatusDisplay } from '@/lib/work-status-config'
 import {
   encodeWork, decodeWork, nextWorkStep, matchesWorkFilter,
-  labelForValue, colorForValue, orderedGroupKeys,
+  labelForValue, orderedGroupKeys,
 } from '@/lib/work-stages'
 import { WorkStageChips } from '@/components/work/WorkStageChips'
 import { resume } from '@/domain/production'
@@ -43,18 +44,18 @@ const resumeLeadingItem = (resumeStatus: WorkStatus | null, statusConfigs: WorkS
     value: RESUME_VALUE,
     label: 'Resume',
     colorLabel: workStatusLabel(status, statusConfigs),
-    color: workStatusColor(status, statusConfigs),
+    tone: statusTone('work', status),
   }]
 }
 
-// Outlined/filled palettes for the meta chips so they follow the same
-// "color = stage" rule as the per-status chips.
+// Token-based palettes for the meta chips: "Active" carries the brand accent as
+// the primary filter, "All" stays neutral. Filled = selected, outlined = idle.
 const META_CHIP_OUTLINED: Record<'active' | 'all', string> = {
-  active: 'bg-white border border-primary text-primary',
+  active: 'bg-card border border-brand text-brand',
   all:    'bg-card border border-border text-muted-foreground',
 }
 const META_CHIP_FILLED: Record<'active' | 'all', string> = {
-  active: 'bg-primary text-primary-foreground border border-primary',
+  active: 'bg-brand text-brand-foreground border border-brand',
   all:    'bg-foreground text-background border border-foreground',
 }
 
@@ -77,7 +78,8 @@ function relativeTime(iso: string, now: number | null): string {
   return new Date(iso).toLocaleDateString('en-GB')
 }
 
-// A small pill used for group headers and the "moved to" hint, colored by slot.
+// A small pill used for group headers and the "moved to" hint. Tone is derived
+// from the slot's top-level work status (stage slots decode to in_progress → info).
 function SlotBadge({ value, stagesById, statusConfigs, className }: {
   value: string
   stagesById: Map<string, WorkStage>
@@ -85,13 +87,9 @@ function SlotBadge({ value, stagesById, statusConfigs, className }: {
   className?: string
 }) {
   return (
-    <span className={cn(
-      'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap',
-      colorForValue(value, stagesById, statusConfigs),
-      className,
-    )}>
+    <StatusPill tone={statusTone('work', decodeWork(value).work_status)} className={className}>
       {labelForValue(value, stagesById, statusConfigs)}
-    </span>
+    </StatusPill>
   )
 }
 
@@ -287,21 +285,28 @@ export function WorkQueueClient({
           {chips.map(c => {
             const stageKey = c.key !== 'active' && c.key !== 'all' ? (c.key as WorkStatus) : null
             const isSelected = filter === c.key
-            const filled = stageKey ? cn(workStatusColor(stageKey, statusConfigs), 'ring-1 ring-inset ring-current') : META_CHIP_FILLED[c.key as 'active' | 'all']
-            const outlined = stageKey ? cn(workStatusColor(stageKey, statusConfigs), 'opacity-75 hover:opacity-100') : META_CHIP_OUTLINED[c.key as 'active' | 'all']
+            // Per-status chips take their status tone; selection = ring, idle = faded.
+            // Meta chips (Active/All) use the token meta palette.
+            const chipColor = stageKey
+              ? cn(toneChipClass(statusTone('work', stageKey)), isSelected ? 'ring-1 ring-inset ring-current' : 'opacity-70 hover:opacity-100')
+              : isSelected
+                ? META_CHIP_FILLED[c.key as 'active' | 'all']
+                : cn(META_CHIP_OUTLINED[c.key as 'active' | 'all'], 'hover:bg-muted')
             return (
               <button
                 key={c.key}
+                type="button"
                 onClick={() => setFilter(c.key)}
+                aria-pressed={isSelected}
                 className={cn(
                   'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
-                  isSelected ? filled : cn(outlined, 'hover:bg-muted'),
+                  chipColor,
                 )}
               >
                 {c.label}
                 <span className={cn(
                   'inline-flex items-center justify-center min-w-[18px] h-4 rounded-full px-1 text-[10px] font-semibold',
-                  isSelected ? 'bg-white/25' : 'bg-muted text-muted-foreground',
+                  isSelected ? 'bg-foreground/10' : 'bg-muted text-muted-foreground',
                 )}>
                   {c.count}
                 </span>
@@ -318,15 +323,17 @@ export function WorkQueueClient({
               return (
                 <button
                   key={s.id}
+                  type="button"
                   onClick={() => setFilter(isSelected ? 'in_progress' : key)}
+                  aria-pressed={isSelected}
                   className={cn(
                     'inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium transition-colors',
-                    s.color ?? 'bg-muted text-muted-foreground',
-                    isSelected ? 'ring-1 ring-inset ring-current' : 'opacity-75 hover:opacity-100',
+                    toneChipClass('info'),
+                    isSelected ? 'ring-1 ring-inset ring-current' : 'opacity-70 hover:opacity-100',
                   )}
                 >
                   {s.label}
-                  <span className="inline-flex items-center justify-center min-w-[18px] h-4 rounded-full px-1 text-[10px] font-semibold bg-white/40">
+                  <span className="inline-flex items-center justify-center min-w-[18px] h-4 rounded-full px-1 text-[10px] font-semibold bg-foreground/10">
                     {stageCounts.get(s.id) ?? 0}
                   </span>
                 </button>
@@ -377,7 +384,7 @@ export function WorkQueueClient({
                         key={row.id}
                         className={cn(
                           'px-4 py-3 flex flex-col md:flex-row md:items-center gap-3 transition-colors',
-                          isMoved && 'bg-green-50/60'
+                          isMoved && 'bg-success-subtle/60'
                         )}
                       >
                         <div className="md:w-28 min-w-0">
@@ -407,7 +414,7 @@ export function WorkQueueClient({
                             />
                           )}
                           {isMoved ? (
-                            <div className="text-xs text-green-700 mt-0.5 flex items-center gap-1">
+                            <div className="text-xs text-success mt-0.5 flex items-center gap-1">
                               <Check className="h-3 w-3" /> Moved to <SlotBadge value={movedTo!} stagesById={allStagesById} statusConfigs={statusConfigs} className="ml-0.5" />
                             </div>
                           ) : (

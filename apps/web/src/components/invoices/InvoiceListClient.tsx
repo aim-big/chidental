@@ -11,7 +11,9 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
+import { StatusPill, statusTone } from '@/components/ui/status-pill'
+import { Money } from '@/components/ui/money'
+import { PageHeader } from '@/components/ui/page-header'
 import { Card, CardContent } from '@/components/ui/card'
 import { DataTable } from '@/components/ui/data-table'
 import type { Column } from '@/lib/data-table'
@@ -19,7 +21,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Pagination } from '@/components/ui/pagination'
 import { FilterChips, type FilterChip } from '@/components/ui/filter-chips'
 import { listViewState } from '@/lib/list-view-state'
-import { statusBadgeVariant, paymentStatusLabel } from '@/lib/status-badge'
+import { paymentStatusLabel } from '@/lib/status-badge'
 import { FileText, Plus, Search } from 'lucide-react'
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
 import { isVoided } from '@chidental/shared'
@@ -52,19 +54,19 @@ export function InvoiceListClient({
   const rows = page.rows
 
   const columns: Column<InvoiceListRow>[] = [
-    { key: 'number', header: 'Invoice #', sortKey: 'number', cell: inv => <span className="font-medium text-primary">{inv.invoice_number}</span> },
+    { key: 'number', header: 'Invoice #', sortKey: 'number', cell: inv => <span className="font-medium text-brand">{inv.invoice_number}</span> },
     { key: 'customer', header: 'Clinic', sortKey: 'customer', cell: inv => <span className="text-muted-foreground">{inv.customers?.clinic_name ?? '—'}</span> },
     { key: 'patient', header: 'Patient', sortKey: 'patient', cell: inv => <span className="text-muted-foreground">{inv.patient ?? '—'}</span> },
     { key: 'date', header: 'Date', sortKey: 'date', cell: inv => <span className="text-sm text-muted-foreground">{formatDate(inv.invoice_date)}</span> },
-    { key: 'amount', header: 'Amount', align: 'right', sortKey: 'amount', cell: inv => <span className="font-medium tabular-nums">{formatCurrency(inv.total)}</span> },
+    { key: 'amount', header: 'Amount', align: 'right', sortKey: 'amount', cell: inv => <Money className="font-medium">{formatCurrency(inv.total)}</Money> },
     {
       key: 'payment',
       header: 'Payment',
       cell: inv =>
         isVoided(inv) ? (
-          <Badge variant="destructive" className="uppercase">Voided</Badge>
+          <StatusPill tone="danger" className="uppercase">Voided</StatusPill>
         ) : (
-          <Badge variant={statusBadgeVariant('payment', inv.status)}>{paymentStatusLabel(inv.status)}</Badge>
+          <StatusPill tone={statusTone('payment', inv.status)}>{paymentStatusLabel(inv.status)}</StatusPill>
         ),
     },
   ]
@@ -88,27 +90,29 @@ export function InvoiceListClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-foreground sm:text-2xl">Invoices</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{counts.all} total</p>
-        </div>
-        {hasPermission('invoices.create') && (
-          <Button className="w-full sm:w-auto" asChild>
-            <Link href="/invoices/new"><Plus className="h-4 w-4 mr-2" />New Invoice</Link>
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title="Invoices"
+        subtitle={`${counts.all} total`}
+        actions={
+          hasPermission('invoices.create') ? (
+            <Button className="w-full sm:w-auto" asChild>
+              <Link href="/invoices/new"><Plus className="h-4 w-4 mr-2" />New Invoice</Link>
+            </Button>
+          ) : undefined
+        }
+      />
 
       <div className="space-y-3">
         <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
-          <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted p-1">
+          <div role="tablist" aria-label="Invoice views" className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted p-1">
             {VIEWS.map(v => {
               const active = v.key === viewKey
               return (
                 <button
                   key={v.key}
                   type="button"
+                  role="tab"
+                  aria-selected={active}
                   onClick={() => setView(v.key)}
                   className={cn(
                     'shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',

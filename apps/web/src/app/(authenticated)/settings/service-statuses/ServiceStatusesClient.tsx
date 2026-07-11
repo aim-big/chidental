@@ -18,6 +18,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ActiveSwitch, TableActionButton } from '@/components/ui/table-actions'
+import { EmptyState } from '@/components/ui/empty-state'
 import { ArrowDown, ArrowUp, PencilLine, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ServiceStatus } from '@chidental/shared'
@@ -114,7 +115,13 @@ export default function ServiceStatusesPage({ initialRows }: { initialRows: Serv
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No statuses yet</TableCell></TableRow>}
+              {rows.length === 0 && (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={4} className="p-0">
+                    <EmptyState title="No service statuses yet" description="Add a status to print lab-to-doctor instructions on delivery orders." />
+                  </TableCell>
+                </TableRow>
+              )}
               {rows.map((s, i) => (
                 <TableRow key={s.id} className={s.is_active ? '' : 'opacity-50'}>
                   <TableCell>
@@ -173,7 +180,7 @@ export default function ServiceStatusesPage({ initialRows }: { initialRows: Serv
                     className={cn(
                       'rounded-md px-2 py-1.5 text-xs font-medium border-2 transition-colors',
                       c.value,
-                      watchedColor === c.value ? 'border-gray-900' : 'border-transparent hover:border-gray-300',
+                      watchedColor === c.value ? 'border-foreground' : 'border-transparent hover:border-border',
                     )}
                   >
                     {c.name}

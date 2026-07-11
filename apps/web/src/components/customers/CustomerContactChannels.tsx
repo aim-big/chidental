@@ -133,7 +133,7 @@ export function CustomerContactChannels({
                     href={channel.href}
                     target={channel.id === 'phone' ? '_blank' : undefined}
                     rel={channel.id === 'phone' ? 'noopener noreferrer' : undefined}
-                    className="block truncate text-sm font-medium text-primary hover:underline"
+                    className="block truncate text-sm font-medium text-brand hover:underline"
                   >
                     {channel.value}
                   </a>
@@ -146,7 +146,7 @@ export function CustomerContactChannels({
                   aria-live="polite"
                   className={cn(
                     'w-12 text-right text-xs font-medium transition-opacity',
-                    isCopied ? 'text-emerald-700 opacity-100 dark:text-emerald-300' : 'opacity-0',
+                    isCopied ? 'text-success opacity-100' : 'opacity-0',
                   )}
                 >
                   {isCopied ? 'Copied' : ''}

@@ -22,8 +22,9 @@ import { useMemo, useOptimistic, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/feedback/toast'
 import { cn } from '@/lib/utils'
+import { StatusPill, statusTone } from '@/components/ui/status-pill'
 import { WORK_STATUSES } from '@/lib/work-status'
-import { workStatusColor, workStatusLabel, type WorkStatusDisplay } from '@/lib/work-status-config'
+import { workStatusLabel, type WorkStatusDisplay } from '@/lib/work-status-config'
 import { updateWorkStatusAction } from '@/data/invoice-actions'
 import { WorkStageChips } from '@/components/work/WorkStageChips'
 import { WorkStatusSelect, ADVANCE_VALUE } from '@/components/work-status-select'
@@ -65,11 +66,24 @@ function ItemCard({
   return (
     <div
       draggable
+      role="button"
+      tabIndex={0}
+      aria-label={`Open invoice for ${row.description}`}
       onDragStart={e => onDragStart(e, row.id)}
       onClick={() => onClick(row.invoices?.id)}
+      onKeyDown={e => {
+        // Only act on keys landing on the card itself — never on the nested
+        // status dropdown / stage chips (which handle their own keys).
+        if (e.target !== e.currentTarget) return
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick(row.invoices?.id)
+        }
+      }}
       className={cn(
         'bg-card border border-border rounded-lg p-3 cursor-grab active:cursor-grabbing',
         'hover:shadow-md transition-shadow select-none',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
       )}
     >
       <div className="font-semibold text-foreground text-sm leading-snug">{row.description}</div>
@@ -138,26 +152,15 @@ function KanbanColumn({
       onDrop={e => onDrop(e, status)}
     >
       {/* Column header */}
-      <div className={cn(
-        'flex items-center gap-2 px-3 py-2 rounded-t-lg border border-b-0 border-border',
-        'bg-muted/50',
-      )}>
-        <span className={cn(
-          'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
-          workStatusColor(status, statusConfigs),
-        )}>
+      <div className="flex items-center gap-2 px-3 py-2 rounded-t-lg border border-b-0 border-border bg-surface-2">
+        <StatusPill tone={statusTone('work', status)}>
           {workStatusLabel(status, statusConfigs)}
-        </span>
+        </StatusPill>
         <span className="text-xs text-muted-foreground ml-auto">{rows.length}</span>
       </div>
 
       {/* Cards area — scrolls vertically if many cards */}
-      <div
-        className={cn(
-          'flex-1 min-h-32 flex flex-col gap-2 p-2',
-          'rounded-b-lg border border-border bg-muted/20',
-        )}
-      >
+      <div className="flex-1 min-h-32 flex flex-col gap-2 p-2 rounded-b-lg border border-border bg-muted">
         {rows.map(r => (
           <ItemCard
             key={r.id}

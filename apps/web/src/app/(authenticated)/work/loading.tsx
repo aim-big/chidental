@@ -11,6 +11,15 @@ export default function WorkLoading() {
         </div>
         <Skeleton className="h-9 w-36" />
       </div>
+      {/* Filter chips + search (list view) */}
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-7 w-20 rounded-full" />
+          ))}
+        </div>
+        <Skeleton className="h-9 w-full sm:max-w-sm" />
+      </div>
       <Card>
         <CardContent className="p-0">
           <div className="divide-y">

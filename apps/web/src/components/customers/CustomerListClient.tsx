@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { StatusPill } from '@/components/ui/status-pill'
+import { PageHeader } from '@/components/ui/page-header'
 import { Card, CardContent } from '@/components/ui/card'
 import { DataTable } from '@/components/ui/data-table'
 import type { Column } from '@/lib/data-table'
@@ -53,7 +54,7 @@ export function CustomerListClient({ page, state }: { page: CustomerListPage; st
     columns.push({
       key: 'status',
       header: 'Status',
-      cell: c => <Badge variant={c.archived_at ? 'secondary' : 'success'}>{c.archived_at ? 'Archived' : 'Active'}</Badge>,
+      cell: c => <StatusPill tone={c.archived_at ? 'neutral' : 'success'}>{c.archived_at ? 'Archived' : 'Active'}</StatusPill>,
     })
   }
 
@@ -69,6 +70,12 @@ export function CustomerListClient({ page, state }: { page: CustomerListPage; st
   if (state.q.trim() !== '') chips.push({ key: 'search', label: `Search: ${state.q.trim()}`, onRemove: clearSearch })
 
   const countNoun = activeFilter === 'archived' ? 'archived' : activeFilter === 'all' ? 'total' : 'registered'
+
+  // The truly-empty state ("No clinics yet") promises a "Add your first clinic" CTA,
+  // so surface the create button — but only when the user can create and this isn't
+  // the archived view or a no-results search.
+  const showCreateCta =
+    activeFilter !== 'archived' && view !== 'empty-no-results' && hasPermission('customers.edit')
 
   const emptyState = (
     <EmptyState
@@ -87,22 +94,30 @@ export function CustomerListClient({ page, state }: { page: CustomerListPage; st
             ? 'Try a different search term.'
             : 'Add your first clinic to get started.'
       }
+      action={
+        showCreateCta ? (
+          <Button asChild>
+            <Link href="/customers/new"><Plus className="h-4 w-4 mr-2" />New Clinic</Link>
+          </Button>
+        ) : undefined
+      }
     />
   )
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-foreground sm:text-2xl">Clinics</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{page.total} {countNoun}</p>
-        </div>
-        {hasPermission('customers.edit') && (
-          <Button className="w-full sm:w-auto" asChild>
-            <Link href="/customers/new"><Plus className="h-4 w-4 mr-2" />New Clinic</Link>
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        className="mb-0"
+        title="Clinics"
+        subtitle={`${page.total} ${countNoun}`}
+        actions={
+          hasPermission('customers.edit') && (
+            <Button className="w-full sm:w-auto" asChild>
+              <Link href="/customers/new"><Plus className="h-4 w-4 mr-2" />New Clinic</Link>
+            </Button>
+          )
+        }
+      />
 
       <div className="space-y-3">
         <ListToolbar value={search} onChange={setSearch} placeholder="Search clinic, contact person or phone…">

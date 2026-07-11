@@ -74,7 +74,7 @@ export function CaseDetailsEditor({ invoice, serviceStatusId: initialServiceStat
                 onBlur={save}
               />
             ) : (
-              <p className="flex h-10 items-center text-sm text-gray-900">{patient || '—'}</p>
+              <p className="flex h-10 items-center text-sm text-foreground">{patient || '—'}</p>
             )}
           </div>
           <div className="space-y-2">
@@ -87,7 +87,7 @@ export function CaseDetailsEditor({ invoice, serviceStatusId: initialServiceStat
                 onBlur={save}
               />
             ) : (
-              <p className="flex h-10 items-center text-sm text-gray-900">{doctor || '—'}</p>
+              <p className="flex h-10 items-center text-sm text-foreground">{doctor || '—'}</p>
             )}
           </div>
           <div className="space-y-2">

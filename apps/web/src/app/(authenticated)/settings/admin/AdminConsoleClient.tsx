@@ -79,9 +79,9 @@ export function AdminConsoleClient({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="w-full max-w-4xl space-y-6">
       <div>
-        <h2 className="text-xl font-semibold text-foreground">Admin Console</h2>
+        <h1 className="text-xl font-bold text-foreground sm:text-2xl">Admin Console</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
           Restore or permanently delete records, and review the audit trail. These
           actions are limited to Super Admins and are all logged.

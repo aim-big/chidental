@@ -9,7 +9,9 @@ import { getCreditsForCustomer } from '@/data/credits'
 import { requirePermission } from '@/lib/auth/require-permission'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { cn, formatCurrency, formatDate, todayISODate } from '@/lib/utils'
+import { Metric } from '@/components/ui/metric'
+import { Money, formatMYR } from '@/components/ui/money'
+import { formatDate, todayISODate } from '@/lib/utils'
 import { summarizeCustomerInvoices, arAging } from '@chidental/shared'
 import { creditReasonLabel } from '@/lib/credit'
 import { MapPin, Truck } from 'lucide-react'
@@ -84,34 +86,27 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         </Card>
 
         <div className="space-y-4">
+          {/* Money summary — the balance owed is the dominant figure; total billed and
+              account credits are supporting lines, so the netting (outstanding − credits)
+              stays legible rather than fighting the hero for weight. */}
           <Card>
-            <CardContent className="p-4 sm:p-5">
-              <p className="text-xs text-muted-foreground">Total Billed</p>
-              <p className="text-xl font-bold text-foreground mt-1">{formatCurrency(totalBilled)}</p>
-            </CardContent>
-          </Card>
-          {/* Account balance = outstanding − account credits. We show the two
-              components as explicit lines so the netting is legible rather than
-              silently folded into one figure. */}
-          <Card>
-            <CardContent className="p-4 sm:p-5 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground">Outstanding</p>
-                <p className="text-sm font-semibold tabular-nums text-yellow-600">{formatCurrency(totalOutstanding)}</p>
+            <CardContent className="space-y-4 p-4 sm:p-5">
+              <Metric
+                hero
+                tone={accountBalance > 0 ? 'warning' : 'success'}
+                label={totalCredits > 0 ? 'Balance owed' : 'Outstanding'}
+                value={<Money amount={accountBalance} />}
+                hint={accountBalance <= 0 ? 'Fully settled' : undefined}
+              />
+              <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
+                <Metric label="Total billed" value={<Money amount={totalBilled} />} />
+                {totalCredits > 0 && (
+                  <>
+                    <Metric label="Outstanding" value={<Money amount={totalOutstanding} />} />
+                    <Metric label="Account credits" value={<Money>{`−${formatMYR(totalCredits)}`}</Money>} />
+                  </>
+                )}
               </div>
-              {totalCredits > 0 && (
-                <>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">Less: account credits</p>
-                    <p className="text-sm font-semibold tabular-nums text-foreground">−{formatCurrency(totalCredits)}</p>
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-medium text-foreground">Account Balance</p>
-                    <p className="text-xl font-bold tabular-nums text-foreground">{formatCurrency(accountBalance)}</p>
-                  </div>
-                </>
-              )}
               <div className="pt-1">
                 <IssueCreditDialog customerId={id} invoices={invoiceOptions} />
               </div>
@@ -129,7 +124,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                       <p className="text-foreground">Credit — {creditReasonLabel(c.reason)}</p>
                       <p className="text-xs text-muted-foreground">{formatDate(c.credit_date)}</p>
                     </div>
-                    <span className="font-medium tabular-nums text-foreground">−{formatCurrency(Number(c.amount))}</span>
+                    <Money className="font-medium">{`−${formatMYR(Number(c.amount))}`}</Money>
                   </div>
                 ))}
               </CardContent>
@@ -150,9 +145,11 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                 ].map(row => (
                   <div key={row.label} className="flex items-center justify-between">
                     <span className="text-muted-foreground">{row.label}</span>
-                    <span className={cn('font-medium tabular-nums', row.danger && row.value > 0 && 'text-red-600')}>
-                      {formatCurrency(row.value)}
-                    </span>
+                    <Money
+                      amount={row.value}
+                      tone={row.danger && row.value > 0 ? 'danger' : 'default'}
+                      className="font-medium"
+                    />
                   </div>
                 ))}
                 {/* Credits are NOT bucketed by age — aging stays payment-based.
@@ -162,7 +159,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                     <Separator />
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Less: account credits</span>
-                      <span className="font-medium tabular-nums text-foreground">−{formatCurrency(totalCredits)}</span>
+                      <Money className="font-medium">{`−${formatMYR(totalCredits)}`}</Money>
                     </div>
                   </>
                 )}

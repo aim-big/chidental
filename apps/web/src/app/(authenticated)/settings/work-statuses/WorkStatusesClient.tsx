@@ -134,7 +134,7 @@ export default function WorkStatusesPage({ initialRows }: { initialRows: Tables<
                     className={cn(
                       'rounded-md px-2 py-1.5 text-xs font-medium border-2 transition-colors',
                       c.value,
-                      watchedColor === c.value ? 'border-gray-900' : 'border-transparent hover:border-gray-300',
+                      watchedColor === c.value ? 'border-foreground' : 'border-transparent hover:border-border',
                     )}
                   >
                     {c.name}

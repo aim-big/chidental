@@ -23,8 +23,10 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
   return (
     <div className="w-full max-w-6xl">
+      {/* Shell context strip — a plain label, not a heading, so each routed
+          section owns the single <h1> on the page. */}
       <div className="mb-4 sm:mb-5">
-        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+        <p className="text-base font-semibold text-foreground">Settings</p>
         <p className="text-sm text-muted-foreground mt-0.5">Configure the lookups, workflow, and access your lab uses.</p>
       </div>
 
@@ -49,8 +51,8 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
                         className={cn(
                           'flex min-h-11 min-w-0 items-center gap-2 rounded-md border px-3 py-2 text-left text-sm font-medium transition-colors',
                           active
-                            ? 'border-primary/35 bg-primary/10 text-primary'
-                            : 'border-border/80 bg-background text-muted-foreground hover:border-primary/25 hover:bg-muted hover:text-foreground',
+                            ? 'border-brand/35 bg-brand/10 text-brand'
+                            : 'border-border/80 bg-background text-muted-foreground hover:border-brand/25 hover:bg-muted hover:text-foreground',
                         )}
                       >
                         <Icon className="h-4 w-4 flex-shrink-0" />
@@ -80,7 +82,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
                       href={href}
                       className={cn(
                         'flex min-w-0 items-center gap-2.5 rounded-lg px-2 py-2 text-sm font-medium transition-colors',
-                        active ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                        active ? 'bg-brand/10 text-brand' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                       )}
                     >
                       <Icon className="h-4 w-4 flex-shrink-0" />
