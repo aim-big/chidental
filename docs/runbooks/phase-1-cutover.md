@@ -38,7 +38,7 @@
 ## Notes
 
 - `supabase/` and `docs/` stay at the repo root; only the web app moved.
-- Local dev is unchanged: `npm run dev` from the repo root still serves on :6060
-  (it delegates into `apps/web`). Your `.env.local` moved to `apps/web/.env.local`.
+- Local dev: `pnpm dev` from the repo root serves web on :6060 and the API on :6061
+  together. Your `.env.local` moved to `apps/web/.env.local`.
 - `packages/shared` (the Zod schemas → Nest DTOs) is extracted at the start of Phase 2,
   when `apps/api` needs it — not in this PR.

@@ -171,11 +171,11 @@ permission changes apply immediately with no re-login. Client `hasPermission()` 
 
 ## 7. CI, environments & deploy safety
 
-- **CI gate.** `.github/workflows/ci.yml` runs `npm test` + `npm run build` on every PR
+- **CI gate.** `.github/workflows/ci.yml` runs `pnpm test` + `pnpm build` on every PR
   and push to `main`. tsc/lint are **not** gates. The build gets dummy Supabase env
   (real secrets are only needed at runtime, never to compile).
-- **Two test tiers beyond unit.** Integration (`npm run test:integration`, needs Docker +
-  `supabase start`) and E2E (`npm run test:e2e`, needs the seeded stack + Chromium). Neither
+- **Two test tiers beyond unit.** Integration (`pnpm test:integration`, needs Docker +
+  `supabase start`) and E2E (`pnpm test:e2e`, needs the seeded stack + Chromium). Neither
   runs in the CI gate; see [testing.md](./testing.md).
 - **Preview isolation (goal, not yet in place).** Vercel Preview *should* point at a non-prod
   Supabase DB so preview PR code can't touch prod. **Today it does NOT** — on the `chidental-lab`

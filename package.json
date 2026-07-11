@@ -1,23 +1,29 @@
 {
   "name": "chidental-monorepo",
   "private": true,
+  "packageManager": "pnpm@10.32.1",
   "engines": {
     "node": ">=20.12.0"
   },
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
   "scripts": {
-    "dev": "npm run dev -w apps/web",
-    "build": "npm run build -w apps/web",
-    "start": "npm run start -w apps/web",
-    "lint": "npm run lint -w apps/web",
-    "test": "npm run test -w apps/web",
-    "test:integration": "npm run test:integration -w apps/web",
-    "test:e2e": "npm run test:e2e -w apps/web"
+    "preinstall": "npx only-allow pnpm",
+    "dev": "pnpm --parallel --filter chidental --filter @chidental/api run dev",
+    "dev:web": "pnpm --filter chidental run dev",
+    "dev:api": "pnpm --filter @chidental/api run dev",
+    "build": "pnpm --filter chidental run build",
+    "start": "pnpm --filter chidental run start",
+    "lint": "pnpm --filter chidental run lint",
+    "test": "pnpm --filter chidental run test",
+    "test:integration": "pnpm --filter chidental run test:integration",
+    "test:e2e": "pnpm --filter chidental run test:e2e"
   },
-  "overrides": {
-    "postcss": "^8.5.10"
+  "pnpm": {
+    "overrides": {
+      "postcss": "^8.5.10"
+    },
+    "onlyBuiltDependencies": [
+      "sharp",
+      "unrs-resolver"
+    ]
   }
 }

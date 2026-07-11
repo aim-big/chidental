@@ -97,7 +97,7 @@ Prod is live on Next + Nest. Completed:
 - **Rollback:** `git revert <cutover-sha>` + push (restores local fallbacks), or `vercel rollback` to the prior deployment. The Railway API can stay as-is.
 - **Keep the API up** — it's on the critical path now. Add uptime/latency monitoring; consider a Railway min-instance.
 - Wire **Railway ↔ GitHub auto-deploy** so API changes ship on push (currently manual `railway up`).
-- **Local dev now needs the API:** run `npm run dev -w apps/api` alongside `npm run dev`, with `NEXT_PUBLIC_API_URL=http://127.0.0.1:6061`.
+- **Local dev now needs the API:** `pnpm dev` starts web + API together, with `NEXT_PUBLIC_API_URL=http://127.0.0.1:6061`.
 
 ## Remaining nice-to-haves (optional, non-blocking)
 
@@ -110,4 +110,4 @@ Prod is live on Next + Nest. Completed:
 - **API base:** `https://chidental-api-production.up.railway.app` (serves **zero** prod traffic until a flag flips).
 - **Flag:** `USE_API_MODULES` (comma list) + `NEXT_PUBLIC_API_URL`, read via `isModuleOnApi()` in `apps/web/src/lib/config.ts`.
 - **Behaviour-preservation invariant:** the API uses a service-role client (bypasses RLS); this is safe **only** where every touched table's read policy is `using (true)`. Verify per module before migrating.
-- **Gates:** `npm test` (shared/web/api) + `npm run build` (web/api). tsc/lint are unusable in this repo.
+- **Gates:** `pnpm test` (shared/web/api) + `pnpm build` (web/api). tsc/lint are unusable in this repo.

@@ -272,6 +272,6 @@ app) until Phase 1 — isolate it then via an ephemeral Supabase branch or a sta
 project ([`docs/runbooks/staging-provisioning.md`](./runbooks/staging-provisioning.md)).
 The Preview column above is the target state, not today's.
 
-**CI gate:** `.github/workflows/ci.yml` runs `npm test` + `npm run build` on every
+**CI gate:** `.github/workflows/ci.yml` runs `pnpm test` + `pnpm build` on every
 PR (dummy Supabase env at build time — real secrets are only needed at runtime).
 Integration/E2E suites are not in the gate (they need Docker + a seeded stack).

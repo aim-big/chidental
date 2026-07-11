@@ -5,7 +5,7 @@ Two suites, two intents.
 ## Unit tests — pure logic (no DB)
 
 ```bash
-npm test
+pnpm test
 ```
 
 Covers the pure domain/lib helpers (`src/domain/**`, `src/lib/**`): money math,
@@ -15,13 +15,13 @@ schema validation, report aggregation, and a middleware login-redirect tripwire
 required. This is the gate that runs in CI (`.github/workflows/ci.yml`).
 
 Integration tests are intentionally **excluded** from this run (see
-`vitest.config.ts`), so `npm test` never needs a database.
+`vitest.config.ts`), so `pnpm test` never needs a database.
 
 ## Integration tests — database behaviour (payment RPCs + RLS)
 
 ```bash
 supabase start          # one-time per session; needs Docker running
-npm run test:integration
+pnpm test:integration
 ```
 
 These exercise behaviour that lives in Postgres and cannot be reached by the
@@ -75,12 +75,12 @@ public`, and the `ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin` blocks
 postgres` defaults already grant the same. No effect on the already-applied
 production schema.
 
-## End-to-end tests — Playwright (`npm run test:e2e`)
+## End-to-end tests — Playwright (`pnpm test:e2e`)
 
 ```bash
 supabase start && supabase db reset   # seeded stack (supabase/seed.sql)
 npx playwright install chromium       # one-time, local browser binary
-npm run test:e2e
+pnpm test:e2e
 ```
 
 Real-browser smokes in `e2e/`, run against the app on :6060 pointed at the seeded

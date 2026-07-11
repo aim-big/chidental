@@ -13,11 +13,12 @@ Lab management system (work orders, invoicing, and billing) for Chi Dental Lab. 
 ## Getting started
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev        # starts the web app AND the NestJS API together
 ```
 
-The app runs at <http://localhost:3000>.
+The app runs at <http://localhost:6060> (API on :6061). pnpm is the only
+allowed package manager — `npm install` is blocked.
 
 ## Environment
 
@@ -34,10 +35,10 @@ SUPABASE_SERVICE_ROLE_KEY=...       # secret — server-only, never expose
 
 ## Scripts
 
-- `npm run dev` — start the dev server
-- `npm run build` — production build
-- `npm run start` — run the production build
-- `npm run lint` — run ESLint
+- `pnpm dev` — start web + API together (`pnpm dev:web` / `pnpm dev:api` for one alone)
+- `pnpm build` — production build
+- `pnpm start` — run the production build
+- `pnpm lint` — run ESLint
 
 ## Auth flow
 

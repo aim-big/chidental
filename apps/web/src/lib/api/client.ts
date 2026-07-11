@@ -7,6 +7,7 @@
 // For any module that IS on the API, NEXT_PUBLIC_API_URL must be set (calls throw
 // loudly if it isn't).
 import { createClient } from '@/lib/supabase/server'
+import { apiFetch } from './api-fetch'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -19,7 +20,7 @@ async function authHeaders(): Promise<Record<string, string>> {
 
 export async function apiGet<T>(path: string): Promise<T> {
   if (!API_URL) throw new Error('NEXT_PUBLIC_API_URL is not set — cannot route module to the API')
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await apiFetch(`${API_URL}${path}`, {
     headers: await authHeaders(),
     cache: 'no-store',
   })
@@ -39,7 +40,7 @@ export async function apiGetCached<T>(
   opts: { revalidate?: number } = {},
 ): Promise<T> {
   if (!API_URL) throw new Error('NEXT_PUBLIC_API_URL is not set — cannot route module to the API')
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await apiFetch(`${API_URL}${path}`, {
     headers: await authHeaders(),
     next: { revalidate: opts.revalidate ?? 60 },
   })
@@ -53,7 +54,7 @@ export async function apiGetCached<T>(
 // non-2xx statuses still throw — a real failure must not masquerade as absent.
 export async function apiGetOrNull<T>(path: string): Promise<T | null> {
   if (!API_URL) throw new Error('NEXT_PUBLIC_API_URL is not set — cannot route module to the API')
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await apiFetch(`${API_URL}${path}`, {
     headers: await authHeaders(),
     cache: 'no-store',
   })
@@ -87,7 +88,7 @@ export async function apiSend<T extends { ok: boolean }>(
   body?: unknown,
 ): Promise<T> {
   if (!API_URL) throw new Error('NEXT_PUBLIC_API_URL is not set — cannot route module to the API')
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await apiFetch(`${API_URL}${path}`, {
     method,
     headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
