@@ -6,9 +6,9 @@
     "node": ">=20.12.0"
   },
   "scripts": {
-    "predev": "pnpm --filter @chidental/shared build",
+    "predev": "rm -f tsconfig.tsbuildinfo && pnpm --filter @chidental/shared build",
     "dev": "nest start --watch",
-    "prebuild": "pnpm --filter @chidental/shared build",
+    "prebuild": "rm -f tsconfig.tsbuildinfo && pnpm --filter @chidental/shared build",
     "build": "nest build",
     "start": "node dist/main.js",
     "test": "vitest run"
