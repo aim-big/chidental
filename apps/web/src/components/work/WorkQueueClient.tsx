@@ -390,7 +390,7 @@ export function WorkQueueClient({
                         <div className="md:w-28 min-w-0">
                           <Link
                             href={`/invoices/${row.invoices?.id}`}
-                            className="text-sm font-medium text-primary hover:underline"
+                            className="text-sm font-medium text-brand hover:underline"
                           >
                             {row.invoices?.invoice_number ?? '—'}
                           </Link>

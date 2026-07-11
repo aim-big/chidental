@@ -324,7 +324,7 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
       <Dialog open={voidOpen} onOpenChange={setVoidOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
+            <DialogTitle className="flex items-center gap-2 text-danger">
               <Ban className="h-5 w-5" /> Void Invoice
             </DialogTitle>
           </DialogHeader>
@@ -353,7 +353,7 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
+            <DialogTitle className="flex items-center gap-2 text-danger">
               <Trash2 className="h-5 w-5" /> Delete Invoice
             </DialogTitle>
           </DialogHeader>

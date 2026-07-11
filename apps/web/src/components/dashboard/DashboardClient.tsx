@@ -120,7 +120,7 @@ export function DashboardClient({
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-base">Work In Progress</CardTitle>
           {canViewWork && (
-            <Link href="/work" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
+            <Link href="/work" className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline">
               Open Work board <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           )}
