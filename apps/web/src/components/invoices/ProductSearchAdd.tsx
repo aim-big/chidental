@@ -86,7 +86,7 @@ export function ProductSearchAdd({
       </button>
 
       {open && (
-        <div className="absolute z-20 mt-1.5 w-full overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-xl">
+        <div className="absolute z-20 mt-1.5 w-full overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-md">
           <div className="flex items-center gap-2 border-b border-border px-3">
             <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
             <input

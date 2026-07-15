@@ -22,15 +22,15 @@ const EXPANDABLE = new Set(['invoice.edited', 'invoice.recipient_changed', 'invo
 
 type Category = { icon: typeof FilePlus2; cls: string }
 const CATEGORIES: Record<string, Category> = {
-  created: { icon: FilePlus2, cls: 'bg-slate-100 text-slate-600' },
-  issued: { icon: Send, cls: 'bg-blue-100 text-blue-600' },
-  payment: { icon: Banknote, cls: 'bg-green-100 text-green-600' },
-  credit: { icon: Coins, cls: 'bg-amber-100 text-amber-600' },
-  void: { icon: Ban, cls: 'bg-red-100 text-red-600' },
-  deleted: { icon: Trash2, cls: 'bg-red-100 text-red-600' },
-  restored: { icon: RotateCcw, cls: 'bg-emerald-100 text-emerald-600' },
-  edit: { icon: Pencil, cls: 'bg-violet-100 text-violet-600' },
-  work: { icon: Wrench, cls: 'bg-cyan-100 text-cyan-600' },
+  created: { icon: FilePlus2, cls: 'bg-neutral-subtle text-neutral-subtle-foreground' },
+  issued: { icon: Send, cls: 'bg-info-subtle text-info-subtle-foreground' },
+  payment: { icon: Banknote, cls: 'bg-success-subtle text-success-subtle-foreground' },
+  credit: { icon: Coins, cls: 'bg-warning-subtle text-warning-subtle-foreground' },
+  void: { icon: Ban, cls: 'bg-danger-subtle text-danger-subtle-foreground' },
+  deleted: { icon: Trash2, cls: 'bg-danger-subtle text-danger-subtle-foreground' },
+  restored: { icon: RotateCcw, cls: 'bg-success-subtle text-success-subtle-foreground' },
+  edit: { icon: Pencil, cls: 'bg-neutral-subtle text-neutral-subtle-foreground' },
+  work: { icon: Wrench, cls: 'bg-info-subtle text-info-subtle-foreground' },
 }
 
 function categoryOf(action: string): Category {
@@ -196,7 +196,7 @@ export function InvoiceActivityPanel({
                       {hasDiff && (
                         <button
                           type="button"
-                          className="mt-1 text-xs text-primary underline-offset-2 hover:underline"
+                          className="mt-1 text-xs text-brand underline-offset-2 hover:underline"
                           onClick={() => setOpen(open === e.id ? null : e.id)}
                         >
                           {open === e.id ? 'Hide changes' : `${e.changes!.length} field${e.changes!.length > 1 ? 's' : ''} changed`}

@@ -42,8 +42,18 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-dvh overflow-x-hidden bg-background text-foreground lg:grid lg:grid-cols-2">
-      <section className="hidden bg-primary p-10 text-primary-foreground lg:flex lg:min-h-dvh lg:flex-col lg:justify-between xl:p-12">
-        <div className="flex flex-1 items-center">
+      <section className="relative hidden overflow-hidden bg-rail p-10 text-rail-foreground lg:flex lg:min-h-dvh lg:flex-col lg:justify-between xl:p-12">
+        {/* Quiet depth: a low-key radial lift off the espresso field — no gradient
+            text, no glass, just a hairline of light in the top-left. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(115% 80% at 12% 8%, color-mix(in oklab, var(--rail-foreground) 9%, transparent), transparent 62%)',
+          }}
+        />
+        <div className="relative flex flex-1 items-center">
           <Image
             src="/chidental-rectangle.png"
             alt={COMPANY.name}
@@ -53,9 +63,9 @@ export default function LoginPage() {
             className="h-auto w-full max-w-xl object-contain object-left"
           />
         </div>
-        <div className="border-t border-white/15 pt-6">
+        <div className="relative border-t border-rail-foreground/15 pt-6">
           <p className="text-xl font-semibold">Lab Management System</p>
-          <div className="mt-3 space-y-1 text-sm leading-6 text-primary-foreground/70">
+          <div className="mt-3 space-y-1 text-sm leading-6 text-rail-muted">
             <p>{COMPANY.address}</p>
             <p>{COMPANY.phone} · {COMPANY.email}</p>
           </div>
@@ -78,7 +88,7 @@ export default function LoginPage() {
 
           <Card className="w-full max-w-full overflow-hidden">
             <CardHeader className="pb-4">
-              <CardTitle className="text-lg">Staff Login</CardTitle>
+              <CardTitle className="text-2xl tracking-tight">Staff Login</CardTitle>
               <CardDescription>Enter your User ID and 6-digit PIN</CardDescription>
             </CardHeader>
             <CardContent className="min-w-0">
@@ -110,7 +120,7 @@ export default function LoginPage() {
                   />
                 </div>
                 {error && (
-                  <p className="text-sm text-destructive">{error}</p>
+                  <p role="alert" className="text-sm text-destructive">{error}</p>
                 )}
                 <Button type="submit" className="w-full" disabled={loading || pin.length !== 6}>
                   {loading ? 'Signing in…' : 'Sign in'}

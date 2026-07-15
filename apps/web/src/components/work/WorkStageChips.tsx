@@ -14,9 +14,15 @@
 // `onSelect` the chips are plain display-only labels.
 
 import { cn } from '@/lib/utils'
-import { STAGE_DEFAULT_COLOR } from '@/lib/work-stages'
+import { StatusPill, toneChipClass } from '@/components/ui/status-pill'
 import { workStatusLabel, type WorkStatusDisplay } from '@/lib/work-status-config'
 import type { WorkStage, WorkStatus } from '@chidental/shared'
+
+// Stages are labeled sub-statuses of In Progress. Per-lab stage colours are class
+// strings (not hex), so we map to semantic tones: the current stage reads as the
+// active "info" sub-status, every other stage as a neutral chip — which one is
+// current stays unmistakable without giving each stage an arbitrary hue.
+const CHIP_BASE = 'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium whitespace-nowrap'
 
 export function WorkStageChips({
   activeStages,
@@ -41,15 +47,11 @@ export function WorkStageChips({
       <div className="flex flex-wrap items-center gap-1">
         {activeStages.map(stage => {
           const current = stage.id === stageId
-          const pill = cn(
-            'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium leading-4',
-            current ? (stage.color ?? STAGE_DEFAULT_COLOR) : 'bg-muted text-muted-foreground',
-          )
           if (!interactive) {
             return (
-              <span key={stage.id} title={stage.label} className={pill}>
+              <StatusPill key={stage.id} tone={current ? 'info' : 'neutral'} title={stage.label}>
                 {stage.label}
-              </span>
+              </StatusPill>
             )
           }
           return (
@@ -66,10 +68,10 @@ export function WorkStageChips({
                 if (!current) onSelect!(stage.id)
               }}
               className={cn(
-                pill,
+                CHIP_BASE,
                 current
-                  ? 'cursor-default'
-                  : 'cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors',
+                  ? cn(toneChipClass('info'), 'cursor-default')
+                  : cn(toneChipClass('neutral'), 'cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors'),
               )}
             >
               {stage.label}

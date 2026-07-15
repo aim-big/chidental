@@ -25,8 +25,12 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+  // `description` is a convenience: pass a string and it renders a visually
+  // hidden, properly-wired DialogDescription so Radix has an accessible
+  // description (and doesn't warn about the missing aria-describedby). Dialogs
+  // that render their own visible <DialogDescription> child should omit it.
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { description?: string }
+>(({ className, children, description, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -37,6 +41,7 @@ const DialogContent = React.forwardRef<
       )}
       {...props}
     >
+      {description !== undefined && <DialogDescription className="sr-only">{description}</DialogDescription>}
       {children}
       <DialogClose className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
         <X className="h-4 w-4" />

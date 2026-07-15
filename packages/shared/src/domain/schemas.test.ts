@@ -7,6 +7,7 @@ import {
   recordPaymentInputSchema,
   workStatusInputSchema,
   billingSettingsInputSchema,
+  dateRangeQuerySchema,
 } from './schemas'
 
 const product = (over: Record<string, unknown> = {}) => ({
@@ -133,6 +134,21 @@ describe('workStatusInputSchema', () => {
   })
   it('rejects an unknown work_status', () => {
     expect(workStatusInputSchema.safeParse({ work_status: 'shipped', stage_id: null }).success).toBe(false)
+  })
+})
+
+describe('dateRangeQuerySchema', () => {
+  it('accepts a valid YYYY-MM-DD range', () => {
+    expect(dateRangeQuerySchema.safeParse({ from: '2026-07-01', to: '2026-07-31' }).success).toBe(true)
+  })
+  it('rejects a missing bound (the dashboard/reports 500 → 400 fix)', () => {
+    expect(dateRangeQuerySchema.safeParse({}).success).toBe(false)
+    expect(dateRangeQuerySchema.safeParse({ from: '2026-07-01' }).success).toBe(false)
+  })
+  it('rejects malformed or impossible dates', () => {
+    expect(dateRangeQuerySchema.safeParse({ from: 'garbage', to: '2026-07-31' }).success).toBe(false)
+    expect(dateRangeQuerySchema.safeParse({ from: '2026-13-45', to: '2026-07-31' }).success).toBe(false)
+    expect(dateRangeQuerySchema.safeParse({ from: '2026-02-30', to: '2026-07-31' }).success).toBe(false)
   })
 })
 

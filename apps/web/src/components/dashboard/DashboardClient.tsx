@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Metric } from '@/components/ui/metric'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
@@ -15,9 +16,6 @@ import { formatCurrency, formatCompactCurrency } from '@/lib/utils'
 import type { DashboardSummary } from '@/lib/dashboard'
 import type { PresetMap } from '@/lib/reports-presets'
 import { DateRangePicker } from '@/components/date-range-picker'
-
-const BRAND_CHART = '#766254'
-const BRAND_CHART_SOFT = '#9b8779'
 
 // Interactive shell for the dashboard. The Server Component fetches + computes
 // `summary`; this island renders it and drives the date range through the URL so
@@ -65,51 +63,56 @@ export function DashboardClient({
       {/* Date range picker (shared segmented control) */}
       <DateRangePicker from={from} to={to} presets={presets} isPending={isPending} onRangeChange={setRange} />
 
-      {/* KPI cards */}
+      {/* KPI metrics — Outstanding (money owed) is the decision-driving hero */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard
-          title="Sales"
-          icon={<DollarSign className="h-4 w-4 text-muted-foreground" />}
-          value={formatCurrency(sales)}
-          sub={
-            <div className="space-y-0.5">
-              <GrowthBadge pct={salesGrowthPct} label="vs last period" />
-              {salesYoYPct != null && <GrowthBadge pct={salesYoYPct} label="vs last year" />}
-            </div>
-          }
-        />
-        <KpiCard
-          title="Cash Received"
-          icon={<Wallet className="h-4 w-4 text-green-600" />}
-          value={formatCurrency(paymentsReceived)}
-          valueClass="text-green-700"
-          sub={
-            <span className="text-xs text-muted-foreground">
-              {collectionRate != null ? `${Math.round(collectionRate * 100)}% of sales in this period` : 'cash collected in this period'}
-            </span>
-          }
-        />
-        <KpiCard
-          title="Outstanding"
-          icon={<AlertCircle className="h-4 w-4 text-yellow-500" />}
-          value={formatCurrency(outstanding)}
-          valueClass="text-yellow-700"
-          sub={
-            overdueCount > 0 ? (
-              <span className="text-xs font-medium text-red-600">
-                {overdueCount} overdue · {formatCurrency(overdueAmount)} past due
-              </span>
-            ) : (
-              <span className="text-xs text-muted-foreground">owed now (all time) · nothing overdue</span>
-            )
-          }
-        />
-        <KpiCard
-          title="Invoices Issued"
-          icon={<FileText className="h-4 w-4 text-muted-foreground" />}
-          value={String(invoiceCount)}
-          sub={<span className="text-xs text-muted-foreground">avg {formatCurrency(avgInvoiceValue)} per invoice</span>}
-        />
+        <Card className="p-4 sm:p-5">
+          <Metric
+            label="Sales"
+            icon={<DollarSign className="h-4 w-4" />}
+            value={formatCurrency(sales)}
+            hint={
+              <>
+                <GrowthBadge pct={salesGrowthPct} label="vs last period" />
+                {salesYoYPct != null && <GrowthBadge pct={salesYoYPct} label="vs last year" />}
+              </>
+            }
+          />
+        </Card>
+        <Card className="p-4 sm:p-5">
+          <Metric
+            label="Cash Received"
+            icon={<Wallet className="h-4 w-4" />}
+            tone="success"
+            value={formatCurrency(paymentsReceived)}
+            hint={collectionRate != null ? `${Math.round(collectionRate * 100)}% of sales in this period` : 'cash collected in this period'}
+          />
+        </Card>
+        <Card className="p-4 sm:p-5">
+          <Metric
+            hero
+            label="Outstanding"
+            icon={<AlertCircle className="h-4 w-4" />}
+            tone="warning"
+            value={formatCurrency(outstanding)}
+            hint={
+              overdueCount > 0 ? (
+                <span className="font-medium text-danger">
+                  {overdueCount} overdue · {formatCurrency(overdueAmount)} past due
+                </span>
+              ) : (
+                'owed now (all time) · nothing overdue'
+              )
+            }
+          />
+        </Card>
+        <Card className="p-4 sm:p-5">
+          <Metric
+            label="Invoices Issued"
+            icon={<FileText className="h-4 w-4" />}
+            value={String(invoiceCount)}
+            hint={`avg ${formatCurrency(avgInvoiceValue)} per invoice`}
+          />
+        </Card>
       </div>
 
       {/* Jobs on the floor right now — the production heartbeat of the lab */}
@@ -117,7 +120,7 @@ export function DashboardClient({
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-base">Work In Progress</CardTitle>
           {canViewWork && (
-            <Link href="/work" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
+            <Link href="/work" className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline">
               Open Work board <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           )}
@@ -125,10 +128,10 @@ export function DashboardClient({
         <CardContent>
           {wip.total > 0 ? (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <WipStat label="Received" count={wip.received} dotClass="bg-sky-500" />
-              <WipStat label="In Progress" count={wip.inProgress} dotClass="bg-amber-500" />
-              <WipStat label="Ready" count={wip.ready} dotClass="bg-green-500" />
-              <WipStat label="On Hold" count={wip.onHold} dotClass="bg-slate-400" />
+              <WipStat label="Received" count={wip.received} dotClass="bg-muted-foreground" />
+              <WipStat label="In Progress" count={wip.inProgress} dotClass="bg-info" />
+              <WipStat label="Ready" count={wip.ready} dotClass="bg-success" />
+              <WipStat label="On Hold" count={wip.onHold} dotClass="bg-warning" />
             </div>
           ) : (
             <p className="py-2 text-sm text-muted-foreground">No jobs on the floor — every item is delivered.</p>
@@ -148,8 +151,8 @@ export function DashboardClient({
                 <YAxis tickFormatter={formatCompactCurrency} tick={{ fontSize: 12 }} />
                 <Tooltip formatter={(v: number) => formatCurrency(v)} />
                 <Legend />
-                <Bar name="Sales" dataKey="sales" fill={BRAND_CHART} radius={[4, 4, 0, 0]} />
-                <Bar name="Cash received" dataKey="payments" fill={BRAND_CHART_SOFT} radius={[4, 4, 0, 0]} />
+                <Bar name="Sales" dataKey="sales" fill="var(--brand)" radius={[4, 4, 0, 0]} />
+                <Bar name="Cash received" dataKey="payments" fill="var(--success)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : <p className="text-center text-muted-foreground py-8">No invoices or payments in this period</p>}
@@ -168,7 +171,7 @@ export function DashboardClient({
                   <XAxis type="number" tickFormatter={formatCompactCurrency} tick={{ fontSize: 12 }} />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={140} />
                   <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                  <Bar dataKey="total" fill={BRAND_CHART} radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="total" fill="var(--brand)" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : <p className="text-center text-muted-foreground py-8">No products billed in this period</p>}
@@ -185,7 +188,7 @@ export function DashboardClient({
                   <XAxis type="number" tickFormatter={formatCompactCurrency} tick={{ fontSize: 12 }} />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={120} />
                   <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                  <Bar dataKey="total" fill={BRAND_CHART_SOFT} radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="total" fill="var(--brand)" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : <p className="text-center text-muted-foreground py-8">No clinics billed in this period</p>}
@@ -195,30 +198,38 @@ export function DashboardClient({
 
       {/* Growth strip */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          icon={<Users className="h-4 w-4 text-muted-foreground" />}
-          label="New clinics"
-          value={String(newClinics)}
-          hint="not billed last period"
-        />
-        <StatTile
-          icon={<Users className="h-4 w-4 text-muted-foreground" />}
-          label="Returning clinics"
-          value={String(returningClinics)}
-          hint={`of ${customerCount} total`}
-        />
-        <StatTile
-          icon={<DollarSign className="h-4 w-4 text-muted-foreground" />}
-          label="Avg invoice value"
-          value={formatCurrency(avgInvoiceValue)}
-          hint={avgInvoiceValuePrior > 0 ? `was ${formatCurrency(avgInvoiceValuePrior)}` : 'no prior period'}
-        />
-        <StatTile
-          icon={<Clock className="h-4 w-4 text-muted-foreground" />}
-          label="Avg time to payment"
-          value={avgDaysToCollect != null ? `${avgDaysToCollect} days` : '—'}
-          hint={avgDaysToCollect != null ? 'from invoice to payment' : 'no payments in this period'}
-        />
+        <Card className="p-4 sm:p-5">
+          <Metric
+            icon={<Users className="h-4 w-4" />}
+            label="New clinics"
+            value={String(newClinics)}
+            hint="not billed last period"
+          />
+        </Card>
+        <Card className="p-4 sm:p-5">
+          <Metric
+            icon={<Users className="h-4 w-4" />}
+            label="Returning clinics"
+            value={String(returningClinics)}
+            hint={`of ${customerCount} total`}
+          />
+        </Card>
+        <Card className="p-4 sm:p-5">
+          <Metric
+            icon={<DollarSign className="h-4 w-4" />}
+            label="Avg invoice value"
+            value={formatCurrency(avgInvoiceValue)}
+            hint={avgInvoiceValuePrior > 0 ? `was ${formatCurrency(avgInvoiceValuePrior)}` : 'no prior period'}
+          />
+        </Card>
+        <Card className="p-4 sm:p-5">
+          <Metric
+            icon={<Clock className="h-4 w-4" />}
+            label="Avg time to payment"
+            value={avgDaysToCollect != null ? `${avgDaysToCollect} days` : '—'}
+            hint={avgDaysToCollect != null ? 'from invoice to payment' : 'no payments in this period'}
+          />
+        </Card>
       </div>
     </div>
   )
@@ -236,59 +247,14 @@ function WipStat({ label, count, dotClass }: { label: string; count: number; dot
   )
 }
 
-function KpiCard({
-  title, icon, value, valueClass, sub,
-}: {
-  title: string
-  icon: React.ReactNode
-  value: string
-  valueClass?: string
-  sub?: React.ReactNode
-}) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        {icon}
-      </CardHeader>
-      <CardContent>
-        <p className={`text-2xl font-semibold tabular-nums sm:text-3xl ${valueClass ?? 'text-foreground'}`}>{value}</p>
-        {sub && <div className="mt-1">{sub}</div>}
-      </CardContent>
-    </Card>
-  )
-}
-
 function GrowthBadge({ pct, label = 'vs last period' }: { pct: number | null; label?: string }) {
   if (pct == null) return <span className="block text-xs text-muted-foreground">no prior period</span>
   const up = pct >= 0
   const Icon = up ? TrendingUp : TrendingDown
   return (
-    <span className={`flex items-center gap-1 text-xs font-medium ${up ? 'text-green-600' : 'text-red-600'}`}>
+    <span className={`flex items-center gap-1 text-xs font-medium ${up ? 'text-success' : 'text-danger'}`}>
       <Icon className="h-3.5 w-3.5" />
       {up ? '+' : ''}{(pct * 100).toFixed(0)}% {label}
     </span>
-  )
-}
-
-function StatTile({
-  icon, label, value, hint,
-}: {
-  icon: React.ReactNode
-  label: string
-  value: string
-  hint: string
-}) {
-  return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium text-muted-foreground">{label}</p>
-          {icon}
-        </div>
-        <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">{value}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
-      </CardContent>
-    </Card>
   )
 }

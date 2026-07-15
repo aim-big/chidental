@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { useAuth } from '@/contexts/AuthContext'
 import { mainNav, settingsGroups, guardFor, type NavEntry } from '@/domain/navigation'
 import { cn } from '@/lib/utils'
@@ -57,11 +58,11 @@ function SidebarContent({
 }) {
   const linkClass = (active: boolean) =>
     cn(
-      'flex h-10 items-center rounded-lg text-sm font-medium transition-colors',
+      'flex h-10 items-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60',
       collapsed ? 'justify-center px-0' : 'gap-3 px-3',
       active
-        ? 'bg-white text-primary shadow-sm'
-        : 'text-primary-foreground/70 hover:bg-white/10 hover:text-primary-foreground',
+        ? 'bg-white/10 text-rail-foreground'
+        : 'text-rail-muted hover:bg-white/5 hover:text-rail-foreground',
     )
 
   return (
@@ -100,7 +101,7 @@ function SidebarContent({
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent('command-palette:open'))}
               className={cn(
-                'flex h-10 w-full items-center rounded-lg border border-white/15 bg-white/5 text-sm text-primary-foreground/60 transition-colors hover:bg-white/10 hover:text-primary-foreground/90',
+                'flex h-10 w-full items-center rounded-md border border-white/10 bg-white/5 text-sm text-rail-muted transition-colors hover:bg-white/10 hover:text-rail-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60',
                 collapsed ? 'justify-center px-0' : 'gap-2 px-3',
               )}
             >
@@ -108,7 +109,7 @@ function SidebarContent({
               {!collapsed && (
                 <>
                   <span className="flex-1 text-left">Search…</span>
-                  <kbd className="hidden items-center gap-0.5 rounded border border-white/15 bg-white/5 px-1.5 py-0.5 font-sans text-xs text-primary-foreground/60 sm:inline-flex">
+                  <kbd className="hidden items-center gap-0.5 rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-sans text-xs text-rail-muted sm:inline-flex">
                     ⌘K
                   </kbd>
                 </>
@@ -119,33 +120,26 @@ function SidebarContent({
 
         {/* Daily-work nav */}
         <nav className={cn('flex-1 space-y-1 p-3', collapsed && 'px-2')}>
-          {items.map(({ href, icon: Icon, label }) => (
-            <SidebarTooltip key={href} label={label} collapsed={collapsed}>
-              <Link href={href} onClick={onNavigate} className={linkClass(href === activeHref)} aria-label={label}>
-                <Icon className="h-4 w-4 flex-shrink-0" />
-                {!collapsed && (
-                  <>
-                    <span>{label}</span>
-                    <ChevronRight className="ml-auto h-3.5 w-3.5 opacity-40" />
-                  </>
-                )}
-              </Link>
-            </SidebarTooltip>
-          ))}
+          {items.map(({ href, icon: Icon, label }) => {
+            const active = href === activeHref
+            return (
+              <SidebarTooltip key={href} label={label} collapsed={collapsed}>
+                <Link href={href} onClick={onNavigate} className={linkClass(active)} aria-label={label} aria-current={active ? 'page' : undefined}>
+                  <Icon className={cn('h-4 w-4 flex-shrink-0', active && 'text-brand')} />
+                  {!collapsed && <span>{label}</span>}
+                </Link>
+              </SidebarTooltip>
+            )
+          })}
         </nav>
 
         {/* Settings pinned at the bottom — only when the user can reach a section */}
         {showSettings && (
           <div className={cn('px-3 pb-1', collapsed && 'px-2')}>
             <SidebarTooltip label="Settings" collapsed={collapsed}>
-              <Link href="/settings" onClick={onNavigate} className={linkClass(activeHref === '/settings')} aria-label="Settings">
-                <Settings className="h-4 w-4 flex-shrink-0" />
-                {!collapsed && (
-                  <>
-                    <span>Settings</span>
-                    <ChevronRight className="ml-auto h-3.5 w-3.5 opacity-40" />
-                  </>
-                )}
+              <Link href="/settings" onClick={onNavigate} className={linkClass(activeHref === '/settings')} aria-label="Settings" aria-current={activeHref === '/settings' ? 'page' : undefined}>
+                <Settings className={cn('h-4 w-4 flex-shrink-0', activeHref === '/settings' && 'text-brand')} />
+                {!collapsed && <span>Settings</span>}
               </Link>
             </SidebarTooltip>
           </div>
@@ -161,28 +155,29 @@ function SidebarContent({
               onClick={onNavigate}
               aria-label="My Profile"
               className={cn(
-                'mb-1 rounded-lg transition-colors',
+                'mb-1 rounded-md transition-colors',
                 collapsed ? 'flex h-10 items-center justify-center px-0' : 'block px-3 py-2',
-                activeHref === '/profile' ? 'bg-white/10' : 'hover:bg-white/10',
+                activeHref === '/profile' ? 'bg-white/10' : 'hover:bg-white/5',
               )}
             >
               {collapsed ? (
-                <UserRound className="h-4 w-4 text-primary-foreground/70" />
+                <UserRound className="h-4 w-4 text-rail-muted" />
               ) : (
                 <>
-                  <p className="text-sm font-medium text-primary-foreground truncate">{username}</p>
-                  <p className="text-xs text-primary-foreground/50 capitalize">{roleName}</p>
+                  <p className="text-sm font-medium text-rail-foreground truncate">{username}</p>
+                  <p className="text-xs text-rail-muted capitalize">{roleName}</p>
                 </>
               )}
             </Link>
           </SidebarTooltip>
+          <ThemeToggle collapsed={collapsed} />
           <SidebarTooltip label="Sign out" collapsed={collapsed}>
             <Button
               variant="ghost"
               size={collapsed ? 'icon' : 'sm'}
               aria-label="Sign out"
               className={cn(
-                'text-primary-foreground/70 hover:bg-white/10 hover:text-primary-foreground',
+                'text-rail-muted hover:bg-white/5 hover:text-rail-foreground',
                 collapsed ? 'h-10 w-full' : 'w-full justify-start',
               )}
               onClick={onSignOut}
@@ -200,7 +195,7 @@ function SidebarContent({
                 type="button"
                 onClick={onToggleCollapsed}
                 aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                className="absolute bottom-5 -right-3 z-20 inline-flex h-7 w-7 items-center justify-center rounded-full border border-primary/20 bg-card text-primary shadow-md transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                className="absolute bottom-5 -right-3 z-20 inline-flex h-7 w-7 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-md transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
               </button>
@@ -269,7 +264,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-dvh bg-background">
       {/* Desktop sidebar */}
-      <aside className={cn('hidden flex-col bg-primary flex-shrink-0 transition-[width] duration-200 md:flex', sidebarCollapsed ? 'w-20' : 'w-64')}>
+      <aside className={cn('hidden flex-col bg-rail flex-shrink-0 transition-[width] duration-200 md:flex', sidebarCollapsed ? 'w-20' : 'w-64')}>
         <SidebarContent
           items={items}
           activeHref={activeHref}
@@ -287,7 +282,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={closeSidebar} />
-          <aside className="absolute bottom-0 left-0 top-0 z-50 w-[min(18rem,calc(100vw-2rem))] bg-primary shadow-xl">
+          <aside className="absolute bottom-0 left-0 top-0 z-50 w-[min(18rem,calc(100vw-2rem))] bg-rail shadow-xl">
             <SidebarContent
               items={items}
               activeHref={activeHref}

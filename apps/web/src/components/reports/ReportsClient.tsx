@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tooltip as InfoTooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
+import { Money } from '@/components/ui/money'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
@@ -31,8 +32,13 @@ import type { PresetMap } from '@/lib/reports-presets'
 import { DateRangePicker } from '@/components/date-range-picker'
 import { ReportPrintDocument } from './ReportPrintDocument'
 
-const BRAND_CHART = '#766254'
-const BRAND_CHART_SOFT = '#9b8779'
+// A/R escalation ramp — older debt reads hotter. Single source for the aging
+// colour so the buckets and the per-invoice "Xd overdue" label can't drift apart.
+function agingToneClass(daysOverdue: number): string {
+  if (daysOverdue > 60) return 'text-danger'
+  if (daysOverdue > 0) return 'text-warning'
+  return 'text-muted-foreground'
+}
 
 // Interactive shell for the reports page. The Server Component fetches + computes
 // `summary`; this island renders it and drives the date range through the URL so
@@ -179,7 +185,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
         <SummaryCard
           title="Cash Received"
           value={formatCurrency(cashReceived)}
-          valueClass="text-green-600"
+          valueClass="text-success"
           sub={`${payments.length} payments`}
           tooltip="Cash received this period, including payments for older invoices."
           drillDownTitle="Click to see payments behind this number"
@@ -188,7 +194,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
         <SummaryCard
           title="Outstanding"
           value={formatCurrency(totalOutstanding)}
-          valueClass="text-yellow-600"
+          valueClass="text-warning"
           sub={`${outstanding.length} unpaid`}
           tooltip="Unpaid balance still owed on this period's invoices."
           drillDownTitle="Click to see outstanding invoices behind this number"
@@ -212,6 +218,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
               <CardDescription>Every invoice issued in this period · by invoice date. Sums to Total Invoiced.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
+              <div className="overflow-x-auto">
               <Table className="min-w-[42rem]">
                 <TableHeader>
                   <TableRow>
@@ -245,6 +252,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                   )}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -260,12 +268,13 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
               {outstanding.length > 0 && (
                 <div className="grid grid-cols-2 gap-3 border-b px-4 pb-4 sm:grid-cols-5 sm:px-6">
                   <AgingBucket label="Not due yet" amount={agingBuckets.current} />
-                  <AgingBucket label="1–30 days" amount={agingBuckets.d1_30} toneClass="text-yellow-600" />
-                  <AgingBucket label="31–60 days" amount={agingBuckets.d31_60} toneClass="text-orange-500" />
-                  <AgingBucket label="61–90 days" amount={agingBuckets.d61_90} toneClass="text-red-600" />
-                  <AgingBucket label="Over 90 days" amount={agingBuckets.d90plus} toneClass="text-red-700" />
+                  <AgingBucket label="1–30 days" amount={agingBuckets.d1_30} toneClass={agingToneClass(1)} />
+                  <AgingBucket label="31–60 days" amount={agingBuckets.d31_60} toneClass={agingToneClass(31)} />
+                  <AgingBucket label="61–90 days" amount={agingBuckets.d61_90} toneClass={agingToneClass(61)} />
+                  <AgingBucket label="Over 90 days" amount={agingBuckets.d90plus} toneClass={agingToneClass(91)} />
                 </div>
               )}
+              <div className="overflow-x-auto">
               <Table className="min-w-[48rem]">
                 <TableHeader>
                   <TableRow>
@@ -288,7 +297,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                       <TableCell className="text-sm">{formatDate(inv.due_date)}</TableCell>
                       <TableCell>
                         {inv.daysOverdue > 0 ? (
-                          <span className={`text-sm font-medium ${inv.daysOverdue > 60 ? 'text-red-600' : inv.daysOverdue > 30 ? 'text-orange-500' : 'text-yellow-600'}`}>
+                          <span className={cn('text-sm font-medium', agingToneClass(inv.daysOverdue))}>
                             {inv.daysOverdue}d overdue
                           </span>
                         ) : (
@@ -312,6 +321,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                   )}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -323,6 +333,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
               <CardDescription>Cash actually received in this period · by payment date. Sums to Cash Received.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
+              <div className="overflow-x-auto">
               <Table className="min-w-[42rem]">
                 <TableHeader>
                   <TableRow>
@@ -358,6 +369,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                   )}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -374,7 +386,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                       <XAxis type="number" tickFormatter={formatCompactCurrency} tick={{ fontSize: 12 }} />
                       <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={120} />
                       <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                      <Bar dataKey="total" fill={BRAND_CHART} radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="total" fill="var(--brand)" radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                   <div className="mt-6 overflow-x-auto">
@@ -399,8 +411,8 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                               <TableCell className="max-w-[16rem] truncate" title={c.name}>{c.name}</TableCell>
                               <TableCell className="text-right">{c.count}</TableCell>
                               <TableCell className="text-right font-medium">{formatCurrency(c.total)}</TableCell>
-                              <TableCell className="text-right text-green-600">{formatCurrency(c.paid)}</TableCell>
-                              <TableCell className="text-right text-yellow-600">{formatCurrency(c.outstanding)}</TableCell>
+                              <TableCell className="text-right"><Money tone="success">{formatCurrency(c.paid)}</Money></TableCell>
+                              <TableCell className="text-right"><Money tone="warning">{formatCurrency(c.outstanding)}</Money></TableCell>
                               <TableCell className="text-right text-muted-foreground">{formatCurrency(c.draft)}</TableCell>
                               <TableCell className="text-right" title={speed ? `from ${speed.payments} payment${speed.payments === 1 ? '' : 's'} in this period` : 'no payments in this period'}>
                                 {speed ? `${speed.avgDaysToPay}d` : <span className="text-muted-foreground">—</span>}
@@ -412,8 +424,8 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                           <TableCell>Total</TableCell>
                           <TableCell className="text-right">{salesSummary.reduce((s, c) => s + c.count, 0)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(salesSummary.reduce((s, c) => s + c.total, 0))}</TableCell>
-                          <TableCell className="text-right text-green-600">{formatCurrency(salesSummary.reduce((s, c) => s + c.paid, 0))}</TableCell>
-                          <TableCell className="text-right text-yellow-600">{formatCurrency(salesSummary.reduce((s, c) => s + c.outstanding, 0))}</TableCell>
+                          <TableCell className="text-right"><Money tone="success">{formatCurrency(salesSummary.reduce((s, c) => s + c.paid, 0))}</Money></TableCell>
+                          <TableCell className="text-right"><Money tone="warning">{formatCurrency(salesSummary.reduce((s, c) => s + c.outstanding, 0))}</Money></TableCell>
                           <TableCell className="text-right text-muted-foreground">{formatCurrency(salesSummary.reduce((s, c) => s + c.draft, 0))}</TableCell>
                           <TableCell className="text-right">{overallAvgDaysToPay != null ? `${overallAvgDaysToPay}d` : '—'}</TableCell>
                         </TableRow>
@@ -438,7 +450,7 @@ export function ReportsClient({ from, to, summary, presets, payments }: { from: 
                       <XAxis type="number" tickFormatter={formatCompactCurrency} tick={{ fontSize: 12 }} />
                       <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={160} />
                       <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                      <Bar dataKey="total" fill={BRAND_CHART_SOFT} radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="total" fill="var(--brand)" radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                   <div className="mt-6 overflow-x-auto">

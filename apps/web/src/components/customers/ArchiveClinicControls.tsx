@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { useToast } from '@/components/feedback/toast'
 import { Archive, ArchiveRestore } from 'lucide-react'
 import { archiveCustomerAction, restoreCustomerAction } from '@/data/customer-actions'
@@ -62,10 +62,10 @@ export function ArchiveClinicControls({ id, archived }: { id: string; archived: 
               <Archive className="h-5 w-5" /> Archive Clinic
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
+          <DialogDescription>
             Archive this clinic? It will be hidden from the clinic list and new invoices.
             Existing invoices and statements are kept, and you can restore it later.
-          </p>
+          </DialogDescription>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
             <Button variant="destructive" onClick={runArchive} disabled={busy}>{busy ? 'Archiving…' : 'Yes, Archive'}</Button>

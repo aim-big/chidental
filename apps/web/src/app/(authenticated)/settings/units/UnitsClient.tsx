@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ActiveSwitch, TableActionButton } from '@/components/ui/table-actions'
+import { EmptyState } from '@/components/ui/empty-state'
 import { ArrowDown, ArrowUp, PencilLine, Plus } from 'lucide-react'
 import type { Unit } from '@chidental/shared'
 import { useAuth } from '@/contexts/AuthContext'
@@ -105,7 +106,13 @@ export default function UnitsPage({ initialRows }: { initialRows: Unit[] }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No units yet</TableCell></TableRow>}
+              {rows.length === 0 && (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={4} className="p-0">
+                    <EmptyState title="No units yet" description="Add a unit of measure (per tooth, per arch, per case…) to get started." />
+                  </TableCell>
+                </TableRow>
+              )}
               {rows.map((u, i) => (
                 <TableRow key={u.id} className={u.is_active ? '' : 'opacity-50'}>
                   <TableCell>
@@ -139,7 +146,7 @@ export default function UnitsPage({ initialRows }: { initialRows: Unit[] }) {
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent description="Add or edit a unit of measure used on invoice line items.">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit Unit' : 'New Unit'}</DialogTitle>
           </DialogHeader>

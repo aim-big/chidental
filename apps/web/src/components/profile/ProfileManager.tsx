@@ -52,7 +52,11 @@ function NameForm({ initial }: { initial: string }) {
         <form onSubmit={save} className="space-y-3">
           <Label>Display name</Label>
           <Input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Your name" />
-          {msg && <p className={msg.ok ? 'text-sm text-green-600' : 'text-sm text-destructive'}>{msg.text}</p>}
+          {msg && (
+            <p role={msg.ok ? 'status' : 'alert'} className={msg.ok ? 'text-sm text-success' : 'text-sm text-destructive'}>
+              {msg.text}
+            </p>
+          )}
           <Button className="w-full sm:w-auto" type="submit" disabled={pending}>{pending ? 'Saving…' : 'Save name'}</Button>
         </form>
       </CardContent>
@@ -86,7 +90,11 @@ function PinForm() {
             onChange={e => setPin(e.target.value.replace(/\D/g, ''))} placeholder="New PIN" />
           <Input type="password" inputMode="numeric" maxLength={6} value={confirm} aria-label="Confirm new PIN"
             onChange={e => setConfirm(e.target.value.replace(/\D/g, ''))} placeholder="Confirm new PIN" />
-          {msg && <p className={msg.ok ? 'text-sm text-green-600' : 'text-sm text-destructive'}>{msg.text}</p>}
+          {msg && (
+            <p role={msg.ok ? 'status' : 'alert'} className={msg.ok ? 'text-sm text-success' : 'text-sm text-destructive'}>
+              {msg.text}
+            </p>
+          )}
           <Button className="w-full sm:w-auto" type="submit" disabled={pending || pin.length !== 6}>{pending ? 'Saving…' : 'Change PIN'}</Button>
         </form>
       </CardContent>

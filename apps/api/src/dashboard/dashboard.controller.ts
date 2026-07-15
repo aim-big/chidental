@@ -1,5 +1,6 @@
-import { Controller, Get, Query } from '@nestjs/common'
+import { BadRequestException, Controller, Get, Query } from '@nestjs/common'
 import { differenceInCalendarDays, addDays, format, subYears } from 'date-fns'
+import { dateRangeQuerySchema } from '@chidental/shared'
 import { SupabaseService } from '../supabase/supabase.service'
 
 // Read endpoint for the dashboard (strangler migration, module 5). Mirrors
@@ -46,7 +47,12 @@ export class DashboardController {
   constructor(private readonly supabase: SupabaseService) {}
 
   @Get()
-  async data(@Query('from') from: string, @Query('to') to: string) {
+  async data(@Query('from') fromRaw: string, @Query('to') toRaw: string) {
+    const parsed = dateRangeQuerySchema.safeParse({ from: fromRaw, to: toRaw })
+    if (!parsed.success) {
+      throw new BadRequestException('`from` and `to` must be YYYY-MM-DD dates')
+    }
+    const { from, to } = parsed.data
     const prior = priorRange(from, to)
     const lastYear = {
       from: format(subYears(new Date(from), 1), 'yyyy-MM-dd'),

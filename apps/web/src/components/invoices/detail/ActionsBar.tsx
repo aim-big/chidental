@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { cn, formatCurrency, todayISODate } from '@/lib/utils'
 import { ArrowLeft, Printer, CreditCard, Ban, Pencil, ChevronDown, FileText, Truck, CheckCircle2, Trash2, ArchiveRestore } from 'lucide-react'
 import { canEditInvoice } from '@/lib/invoice-permissions'
@@ -249,7 +249,7 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
                 <Badge variant="destructive" className="uppercase">Voided</Badge>
               )}
             </div>
-            <Link href={`/customers/${invoice.customer_id}`} className="text-sm text-primary hover:underline">
+            <Link href={`/customers/${invoice.customer_id}`} className="text-sm text-brand hover:underline">
               {customerName}
             </Link>
           </div>
@@ -276,7 +276,7 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
               outstanding balance and marks the invoice paid. Hidden once paid so
               a second full payment can't be recorded. */}
           {!voided && ['sent', 'partial', 'overdue'].includes(invoice.status) && (
-            <Button className="w-full sm:w-auto" variant="outline" size="sm" onClick={() => { reset({ payment_date: todayISODate() }); setPaymentOpen(true) }}>
+            <Button className="w-full sm:w-auto" size="sm" onClick={() => { reset({ payment_date: todayISODate() }); setPaymentOpen(true) }}>
               <CreditCard className="h-4 w-4 mr-2" />Record Payment
             </Button>
           )}
@@ -291,7 +291,7 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
             <Button
               variant="outline"
               size="sm"
-              className="w-full border-red-200 text-red-600 hover:border-red-300 hover:bg-red-50 sm:w-auto"
+              className="w-full border-danger/30 text-danger hover:border-danger/50 hover:bg-danger-subtle hover:text-danger sm:w-auto"
               onClick={() => setVoidOpen(true)}
             >
               <Ban className="h-4 w-4 mr-2" />Void
@@ -308,7 +308,7 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
             <Button
               variant="outline"
               size="sm"
-              className="w-full border-red-200 text-red-600 hover:border-red-300 hover:bg-red-50 sm:w-auto"
+              className="w-full border-danger/30 text-danger hover:border-danger/50 hover:bg-danger-subtle hover:text-danger sm:w-auto"
               onClick={() => { setDeleteReason(''); setDeleteOpen(true) }}
             >
               <Trash2 className="h-4 w-4 mr-2" />Delete
@@ -324,14 +324,14 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
       <Dialog open={voidOpen} onOpenChange={setVoidOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
+            <DialogTitle className="flex items-center gap-2 text-danger">
               <Ban className="h-5 w-5" /> Void Invoice
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
+          <DialogDescription>
             Void <span className="font-semibold">{invoice.invoice_number}</span>? It will be excluded
-            from revenue and reports, and it cannot be restored.
-          </p>
+            from revenue and reports. Only a Super Admin can restore it afterward.
+          </DialogDescription>
           <div className="space-y-2">
             <Label>Reason (optional)</Label>
             <Input value={voidReason} onChange={e => setVoidReason(e.target.value)} placeholder="e.g. duplicate, entry error" />
@@ -353,14 +353,14 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
+            <DialogTitle className="flex items-center gap-2 text-danger">
               <Trash2 className="h-5 w-5" /> Delete Invoice
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
+          <DialogDescription>
             Delete <span className="font-semibold">{invoice.invoice_number}</span>? It will be hidden
             from all lists and reports. You can restore it from the Admin Console recycle bin.
-          </p>
+          </DialogDescription>
           <div className="space-y-2">
             <Label>Reason (optional)</Label>
             <Input value={deleteReason} onChange={e => setDeleteReason(e.target.value)} placeholder="e.g. test data, created in error" />
@@ -377,7 +377,12 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
       {/* Record payment dialog */}
       <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Record Payment</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Record Payment</DialogTitle>
+            <DialogDescription className="sr-only">
+              Record the full outstanding balance as a single payment.
+            </DialogDescription>
+          </DialogHeader>
           <form onSubmit={handleSubmit(onRecordPayment)} className="space-y-4">
             <div className="space-y-1">
               <Label>Amount (MYR)</Label>

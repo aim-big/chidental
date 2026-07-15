@@ -100,12 +100,13 @@ export function IssueCreditDialog({
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent description="Issue an account credit (remake, return, or goodwill) that reduces this clinic's balance.">
           <DialogHeader><DialogTitle>Issue Account Credit</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Amount (MYR) *</Label>
+              <Label htmlFor="credit-amount">Amount (MYR) *</Label>
               <Input
+                id="credit-amount"
                 type="number"
                 min="0"
                 step="0.01"
@@ -116,9 +117,9 @@ export function IssueCreditDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label>Reason *</Label>
+              <Label htmlFor="credit-reason">Reason *</Label>
               <Select value={reason} onValueChange={(v) => setReason(v as CreditReason)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="credit-reason"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CREDIT_REASON_OPTIONS.map((o) => (
                     <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
@@ -127,9 +128,9 @@ export function IssueCreditDialog({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Against invoice</Label>
+              <Label htmlFor="credit-invoice">Against invoice</Label>
               <Select value={invoiceId} onValueChange={setInvoiceId}>
-                <SelectTrigger><SelectValue placeholder="Clinic-level (no invoice)" /></SelectTrigger>
+                <SelectTrigger id="credit-invoice"><SelectValue placeholder="Clinic-level (no invoice)" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NO_INVOICE}>Clinic-level (no invoice)</SelectItem>
                   {invoices.map((inv) => (
@@ -139,12 +140,12 @@ export function IssueCreditDialog({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Date *</Label>
-              <Input type="date" value={creditDate} onChange={(e) => setCreditDate(e.target.value)} />
+              <Label htmlFor="credit-date">Date *</Label>
+              <Input id="credit-date" type="date" value={creditDate} onChange={(e) => setCreditDate(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>Notes</Label>
-              <Textarea rows={2} placeholder="Optional notes…" value={notes} onChange={(e) => setNotes(e.target.value)} />
+              <Label htmlFor="credit-notes">Notes</Label>
+              <Textarea id="credit-notes" rows={2} placeholder="Optional notes…" value={notes} onChange={(e) => setNotes(e.target.value)} />
             </div>
           </div>
           <DialogFooter>

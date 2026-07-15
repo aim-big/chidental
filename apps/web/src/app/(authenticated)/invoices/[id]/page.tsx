@@ -13,12 +13,13 @@ import { notFound, redirect } from 'next/navigation'
 import { getInvoiceDetail } from '@/data/invoices'
 import { getBillingSettings } from '@/data/billing-settings'
 import { requirePermission } from '@/lib/auth/require-permission'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table'
-import { cn, formatCurrency, formatDate } from '@/lib/utils'
+import { StatusPill, statusTone } from '@/components/ui/status-pill'
+import { Money } from '@/components/ui/money'
+import { cn, formatDate } from '@/lib/utils'
 import { isVoided } from '@chidental/shared'
-import { statusBadgeVariant, paymentStatusLabel } from '@/lib/status-badge'
+import { paymentStatusLabel } from '@/lib/status-badge'
 import { DEFAULT_COLOR } from '@/lib/service-status'
 import { InvoiceDetailClient } from '@/components/invoices/detail/InvoiceDetailClient'
 import { CaseDetailsEditor } from '@/components/invoices/detail/CaseDetailsEditor'
@@ -81,20 +82,21 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             tracked per service item (see the Work Status editor below), never rolled
             up to the invoice. */}
         <Card className="print:hidden">
-          <CardContent className="flex flex-col gap-4 p-4 sm:p-5 md:flex-row md:items-start md:justify-between">
-            <div className="grid grid-cols-2 gap-x-8 gap-y-3">
-              <div className="space-y-1">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Payment</p>
+          <CardContent className="flex flex-col gap-6 p-5 sm:p-6 md:flex-row md:items-center md:justify-between">
+            {/* Statuses */}
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
+              <div className="space-y-1.5">
+                <p className="text-xs text-muted-foreground">Payment</p>
                 {voided ? (
-                  <Badge variant="destructive" className="uppercase">Voided</Badge>
+                  <StatusPill tone="danger">Voided</StatusPill>
                 ) : (
-                  <Badge variant={statusBadgeVariant('payment', invoice.status)}>{paymentStatusLabel(invoice.status)}</Badge>
+                  <StatusPill tone={statusTone('payment', invoice.status)}>{paymentStatusLabel(invoice.status)}</StatusPill>
                 )}
               </div>
-              <div className="space-y-1">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Service</p>
+              <div className="space-y-1.5">
+                <p className="text-xs text-muted-foreground">Service</p>
                 {currentServiceStatus ? (
-                  <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', currentServiceStatus.color ?? DEFAULT_COLOR)}>
+                  <span className={cn('inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium', currentServiceStatus.color ?? DEFAULT_COLOR)}>
                     {currentServiceStatus.label}
                   </span>
                 ) : (
@@ -102,18 +104,25 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                 )}
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-x-5 gap-y-3 md:min-w-[28rem]">
-              <div className="text-left md:text-right">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Total</p>
-                <p className="font-semibold tabular-nums">{formatCurrency(Number(invoice.total))}</p>
+            {/* Money — balance due is the hero; total/paid support it */}
+            <div className="flex items-end justify-between gap-6 sm:gap-10 md:justify-end">
+              <div className="flex gap-6 sm:gap-8">
+                <div>
+                  <p className="text-xs text-muted-foreground">Total</p>
+                  <Money amount={Number(invoice.total)} className="mt-0.5 block text-sm font-medium" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Paid</p>
+                  <Money amount={totalPaid} tone={totalPaid > 0 ? 'success' : 'default'} className="mt-0.5 block text-sm font-medium" />
+                </div>
               </div>
-              <div className="text-left md:text-right">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Paid</p>
-                <p className="font-semibold tabular-nums text-green-600">{formatCurrency(totalPaid)}</p>
-              </div>
-              <div className="text-left md:text-right">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Outstanding</p>
-                <p className="font-semibold tabular-nums text-red-600">{formatCurrency(outstanding)}</p>
+              <div className="text-right">
+                <p className="text-xs font-medium text-muted-foreground">{outstanding > 0 ? 'Balance due' : 'Settled'}</p>
+                <Money
+                  amount={outstanding}
+                  tone={outstanding <= 0 ? 'success' : invoice.status === 'overdue' ? 'danger' : 'warning'}
+                  className="mt-0.5 block text-3xl font-semibold leading-none sm:text-4xl"
+                />
               </div>
             </div>
           </CardContent>
@@ -142,32 +151,34 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         <Card className="print:hidden">
           <CardHeader><CardTitle className="text-base">Payment History</CardTitle></CardHeader>
           <CardContent className="p-0">
-            <Table className="min-w-[42rem]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Reference</TableHead>
-                  <TableHead>Notes</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {payments.map(p => (
-                  <TableRow key={p.id}>
-                    <TableCell className="text-sm">{formatDate(p.payment_date)}</TableCell>
-                    <TableCell className="text-sm font-mono">{p.reference_number ?? '—'}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{p.notes ?? '—'}</TableCell>
-                    <TableCell className="text-right font-medium text-green-600">{formatCurrency(p.amount)}</TableCell>
+            <div className="overflow-x-auto">
+              <Table className="min-w-[42rem]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Reference</TableHead>
+                    <TableHead>Notes</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-              <TableFooter>
-                <TableRow>
-                  <TableCell colSpan={3} className="text-right font-semibold">Outstanding</TableCell>
-                  <TableCell className="text-right font-bold text-red-600">{formatCurrency(outstanding)}</TableCell>
-                </TableRow>
-              </TableFooter>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {payments.map(p => (
+                    <TableRow key={p.id}>
+                      <TableCell className="text-sm">{formatDate(p.payment_date)}</TableCell>
+                      <TableCell className="text-sm font-mono">{p.reference_number ?? '—'}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{p.notes ?? '—'}</TableCell>
+                      <TableCell className="text-right font-medium"><Money amount={Number(p.amount)} tone="success" /></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+                <TableFooter>
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-right font-semibold">Outstanding</TableCell>
+                    <TableCell className="text-right font-bold"><Money amount={outstanding} tone={outstanding > 0 ? 'warning' : 'success'} /></TableCell>
+                  </TableRow>
+                </TableFooter>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       )}

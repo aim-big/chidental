@@ -11,11 +11,12 @@ import { useToast } from '@/components/feedback/toast'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { formatDate, cn } from '@/lib/utils'
+import { StatusPill, statusTone } from '@/components/ui/status-pill'
+import { formatDate } from '@/lib/utils'
 import { ChevronRight } from 'lucide-react'
 import { WorkStatusBadge } from '@/components/work-status-badge'
 import { WorkStatusSelect, ADVANCE_VALUE } from '@/components/work-status-select'
-import { encodeWork, decodeWork, nextWorkStep, workLabel, workColor } from '@/lib/work-stages'
+import { encodeWork, decodeWork, nextWorkStep, workLabel } from '@/lib/work-stages'
 import { updateWorkStatusAction, updateWorkNoteAction } from '@/data/invoice-actions'
 import type { InvoiceItem, InvoiceItemStatusHistory, WorkStage, WorkStatusConfig } from '@chidental/shared'
 
@@ -62,6 +63,7 @@ export function WorkStatusEditor({ items, history, stages, statusConfigs }: Work
         <CardTitle className="text-base">Work Status</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
+        <div className="overflow-x-auto">
         <Table className="min-w-[48rem]">
           <TableHeader>
             <TableRow>
@@ -94,25 +96,26 @@ export function WorkStatusEditor({ items, history, stages, statusConfigs }: Work
                     statusConfigs={statusConfigs}
                   />
                 </TableCell>
-                <TableCell className="text-right text-xs text-gray-500">
+                <TableCell className="text-right text-xs text-muted-foreground">
                   {formatDate(item.work_status_updated_at)}
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+        </div>
         {history.length > 0 && (
-          <div className="border-t">
+          <div className="border-t border-border">
             <button
               type="button"
               onClick={() => setHistoryOpen(o => !o)}
-              className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-600 hover:bg-gray-50"
+              className="w-full flex items-center justify-between px-4 py-3 text-sm text-muted-foreground hover:bg-muted"
             >
               <span>Work history ({history.length} change{history.length === 1 ? '' : 's'})</span>
               <ChevronRight className={`h-4 w-4 transition-transform ${historyOpen ? 'rotate-90' : ''}`} />
             </button>
             {historyOpen && (
-              <div className="px-4 pb-4">
+              <div className="overflow-x-auto px-4 pb-4">
                 <Table className="min-w-[42rem]">
                   <TableHeader>
                     <TableRow>
@@ -127,23 +130,20 @@ export function WorkStatusEditor({ items, history, stages, statusConfigs }: Work
                       const item = items.find(i => i.id === h.invoice_item_id)
                       return (
                         <TableRow key={h.id}>
-                          <TableCell className="text-xs text-gray-500 whitespace-nowrap">
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                             {new Date(h.changed_at).toLocaleString()}
                           </TableCell>
                           <TableCell className="text-sm">{item?.description ?? '—'}</TableCell>
                           <TableCell>
                             {h.status === 'in_progress' && h.stage_id ? (
-                              <span className={cn(
-                                'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap',
-                                workColor(h.status, h.stage_id, stagesById, statusConfigs),
-                              )}>
+                              <StatusPill tone={statusTone('work', h.status)}>
                                 {workLabel(h.status, h.stage_id, stagesById, statusConfigs)}
-                              </span>
+                              </StatusPill>
                             ) : (
                               <WorkStatusBadge status={h.status} statusConfigs={statusConfigs} />
                             )}
                           </TableCell>
-                          <TableCell className="text-sm text-gray-600">
+                          <TableCell className="text-sm text-muted-foreground">
                             {h.changed_by_name ?? '—'}
                           </TableCell>
                         </TableRow>
@@ -199,16 +199,16 @@ function WorkNoteCell({
       <button
         type="button"
         onClick={startEditing}
-        className="mt-1 block text-left text-xs font-normal text-gray-600 hover:text-gray-900"
+        className="mt-1 block text-left text-xs font-normal text-muted-foreground hover:text-foreground"
         title="Edit work note"
       >
-        <span className="text-gray-400">Note:</span> {note}
+        <span className="text-muted-foreground">Note:</span> {note}
       </button>
     ) : (
       <button
         type="button"
         onClick={startEditing}
-        className="mt-1 block text-left text-xs font-normal text-gray-400 hover:text-gray-600"
+        className="mt-1 block text-left text-xs font-normal text-muted-foreground hover:text-foreground"
       >
         + Add note
       </button>
@@ -238,7 +238,7 @@ function WorkNoteCell({
           type="button"
           onClick={cancel}
           disabled={saving}
-          className="rounded-md px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+          className="rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted disabled:opacity-50"
         >
           Cancel
         </button>

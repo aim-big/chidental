@@ -86,7 +86,7 @@ export function ActiveSwitch({
       onClick={() => onCheckedChange(!checked)}
       className={cn(
         'inline-flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40',
-        checked ? 'bg-emerald-500' : 'bg-muted-foreground/30',
+        checked ? 'bg-success' : 'bg-muted-foreground/30',
         className,
       )}
       {...props}

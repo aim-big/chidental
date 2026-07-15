@@ -79,9 +79,9 @@ export function AdminConsoleClient({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="w-full max-w-4xl space-y-6">
       <div>
-        <h2 className="text-xl font-semibold text-foreground">Admin Console</h2>
+        <h1 className="text-xl font-bold text-foreground sm:text-2xl">Admin Console</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
           Restore or permanently delete records, and review the audit trail. These
           actions are limited to Super Admins and are all logged.
@@ -303,7 +303,7 @@ export function AdminConsoleClient({
 
       {/* Typed-confirmation purge dialog */}
       <Dialog open={purge !== null} onOpenChange={o => { if (!o) closePurge() }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md" description="Permanently delete this record and its dependent data. This cannot be undone.">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <Trash2 className="h-5 w-5" /> Permanently delete

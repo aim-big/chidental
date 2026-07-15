@@ -95,66 +95,74 @@ export default function CustomerForm({ initialData }: { initialData?: Customer }
         </div>
       </div>
 
-      <div className="space-y-4 pt-5">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="clinic_name">Clinic / Business Name *</Label>
-            <Input id="clinic_name" placeholder="e.g. Klinik Gigi Sehat" {...register('clinic_name')} />
-            {errors.clinic_name && <p className="text-xs text-destructive">{errors.clinic_name.message}</p>}
+      <div className="space-y-6 pt-5">
+        <section className="space-y-4">
+          <h2 className="text-sm font-semibold text-foreground">Clinic details</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="clinic_name">Clinic / Business Name *</Label>
+              <Input id="clinic_name" placeholder="e.g. Klinik Gigi Sehat" {...register('clinic_name')} />
+              {errors.clinic_name && <p role="alert" className="text-xs text-destructive">{errors.clinic_name.message}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ssm_no">SSM No.</Label>
+              <Input id="ssm_no" placeholder="e.g. 202301012345" {...register('ssm_no')} />
+            </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="ssm_no">SSM No.</Label>
-            <Input id="ssm_no" placeholder="e.g. 202301012345" {...register('ssm_no')} />
+            <Label htmlFor="contact_person">Contact Person (Dr. Name) *</Label>
+            <Input id="contact_person" placeholder="e.g. Dr. Ahmad bin Ali" {...register('contact_person')} />
+            {errors.contact_person && <p role="alert" className="text-xs text-destructive">{errors.contact_person.message}</p>}
           </div>
-        </div>
+        </section>
 
-        <div className="space-y-2">
-          <Label htmlFor="contact_person">Contact Person (Dr. Name) *</Label>
-          <Input id="contact_person" placeholder="e.g. Dr. Ahmad bin Ali" {...register('contact_person')} />
-          {errors.contact_person && <p className="text-xs text-destructive">{errors.contact_person.message}</p>}
-        </div>
+        <section className="space-y-4">
+          <h2 className="text-sm font-semibold text-foreground">Contact</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone *</Label>
+              <Controller
+                name="phone"
+                control={control}
+                render={({ field }) => (
+                  <PhoneInput id="phone" value={field.value ?? ''} onChange={field.onChange} />
+                )}
+              />
+              {errors.phone && <p role="alert" className="text-xs text-destructive">{errors.phone.message}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email *</Label>
+              <Input id="email" type="email" placeholder="clinic@example.com" {...register('email')} />
+              {errors.email && <p role="alert" className="text-xs text-destructive">{errors.email.message}</p>}
+            </div>
+          </div>
+        </section>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="phone">Phone *</Label>
-            <Controller
-              name="phone"
-              control={control}
-              render={({ field }) => (
-                <PhoneInput id="phone" value={field.value ?? ''} onChange={field.onChange} />
-              )}
-            />
-            {errors.phone && <p className="text-xs text-destructive">{errors.phone.message}</p>}
+        <section className="space-y-4">
+          <h2 className="text-sm font-semibold text-foreground">Addresses</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="billing_address">Billing Address *</Label>
+              <Textarea
+                id="billing_address"
+                placeholder="Address for invoice billing…"
+                rows={4}
+                {...register('billing_address')}
+              />
+              {errors.billing_address && <p role="alert" className="text-xs text-destructive">{errors.billing_address.message}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="delivery_address">Delivery Address *</Label>
+              <Textarea
+                id="delivery_address"
+                placeholder="Address for lab work delivery…"
+                rows={4}
+                {...register('delivery_address')}
+              />
+              {errors.delivery_address && <p role="alert" className="text-xs text-destructive">{errors.delivery_address.message}</p>}
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email *</Label>
-            <Input id="email" type="email" placeholder="clinic@example.com" {...register('email')} />
-            {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
-          </div>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="billing_address">Billing Address *</Label>
-            <Textarea
-              id="billing_address"
-              placeholder="Address for invoice billing…"
-              rows={4}
-              {...register('billing_address')}
-            />
-            {errors.billing_address && <p className="text-xs text-destructive">{errors.billing_address.message}</p>}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="delivery_address">Delivery Address *</Label>
-            <Textarea
-              id="delivery_address"
-              placeholder="Address for lab work delivery…"
-              rows={4}
-              {...register('delivery_address')}
-            />
-            {errors.delivery_address && <p className="text-xs text-destructive">{errors.delivery_address.message}</p>}
-          </div>
-        </div>
+        </section>
 
         <div className="space-y-2">
           <Label htmlFor="notes">Notes</Label>

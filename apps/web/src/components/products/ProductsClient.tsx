@@ -8,7 +8,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
+import { StatusPill } from '@/components/ui/status-pill'
+import { PageHeader } from '@/components/ui/page-header'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { DataTable } from '@/components/ui/data-table'
@@ -199,7 +201,7 @@ export function ProductsClient({
     {
       key: 'status',
       header: 'Status',
-      cell: p => <Badge variant={p.active ? 'success' : 'secondary'}>{p.active ? 'Active' : 'Inactive'}</Badge>,
+      cell: p => <StatusPill tone={p.active ? 'success' : 'neutral'}>{p.active ? 'Active' : 'Inactive'}</StatusPill>,
     },
     {
       key: 'actions',
@@ -233,24 +235,31 @@ export function ProductsClient({
   if (activeFilter !== 'active') chips.push({ key: 'view', label: `Filter: ${VIEW_LABELS[activeFilter]}`, onRemove: clearView })
   if (state.q.trim() !== '') chips.push({ key: 'search', label: `Search: ${state.q.trim()}`, onRemove: clearSearch })
 
+  // The truly-empty state promises an "Add your first product" CTA, so surface the
+  // create button — but not on a no-results search or for read-only users.
+  const showCreateCta = view !== 'empty-no-results' && canEdit
   const emptyState = (
     <EmptyState
       icon={<Package className="h-8 w-8" />}
       title={view === 'empty-no-results' ? 'No products match your search' : 'No products yet'}
       description={view === 'empty-no-results' ? 'Try a different search term.' : 'Add your first product to start invoicing.'}
+      action={showCreateCta ? <Button onClick={openNew}><Plus className="h-4 w-4 mr-2" />Add Product</Button> : undefined}
     />
   )
 
   return (
     <TooltipProvider delayDuration={200}>
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-foreground sm:text-2xl">Products & Services</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Price catalog for invoicing</p>
-        </div>
-        {canEdit && <Button className="w-full sm:w-auto" onClick={openNew}><Plus className="h-4 w-4 mr-2" />Add Product</Button>}
-      </div>
+      <PageHeader
+        className="mb-0"
+        title="Products & Services"
+        subtitle={`${page.total} product${page.total === 1 ? '' : 's'}`}
+        actions={
+          canEdit && (
+            <Button className="w-full sm:w-auto" onClick={openNew}><Plus className="h-4 w-4 mr-2" />Add Product</Button>
+          )
+        }
+      />
 
       <div className="space-y-3">
         <ListToolbar value={search} onChange={setSearch} placeholder="Search products…">
@@ -293,53 +302,60 @@ export function ProductsClient({
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent description="Add or edit a product or service in the price catalogue used for invoicing.">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit Product' : 'New Product / Service'}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
-              <Label>Name *</Label>
-              <Input placeholder="e.g. Zirconia Crown" {...register('name')} />
-              {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
+              <Label htmlFor="product-name">Name *</Label>
+              <Input id="product-name" placeholder="e.g. Zirconia Crown" {...register('name')} />
+              {errors.name && <p role="alert" className="text-xs text-destructive">{errors.name.message}</p>}
             </div>
             <div className="space-y-2">
-              <Label>Description</Label>
-              <Textarea placeholder="Short description…" rows={2} {...register('description')} />
+              <Label htmlFor="product-description">Description</Label>
+              <Textarea id="product-description" placeholder="Short description…" rows={2} {...register('description')} />
             </div>
             {!usePriceRange ? (
               <div className="space-y-2">
-                <Label>Price (MYR) *</Label>
-                <Input type="number" step="0.01" min="0" {...register('unit_price')} />
-                {errors.unit_price && <p className="text-xs text-destructive">{errors.unit_price.message}</p>}
+                <Label htmlFor="product-price">Price (MYR) *</Label>
+                <Input id="product-price" type="number" step="0.01" min="0" {...register('unit_price')} />
+                {errors.unit_price && <p role="alert" className="text-xs text-destructive">{errors.unit_price.message}</p>}
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Min price (MYR) *</Label>
-                  <Input type="number" step="0.01" min="0" {...register('min_unit_price')} />
-                  {errors.min_unit_price && <p className="text-xs text-destructive">{errors.min_unit_price.message}</p>}
+                  <Label htmlFor="product-min-price">Min price (MYR) *</Label>
+                  <Input id="product-min-price" type="number" step="0.01" min="0" {...register('min_unit_price')} />
+                  {errors.min_unit_price && <p role="alert" className="text-xs text-destructive">{errors.min_unit_price.message}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label>Max price (MYR) *</Label>
-                  <Input type="number" step="0.01" min="0" {...register('max_unit_price')} />
-                  {errors.max_unit_price && <p className="text-xs text-destructive">{errors.max_unit_price.message}</p>}
+                  <Label htmlFor="product-max-price">Max price (MYR) *</Label>
+                  <Input id="product-max-price" type="number" step="0.01" min="0" {...register('max_unit_price')} />
+                  {errors.max_unit_price && <p role="alert" className="text-xs text-destructive">{errors.max_unit_price.message}</p>}
                 </div>
               </div>
             )}
-            <label className="flex items-start gap-2 text-sm text-muted-foreground cursor-pointer select-none">
-              <input
-                type="checkbox"
-                className="h-4 w-4 mt-0.5 rounded border-gray-300"
-                {...register('use_price_range')}
+            <div className="flex items-start gap-2">
+              <Controller
+                control={control}
+                name="use_price_range"
+                render={({ field }) => (
+                  <Checkbox
+                    id="use_price_range"
+                    className="mt-0.5"
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                )}
               />
-              <span>
+              <Label htmlFor="use_price_range" className="cursor-pointer select-none font-normal text-muted-foreground">
                 Enable price range
-                <span className="block text-xs text-muted-foreground font-normal">Lets invoices use any price between a min and a max for this product.</span>
-              </span>
-            </label>
+                <span className="block text-xs font-normal text-muted-foreground">Lets invoices use any price between a min and a max for this product.</span>
+              </Label>
+            </div>
             <div className="space-y-2">
-              <Label>Unit *</Label>
+              <Label htmlFor="product-unit">Unit *</Label>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">per</span>
                 <div className="flex-1">
@@ -348,7 +364,7 @@ export function ProductsClient({
                     name="unit"
                     render={({ field }) => (
                       <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger>
+                        <SelectTrigger id="product-unit">
                           <SelectValue placeholder="Select a unit" />
                         </SelectTrigger>
                         <SelectContent>
@@ -364,7 +380,7 @@ export function ProductsClient({
                   />
                 </div>
               </div>
-              {errors.unit && <p className="text-xs text-destructive">{errors.unit.message}</p>}
+              {errors.unit && <p role="alert" className="text-xs text-destructive">{errors.unit.message}</p>}
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
