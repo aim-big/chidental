@@ -302,7 +302,7 @@ export function ProductsClient({
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent description="Add or edit a product or service in the price catalogue used for invoicing.">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit Product' : 'New Product / Service'}</DialogTitle>
           </DialogHeader>

@@ -159,7 +159,7 @@ function RoleDialog({
 
   return (
     <Dialog open onOpenChange={o => { if (!o) onClose() }}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-h-[85vh] overflow-y-auto" description="Name the role and choose which permissions it grants.">
         <DialogHeader>
           <DialogTitle>{state.mode === 'create' ? 'New role' : 'Edit role'}</DialogTitle>
         </DialogHeader>

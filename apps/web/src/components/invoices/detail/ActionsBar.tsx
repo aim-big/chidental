@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { cn, formatCurrency, todayISODate } from '@/lib/utils'
 import { ArrowLeft, Printer, CreditCard, Ban, Pencil, ChevronDown, FileText, Truck, CheckCircle2, Trash2, ArchiveRestore } from 'lucide-react'
 import { canEditInvoice } from '@/lib/invoice-permissions'
@@ -328,10 +328,10 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
               <Ban className="h-5 w-5" /> Void Invoice
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
+          <DialogDescription>
             Void <span className="font-semibold">{invoice.invoice_number}</span>? It will be excluded
-            from revenue and reports, and it cannot be restored.
-          </p>
+            from revenue and reports. Only a Super Admin can restore it afterward.
+          </DialogDescription>
           <div className="space-y-2">
             <Label>Reason (optional)</Label>
             <Input value={voidReason} onChange={e => setVoidReason(e.target.value)} placeholder="e.g. duplicate, entry error" />
@@ -357,10 +357,10 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
               <Trash2 className="h-5 w-5" /> Delete Invoice
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
+          <DialogDescription>
             Delete <span className="font-semibold">{invoice.invoice_number}</span>? It will be hidden
             from all lists and reports. You can restore it from the Admin Console recycle bin.
-          </p>
+          </DialogDescription>
           <div className="space-y-2">
             <Label>Reason (optional)</Label>
             <Input value={deleteReason} onChange={e => setDeleteReason(e.target.value)} placeholder="e.g. test data, created in error" />
@@ -377,7 +377,12 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
       {/* Record payment dialog */}
       <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Record Payment</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Record Payment</DialogTitle>
+            <DialogDescription className="sr-only">
+              Record the full outstanding balance as a single payment.
+            </DialogDescription>
+          </DialogHeader>
           <form onSubmit={handleSubmit(onRecordPayment)} className="space-y-4">
             <div className="space-y-1">
               <Label>Amount (MYR)</Label>

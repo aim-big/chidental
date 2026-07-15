@@ -159,7 +159,7 @@ export default function ServiceStatusesPage({ initialRows }: { initialRows: Serv
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent description="Add or edit a service status shown on invoices.">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit Service Status' : 'New Service Status'}</DialogTitle>
           </DialogHeader>

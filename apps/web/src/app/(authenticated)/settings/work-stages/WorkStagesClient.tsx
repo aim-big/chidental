@@ -159,7 +159,7 @@ export default function WorkStagesPage({ initialRows }: { initialRows: WorkStage
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent description="Add or edit an in-progress work stage for the work board.">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit Work Stage' : 'New Work Stage'}</DialogTitle>
           </DialogHeader>

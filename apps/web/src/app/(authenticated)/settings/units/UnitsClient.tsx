@@ -146,7 +146,7 @@ export default function UnitsPage({ initialRows }: { initialRows: Unit[] }) {
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent description="Add or edit a unit of measure used on invoice line items.">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit Unit' : 'New Unit'}</DialogTitle>
           </DialogHeader>

@@ -171,7 +171,22 @@ export async function deleteEmployee(input: { id: string }): Promise<ActionResul
   // Remove the login first: a partial failure must never leave a sign-in-capable
   // user with no profile (the orphan case createEmployee also guards against).
   const { error: authErr } = await admin.auth.admin.deleteUser(input.id)
-  if (authErr) return { ok: false, error: authErr.message }
+  if (authErr) {
+    // Employees who have done auditable work (created invoices, recorded
+    // payments, changed work status) are referenced by history/audit tables via
+    // no-cascade FKs, so the auth-user delete fails with an opaque DB error.
+    // That attribution is meant to be preserved — steer the admin to deactivate
+    // instead of surfacing the raw "Database error deleting user".
+    const dbConstraint = authErr.status === undefined || authErr.status >= 500 || /database error/i.test(authErr.message)
+    if (dbConstraint) {
+      return {
+        ok: false,
+        error:
+          'This employee has recorded activity (invoices, payments, or work history) tied to their account, so it can’t be permanently deleted. Deactivate them instead (Block sign-in) to revoke access while keeping the audit trail.',
+      }
+    }
+    return { ok: false, error: authErr.message }
+  }
 
   const { error: profileErr } = await admin.from('profiles').delete().eq('id', input.id)
   if (profileErr) return { ok: false, error: profileErr.message }

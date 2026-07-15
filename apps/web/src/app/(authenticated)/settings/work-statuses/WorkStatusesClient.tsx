@@ -109,7 +109,7 @@ export default function WorkStatusesPage({ initialRows }: { initialRows: Tables<
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent description="Edit this work status's label and appearance.">
           <DialogHeader>
             <DialogTitle>Edit Work Status</DialogTitle>
           </DialogHeader>
