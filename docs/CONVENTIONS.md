@@ -191,17 +191,7 @@ permission changes apply immediately with no re-login. Client `hasPermission()` 
 
 ---
 
-## 8. Current visual direction
-
-- **Daylight Ledger is the active design system.** The default workspace is neutral and light;
-  the flush sidebar uses the original Chi Dental `#766254`. Dashboard summaries use ledger-style
-  sections and dividers rather than equal KPI-card grids. See [DESIGN.md](../DESIGN.md).
-- **Dark mode remains opt-in.** Theme persistence uses `chidental-theme-v2`, intentionally
-  resetting installations to light once when Daylight Ledger is introduced.
-
----
-
-## 9. How to record a new decision
+## 8. How to record a new decision
 
 When you change terminology, a money rule, a permission boundary, or a UI convention:
 

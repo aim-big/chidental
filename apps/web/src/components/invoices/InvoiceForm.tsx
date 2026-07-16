@@ -9,14 +9,11 @@ import { Input } from '@/components/ui/input'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Combobox } from '@/components/ui/combobox'
-import { Field } from '@/components/ui/field'
-import { Money } from '@/components/ui/money'
-import { Surface } from '@/components/ui/surface'
-import { PageHeader } from '@/components/ui/page-header'
 import { formatCurrency, cn } from '@/lib/utils'
-import { ChevronDown, ChevronRight, RotateCcw, Trash2 } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronRight, RotateCcw, Trash2 } from 'lucide-react'
 import type { InvoiceStatus, Product } from '@chidental/shared'
 import { addDays, format } from 'date-fns'
 import { DEFAULT_COLOR } from '@/lib/service-status'
@@ -40,11 +37,11 @@ interface LineItem {
 type FieldErrorKey = 'clinic' | 'invoiceDate' | 'patient' | 'doctor' | 'items'
 
 // Red asterisk marking a required field (decorative — the input carries aria-required).
-const Req = () => <span className="text-danger" aria-hidden>*</span>
+const Req = () => <span className="text-destructive" aria-hidden>*</span>
 
 function FieldError({ msg }: { msg?: string }) {
   if (!msg) return null
-  return <p className="text-xs text-danger" role="alert">{msg}</p>
+  return <p className="text-xs text-destructive">{msg}</p>
 }
 
 // Hide the native number-input spin buttons (qty / unit price are typed, not stepped).
@@ -52,7 +49,7 @@ const noSpin =
   '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
 
 function formatPriceRange(min: number, max: number): string {
-  const maxWithoutCurrency = formatCurrency(max).replace(/^RM[\s ]*/, '')
+  const maxWithoutCurrency = formatCurrency(max).replace(/^RM[\s\u00a0]*/, '')
   return `${formatCurrency(min)} - ${maxWithoutCurrency}`
 }
 
@@ -409,183 +406,199 @@ export default function InvoiceForm({
 
   return (
     <form className="w-full max-w-4xl space-y-6" onSubmit={onFormSubmit} onKeyDown={onFormKeyDown}>
-      <PageHeader
-        title={isEdit ? 'Edit Invoice' : 'New Invoice'}
-        subtitle={isEdit ? 'Update invoice details and items' : 'Create and send to clinic'}
-        backHref="/invoices"
-      />
+      <div className="flex items-center gap-3">
+        <Button type="button" variant="ghost" size="icon" onClick={() => router.back()}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">{isEdit ? 'Edit Invoice' : 'New Invoice'}</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{isEdit ? 'Update invoice details and items' : 'Create and send to clinic'}</p>
+        </div>
+      </div>
 
       {isEdit && loadedStatus && loadedStatus !== 'draft' && (
-        <div className="rounded-md border border-warning/30 bg-warning-subtle px-4 py-2.5 text-sm text-warning-subtle-foreground">
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
           You&rsquo;re editing a <span className="font-semibold capitalize">{loadedStatus}</span> invoice. Changes affect a document that has already been sent.
         </div>
       )}
 
-      <Surface title="Invoice Details" bodyClassName="space-y-4">
-        <div className="space-y-2" ref={clinicRef}>
-          <Label>Clinic <Req /></Label>
-          <Combobox
-            aria-label="Clinic"
-            options={customers.map(c => ({ value: c.id, label: c.clinic_name, hint: c.contact_person ?? undefined }))}
-            value={customerId || null}
-            onChange={v => { setCustomerId(v); clearFieldError('clinic') }}
-            placeholder="Select a clinic…"
-            searchPlaceholder="Search clinics…"
-            emptyText="No clinics match."
-          />
-          <FieldError msg={fieldErrors.clinic} />
-        </div>
-
-        {selectedCustomer && (
-          <div className="rounded-md border border-border bg-surface-2">
-            <button
-              type="button"
-              onClick={() => setShowRecipient(s => !s)}
-              className="flex w-full items-start justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted sm:items-center"
-            >
-              <span className="flex items-center gap-2 text-foreground">
-                {showRecipient ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                <span className="font-medium">Recipient details (Bill To / Deliver To)</span>
-                {recipientDirty && !showRecipient && (
-                  <span className="text-xs font-medium text-warning">Edited</span>
-                )}
-              </span>
-              {!showRecipient && (
-                <span className="hidden max-w-[260px] truncate text-xs text-muted-foreground sm:inline">
-                  {billToName || 'No bill-to name'}
-                </span>
-              )}
-            </button>
-            {showRecipient && (
-              <div className="border-t border-border p-3 space-y-4">
-                {/* Bill To */}
-                <div className="space-y-2">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bill To</div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Clinic</Label>
-                      <Input className="bg-card" value={billToName} onChange={e => setBillToName(e.target.value)} placeholder="Clinic name" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Contact person</Label>
-                      <Input className="bg-card" value={billToContact} onChange={e => setBillToContact(e.target.value)} placeholder="Optional" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Phone</Label>
-                      <PhoneInput value={billToPhone} onChange={setBillToPhone} />
-                    </div>
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <Label className="text-xs">Address</Label>
-                      <Textarea className="bg-card" value={billingAddress} onChange={e => setBillingAddress(e.target.value)} rows={2} placeholder="Billing address" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Deliver To — auto-filled from the clinic, overridable per invoice.
-                    The printed document shows a separate Deliver To column only when
-                    these values differ from Bill To. */}
-                <div className="space-y-2 border-t border-border pt-4">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Deliver To</div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Clinic</Label>
-                      <Input className="bg-card" value={shipToName} onChange={e => setShipToName(e.target.value)} placeholder="Clinic name" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Contact person</Label>
-                      <Input className="bg-card" value={shipToContact} onChange={e => setShipToContact(e.target.value)} placeholder="Optional" />
-                    </div>
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <Label className="text-xs">Address</Label>
-                      <Textarea className="bg-card" value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)} rows={2} placeholder="Delivery address" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-xs text-muted-foreground">Edits apply to this invoice only.</p>
-                  {recipientDirty && (
-                    <Button type="button" variant="ghost" size="sm" onClick={restoreFromCustomer} className="h-7 w-full text-xs sm:w-auto">
-                      <RotateCcw className="h-3 w-3 mr-1" />
-                      Restore from clinic
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
+      <Card>
+        <CardHeader><CardTitle className="text-base">Invoice Details</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2" ref={clinicRef}>
+            <Label>Clinic <Req /></Label>
+            <Combobox
+              aria-label="Clinic"
+              options={customers.map(c => ({ value: c.id, label: c.clinic_name, hint: c.contact_person ?? undefined }))}
+              value={customerId || null}
+              onChange={v => { setCustomerId(v); clearFieldError('clinic') }}
+              placeholder="Select a clinic…"
+              searchPlaceholder="Search clinics…"
+              emptyText="No clinics match."
+            />
+            <FieldError msg={fieldErrors.clinic} />
           </div>
-        )}
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div ref={dateRef}>
-            <Field label="Invoice Date" required error={fieldErrors.invoiceDate}>
+          {selectedCustomer && (
+            <div className="rounded-md border border-gray-200 bg-gray-50/50">
+              <button
+                type="button"
+                onClick={() => setShowRecipient(s => !s)}
+                className="flex w-full items-start justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-gray-100/50 sm:items-center"
+              >
+                <span className="flex items-center gap-2 text-gray-700">
+                  {showRecipient ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  <span className="font-medium">Recipient details (Bill To / Deliver To)</span>
+                  {recipientDirty && !showRecipient && (
+                    <span className="text-xs font-medium text-amber-600">Edited</span>
+                  )}
+                </span>
+                {!showRecipient && (
+                  <span className="hidden max-w-[260px] truncate text-xs text-gray-500 sm:inline">
+                    {billToName || 'No bill-to name'}
+                  </span>
+                )}
+              </button>
+              {showRecipient && (
+                <div className="border-t border-gray-200 p-3 space-y-4">
+                  {/* Bill To */}
+                  <div className="space-y-2">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">Bill To</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Clinic</Label>
+                        <Input className="bg-white" value={billToName} onChange={e => setBillToName(e.target.value)} placeholder="Clinic name" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Contact person</Label>
+                        <Input className="bg-white" value={billToContact} onChange={e => setBillToContact(e.target.value)} placeholder="Optional" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Phone</Label>
+                        <PhoneInput value={billToPhone} onChange={setBillToPhone} />
+                      </div>
+                      <div className="space-y-1.5 sm:col-span-2">
+                        <Label className="text-xs">Address</Label>
+                        <Textarea className="bg-white" value={billingAddress} onChange={e => setBillingAddress(e.target.value)} rows={2} placeholder="Billing address" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Deliver To — auto-filled from the clinic, overridable per invoice.
+                      The printed document shows a separate Deliver To column only when
+                      these values differ from Bill To. */}
+                  <div className="space-y-2 rounded-md border border-dashed border-gray-300 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">Deliver To</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Clinic</Label>
+                        <Input className="bg-white" value={shipToName} onChange={e => setShipToName(e.target.value)} placeholder="Clinic name" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Contact person</Label>
+                        <Input className="bg-white" value={shipToContact} onChange={e => setShipToContact(e.target.value)} placeholder="Optional" />
+                      </div>
+                      <div className="space-y-1.5 sm:col-span-2">
+                        <Label className="text-xs">Address</Label>
+                        <Textarea className="bg-white" value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)} rows={2} placeholder="Delivery address" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs text-gray-500">Edits apply to this invoice only.</p>
+                    {recipientDirty && (
+                      <Button type="button" variant="ghost" size="sm" onClick={restoreFromCustomer} className="h-7 w-full text-xs sm:w-auto">
+                        <RotateCcw className="h-3 w-3 mr-1" />
+                        Restore from clinic
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2" ref={dateRef}>
+              <Label>Invoice Date <Req /></Label>
               <Input
                 type="date"
                 value={invoiceDate}
+                aria-required
+                aria-invalid={fieldErrors.invoiceDate ? true : undefined}
                 className={cn(fieldErrors.invoiceDate && 'border-destructive focus-visible:ring-destructive')}
                 onChange={e => { setInvoiceDate(e.target.value); clearFieldError('invoiceDate') }}
               />
-            </Field>
+              <FieldError msg={fieldErrors.invoiceDate} />
+            </div>
           </div>
-        </div>
 
-        {/* Patient / Doctor / Service Status — one grouped row */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div ref={patientRef}>
-            <Field label="Patient" required error={fieldErrors.patient}>
+          {/* Patient / Doctor / Service Status — one grouped row */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="space-y-2" ref={patientRef}>
+              <Label>Patient <Req /></Label>
               <Input
                 placeholder="e.g. Tan Wei Ming"
                 value={patient}
+                aria-required
+                aria-invalid={fieldErrors.patient ? true : undefined}
                 className={cn(fieldErrors.patient && 'border-destructive focus-visible:ring-destructive')}
                 onChange={e => { setPatient(e.target.value); clearFieldError('patient') }}
                 onBlur={() => { if (!patient.trim()) setFieldErrors(prev => ({ ...prev, patient: 'Patient name is required.' })) }}
               />
-            </Field>
-          </div>
-          <div ref={doctorRef}>
-            <Field label="Doctor" required error={fieldErrors.doctor}>
+              <FieldError msg={fieldErrors.patient} />
+            </div>
+            <div className="space-y-2" ref={doctorRef}>
+              <Label>Doctor <Req /></Label>
               <Input
                 placeholder="e.g. Dr. Lim Siew Hoon"
                 value={doctor}
+                aria-required
+                aria-invalid={fieldErrors.doctor ? true : undefined}
                 className={cn(fieldErrors.doctor && 'border-destructive focus-visible:ring-destructive')}
                 onChange={e => { setDoctor(e.target.value); clearFieldError('doctor') }}
                 onBlur={() => { if (!doctor.trim()) setFieldErrors(prev => ({ ...prev, doctor: 'Doctor name is required.' })) }}
               />
-            </Field>
-          </div>
-          <div className="space-y-2">
-            <Label>Service Status</Label>
-            <Select
-              value={serviceStatusId ?? '__none__'}
-              onValueChange={v => setServiceStatusId(v === '__none__' ? null : v)}
-            >
-              <SelectTrigger
-                className={cn(
-                  'h-10 w-full text-sm font-medium',
-                  currentServiceStatus ? cn('border-transparent', currentServiceStatus.color ?? DEFAULT_COLOR) : '',
-                )}
+              <FieldError msg={fieldErrors.doctor} />
+            </div>
+            <div className="space-y-2">
+              <Label>Service Status</Label>
+              <Select
+                value={serviceStatusId ?? '__none__'}
+                onValueChange={v => setServiceStatusId(v === '__none__' ? null : v)}
               >
-                <SelectValue placeholder="No status set" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">No status</SelectItem>
-                {serviceStatuses.map(s => (
-                  <ServiceStatusSelectItem key={s.id} status={s} />
-                ))}
-                <ManageOptionsLink href="/settings/service-statuses" label="Manage service statuses" />
-              </SelectContent>
-            </Select>
+                <SelectTrigger
+                  className={cn(
+                    'h-10 w-full text-sm font-medium',
+                    currentServiceStatus ? cn('border-transparent', currentServiceStatus.color ?? DEFAULT_COLOR) : '',
+                  )}
+                >
+                  <SelectValue placeholder="No status set" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No status</SelectItem>
+                  {serviceStatuses.map(s => (
+                    <ServiceStatusSelectItem key={s.id} status={s} />
+                  ))}
+                  <ManageOptionsLink href="/settings/service-statuses" label="Manage service statuses" />
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
-      </Surface>
+        </CardContent>
+      </Card>
 
-      <Surface title="Line Items">
-        <div ref={lineItemsRef} className="space-y-3">
-          {fieldErrors.items && <p className="text-sm text-danger" role="alert">{fieldErrors.items}</p>}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Line Items</CardTitle>
+          {fieldErrors.items && <p className="text-sm text-destructive">{fieldErrors.items}</p>}
+        </CardHeader>
+        <CardContent ref={lineItemsRef} className="space-y-3">
           {items.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center">
-              <p className="text-sm font-medium text-muted-foreground">No items yet</p>
-              <p className="mx-auto mt-0.5 max-w-xs text-xs text-muted-foreground">
+            <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center">
+              <p className="text-sm font-medium text-gray-500">No items yet</p>
+              <p className="mx-auto mt-0.5 max-w-xs text-xs text-gray-400">
                 Add products from your catalogue to build this invoice.
               </p>
               <div className="mt-4 w-full">
@@ -595,7 +608,7 @@ export default function InvoiceForm({
           ) : (
             <>
               {/* Column header */}
-              <div className="hidden items-center gap-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:flex">
+              <div className="hidden items-center gap-3 px-3 text-[11px] font-medium uppercase tracking-wide text-gray-400 sm:flex">
                 <span className="flex-1">Item</span>
                 <span className="w-12 text-center">Qty</span>
                 <span className="w-7" />
@@ -605,7 +618,7 @@ export default function InvoiceForm({
                 <span className="w-8" />
               </div>
 
-              <div className="divide-y divide-border">
+              <div className="space-y-1.5">
                 {items.map((item, i) => {
                   const product = item.product_id ? products.find(p => p.id === item.product_id) : null
                   const hasRange = product?.min_unit_price != null && product?.max_unit_price != null
@@ -614,14 +627,17 @@ export default function InvoiceForm({
                   const priceError = itemPriceErrors[i]
                   const lineTotal = item.quantity * item.unit_price
                   return (
-                    <div key={item.id ?? `new-${i}`} className="py-3">
+                    <div
+                      key={item.id ?? `new-${i}`}
+                      className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 transition-colors hover:border-gray-300"
+                    >
                       {/* Money row — the catalogue product is the anchor */}
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
                         <div className="min-w-0 flex-1">
                           {product ? (
                             <div className="flex h-9 items-center gap-2">
-                              <span className="truncate text-sm font-semibold text-foreground">{product.name}</span>
-                              <span className="shrink-0 text-xs text-muted-foreground">/{product.unit}</span>
+                              <span className="truncate text-sm font-semibold text-gray-900">{product.name}</span>
+                              <span className="shrink-0 text-xs text-gray-400">/{product.unit}</span>
                             </div>
                           ) : (
                             <Input
@@ -646,12 +662,12 @@ export default function InvoiceForm({
                             onChange={e => updateItem(i, 'quantity', Math.max(1, Math.floor(parseFloat(e.target.value) || 1)))}
                             aria-label="Quantity"
                           />
-                          <span className="flex h-9 shrink-0 items-center justify-center text-xs text-muted-foreground sm:w-7">×</span>
+                          <span className="flex h-9 shrink-0 items-center justify-center text-xs text-gray-300 sm:w-7">×</span>
 
                           <div className="w-full sm:w-24">
                             {isFixed ? (
-                              <div className="flex h-9 w-full items-center justify-end">
-                                <Money className="text-sm" tone="neutral">{formatCurrency(item.unit_price)}</Money>
+                              <div className="flex h-9 w-full items-center justify-end text-sm text-gray-500">
+                                {formatCurrency(item.unit_price)}
                               </div>
                             ) : (
                               <>
@@ -668,26 +684,26 @@ export default function InvoiceForm({
                                   aria-label="Unit price"
                                 />
                                 {priceError ? (
-                                  <p className="mt-1 text-right text-xs leading-tight text-danger">{priceError}</p>
+                                  <p className="mt-1 text-right text-xs leading-tight text-destructive">{priceError}</p>
                                 ) : hasRange ? (
-                                  <p className="mt-1 text-right text-xs leading-tight text-muted-foreground">
+                                  <p className="mt-1 text-right text-xs leading-tight text-gray-400">
                                     {formatPriceRange(product!.min_unit_price!, product!.max_unit_price!)}
                                   </p>
                                 ) : null}
                               </>
                             )}
                           </div>
-                          <span className="flex h-9 shrink-0 items-center justify-center text-xs text-muted-foreground sm:w-7">=</span>
+                          <span className="flex h-9 shrink-0 items-center justify-center text-xs text-gray-300 sm:w-7">=</span>
 
-                          <span className="flex h-9 shrink-0 items-center justify-end text-right sm:w-20">
-                            <Money className="text-sm font-semibold">{formatCurrency(lineTotal)}</Money>
+                          <span className="flex h-9 shrink-0 items-center justify-end text-right text-sm font-semibold text-gray-900 sm:w-20">
+                            {formatCurrency(lineTotal)}
                           </span>
 
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-9 w-8 shrink-0 text-muted-foreground hover:text-danger"
+                            className="h-9 w-8 shrink-0 text-gray-300 hover:text-red-500"
                             onClick={() => removeItem(i)}
                             aria-label="Remove line"
                           >
@@ -701,7 +717,7 @@ export default function InvoiceForm({
                         <div className="mt-1.5 pr-9">
                           <input
                             className={cn(
-                              'w-full min-w-0 bg-transparent text-xs text-muted-foreground outline-none placeholder:text-muted-foreground/60',
+                              'w-full min-w-0 bg-transparent text-xs text-gray-500 outline-none placeholder:text-gray-300',
                               submitAttempted && !item.description.trim() && 'rounded border border-destructive px-1',
                             )}
                             value={item.description}
@@ -720,47 +736,53 @@ export default function InvoiceForm({
 
               <ProductSearchAdd products={products} onAdd={addProduct} />
 
-              <div className="flex justify-end border-t border-border pt-3">
+              <div className="flex justify-end border-t border-gray-200 pt-3">
                 <div className="w-full space-y-1.5 sm:w-64">
                   <div className="flex items-baseline justify-between">
-                    <span className="text-sm text-muted-foreground">Subtotal</span>
-                    <Money className="text-sm font-medium">{formatCurrency(subtotal)}</Money>
+                    <span className="text-sm text-gray-500">Subtotal</span>
+                    <span className="text-sm font-medium text-gray-900">{formatCurrency(subtotal)}</span>
                   </div>
-                  <div className="flex items-baseline justify-between border-t border-border pt-1.5">
-                    <span className="text-sm text-muted-foreground">Total</span>
-                    <Money className="text-lg font-semibold">{formatCurrency(total)}</Money>
+                  <div className="flex items-baseline justify-between border-t border-gray-200 pt-1.5">
+                    <span className="text-sm text-gray-500">Total</span>
+                    <span className="text-lg font-semibold text-gray-900">{formatCurrency(total)}</span>
                   </div>
                 </div>
               </div>
             </>
           )}
-        </div>
-      </Surface>
+        </CardContent>
+      </Card>
 
-      <Surface title="Remarks" description="Internal only — not printed or shown to the clinic.">
-        <Textarea
-          placeholder="Internal remarks for this invoice…"
-          value={remarks}
-          onChange={e => setRemarks(e.target.value)}
-          rows={3}
-        />
-      </Surface>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Remarks</CardTitle>
+          <p className="text-xs text-gray-500">Internal only — not printed or shown to the clinic.</p>
+        </CardHeader>
+        <CardContent>
+          <Textarea
+            placeholder="Internal remarks for this invoice…"
+            value={remarks}
+            onChange={e => setRemarks(e.target.value)}
+            rows={3}
+          />
+        </CardContent>
+      </Card>
 
       {Object.keys(fieldErrors).length > 0 && (
-        <p className="text-sm text-danger">Please fix the highlighted fields above.</p>
+        <p className="text-sm text-destructive">Please fix the highlighted fields above.</p>
       )}
 
       <div className="flex flex-col gap-3 sm:flex-row">
         {isEdit ? (
           // type="submit" → Enter in a header field saves; the form's onSubmit is
           // the single save path (no onClick, so a click can't double-fire it).
-          <Button className="w-full sm:w-auto" type="submit" loading={saving} disabled={saving || hasItemPriceErrors}>
-            Save Changes
+          <Button className="w-full sm:w-auto" type="submit" disabled={saving || hasItemPriceErrors}>
+            {saving ? 'Saving…' : 'Save Changes'}
           </Button>
         ) : (
           <>
-            <Button className="w-full sm:w-auto" type="submit" loading={saving} disabled={saving || hasItemPriceErrors}>
-              Create
+            <Button className="w-full sm:w-auto" type="submit" disabled={saving || hasItemPriceErrors}>
+              {saving ? 'Saving…' : 'Create'}
             </Button>
             <Button className="w-full sm:w-auto" type="button" variant="outline" onClick={() => handleCreate('draft')} disabled={saving || hasItemPriceErrors}>
               Save as Draft

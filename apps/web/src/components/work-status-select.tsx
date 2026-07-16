@@ -10,10 +10,9 @@ import {
   Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger,
 } from '@/components/ui/select'
 import { ManageOptionsLink } from '@/components/ui/manage-options-link'
-import { StatusPill, statusTone, toneChipClass, type Tone } from '@/components/ui/status-pill'
 import { cn } from '@/lib/utils'
 import {
-  decodeWork, encodeWork, nextWorkStep, workColor, workLabel, workSubStatusLabel,
+  encodeWork, nextWorkStep, workColor, workLabel, workSubStatusLabel,
   STAGE_DEFAULT_COLOR, type WorkOption,
 } from '@/lib/work-stages'
 import { workStatusColor, workStatusLabel, type WorkStatusDisplay } from '@/lib/work-status-config'
@@ -24,14 +23,11 @@ import type { WorkStage, WorkStatus } from '@chidental/shared'
 // nextWorkStep() against the item's current (work_status, stage_id).
 export const ADVANCE_VALUE = '__advance__'
 
-// Option/stage pills follow the StatusPill authority: tone is derived from the
-// option's top-level work status (stage values decode to in_progress → info).
 function OptionRow({ option }: { option: WorkOption }) {
-  const tone = statusTone('work', decodeWork(option.value).work_status)
   return (
-    <StatusPill tone={tone} className="max-w-full px-2.5 text-sm leading-5">
+    <span className={cn('inline-flex max-w-full items-center rounded-full px-2.5 py-0.5 text-sm font-medium leading-5', option.color)}>
       <span className="truncate">{option.label}</span>
-    </StatusPill>
+    </span>
   )
 }
 
@@ -68,7 +64,7 @@ export function WorkStatusSelect({
   stagesById: Map<string, WorkStage>
   statusConfigs?: WorkStatusDisplay[]
   triggerClassName?: string
-  leadingItems?: Array<{ value: string; label: string; tone?: Tone; colorLabel?: string }>
+  leadingItems?: Array<{ value: string; label: string; color?: string; colorLabel?: string }>
 }) {
   // In-Progress group: the active stages, plus the item's current value when it
   // sits on a retired stage / bare in-progress (so it stays selectable + visible).
@@ -95,7 +91,7 @@ export function WorkStatusSelect({
       <SelectTrigger
         className={cn(
           'h-9 min-w-44 text-sm font-medium border-transparent',
-          toneChipClass(statusTone('work', workStatus)),
+          workColor(workStatus, stageId, stagesById, statusConfigs),
           triggerClassName,
         )}
       >
@@ -116,13 +112,13 @@ export function WorkStatusSelect({
         {leadingItems && leadingItems.length > 0 && (
           <>
             {leadingItems.map(o => (
-              o.tone ? (
+              o.color ? (
                 <SelectItem key={o.value} value={o.value} textValue={o.label} className="py-2">
                   <span className="flex max-w-full items-center gap-2">
                     <span className="shrink-0 text-sm">{o.label}</span>
-                    <StatusPill tone={o.tone} className="min-w-0 px-2.5 text-sm leading-5">
+                    <span className={cn('inline-flex min-w-0 items-center rounded-full px-2.5 py-0.5 text-sm font-medium leading-5', o.color)}>
                       <span className="truncate">{o.colorLabel ?? o.label}</span>
-                    </StatusPill>
+                    </span>
                   </span>
                 </SelectItem>
               ) : (

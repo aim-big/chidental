@@ -104,9 +104,8 @@ export function IssueCreditDialog({
           <DialogHeader><DialogTitle>Issue Account Credit</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="credit-amount">Amount (MYR) *</Label>
+              <Label>Amount (MYR) *</Label>
               <Input
-                id="credit-amount"
                 type="number"
                 min="0"
                 step="0.01"
@@ -117,9 +116,9 @@ export function IssueCreditDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="credit-reason">Reason *</Label>
+              <Label>Reason *</Label>
               <Select value={reason} onValueChange={(v) => setReason(v as CreditReason)}>
-                <SelectTrigger id="credit-reason"><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CREDIT_REASON_OPTIONS.map((o) => (
                     <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
@@ -128,9 +127,9 @@ export function IssueCreditDialog({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="credit-invoice">Against invoice</Label>
+              <Label>Against invoice</Label>
               <Select value={invoiceId} onValueChange={setInvoiceId}>
-                <SelectTrigger id="credit-invoice"><SelectValue placeholder="Clinic-level (no invoice)" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Clinic-level (no invoice)" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NO_INVOICE}>Clinic-level (no invoice)</SelectItem>
                   {invoices.map((inv) => (
@@ -140,12 +139,12 @@ export function IssueCreditDialog({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="credit-date">Date *</Label>
-              <Input id="credit-date" type="date" value={creditDate} onChange={(e) => setCreditDate(e.target.value)} />
+              <Label>Date *</Label>
+              <Input type="date" value={creditDate} onChange={(e) => setCreditDate(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="credit-notes">Notes</Label>
-              <Textarea id="credit-notes" rows={2} placeholder="Optional notes…" value={notes} onChange={(e) => setNotes(e.target.value)} />
+              <Label>Notes</Label>
+              <Textarea rows={2} placeholder="Optional notes…" value={notes} onChange={(e) => setNotes(e.target.value)} />
             </div>
           </div>
           <DialogFooter>

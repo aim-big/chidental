@@ -249,7 +249,7 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
                 <Badge variant="destructive" className="uppercase">Voided</Badge>
               )}
             </div>
-            <Link href={`/customers/${invoice.customer_id}`} className="text-sm text-brand hover:underline">
+            <Link href={`/customers/${invoice.customer_id}`} className="text-sm text-primary hover:underline">
               {customerName}
             </Link>
           </div>
@@ -276,7 +276,7 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
               outstanding balance and marks the invoice paid. Hidden once paid so
               a second full payment can't be recorded. */}
           {!voided && ['sent', 'partial', 'overdue'].includes(invoice.status) && (
-            <Button className="w-full sm:w-auto" size="sm" onClick={() => { reset({ payment_date: todayISODate() }); setPaymentOpen(true) }}>
+            <Button className="w-full sm:w-auto" variant="outline" size="sm" onClick={() => { reset({ payment_date: todayISODate() }); setPaymentOpen(true) }}>
               <CreditCard className="h-4 w-4 mr-2" />Record Payment
             </Button>
           )}
@@ -291,7 +291,7 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
             <Button
               variant="outline"
               size="sm"
-              className="w-full border-danger/30 text-danger hover:border-danger/50 hover:bg-danger-subtle hover:text-danger sm:w-auto"
+              className="w-full border-red-200 text-red-600 hover:border-red-300 hover:bg-red-50 sm:w-auto"
               onClick={() => setVoidOpen(true)}
             >
               <Ban className="h-4 w-4 mr-2" />Void
@@ -308,7 +308,7 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
             <Button
               variant="outline"
               size="sm"
-              className="w-full border-danger/30 text-danger hover:border-danger/50 hover:bg-danger-subtle hover:text-danger sm:w-auto"
+              className="w-full border-red-200 text-red-600 hover:border-red-300 hover:bg-red-50 sm:w-auto"
               onClick={() => { setDeleteReason(''); setDeleteOpen(true) }}
             >
               <Trash2 className="h-4 w-4 mr-2" />Delete
@@ -324,7 +324,7 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
       <Dialog open={voidOpen} onOpenChange={setVoidOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-danger">
+            <DialogTitle className="flex items-center gap-2 text-red-600">
               <Ban className="h-5 w-5" /> Void Invoice
             </DialogTitle>
           </DialogHeader>
@@ -353,7 +353,7 @@ export function ActionsBar({ invoice, customerName, unrecorded, onPrint }: Actio
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-danger">
+            <DialogTitle className="flex items-center gap-2 text-red-600">
               <Trash2 className="h-5 w-5" /> Delete Invoice
             </DialogTitle>
           </DialogHeader>

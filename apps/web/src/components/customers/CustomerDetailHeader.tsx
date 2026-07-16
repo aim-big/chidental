@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { StatusPill } from '@/components/ui/status-pill'
+import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, Edit, Plus, FileText } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { ArchiveClinicControls } from '@/components/customers/ArchiveClinicControls'
@@ -35,7 +35,7 @@ export function CustomerDetailHeader({
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-foreground sm:text-2xl">{clinicName}</h1>
-            {archived && <StatusPill tone="neutral" className="uppercase">Archived</StatusPill>}
+            {archived && <Badge variant="secondary" className="uppercase">Archived</Badge>}
           </div>
           {contactPerson && <p className="text-sm text-muted-foreground mt-0.5">{contactPerson}</p>}
         </div>

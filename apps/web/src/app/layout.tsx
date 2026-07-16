@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { Hanken_Grotesk } from 'next/font/google'
-import { THEME_STORAGE_KEY } from '@/lib/theme'
 import './globals.css'
 
 const sans = Hanken_Grotesk({
@@ -18,16 +17,9 @@ export const metadata: Metadata = {
   },
 }
 
-// Set the theme class before paint to avoid a flash. Dark is opt-in (stored
-// preference only) — existing users stay on light unless they choose dark.
-const themeScript = `(function(){try{if(localStorage.getItem('${THEME_STORAGE_KEY}')==='dark'){document.documentElement.classList.add('dark')}}catch(e){}})()`
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={sans.variable} suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-      </head>
+    <html lang="en" className={sans.variable}>
       <body>{children}</body>
     </html>
   )

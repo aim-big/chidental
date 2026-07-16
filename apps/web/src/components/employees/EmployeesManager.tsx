@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -8,9 +9,9 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { TooltipProvider } from '@/components/ui/tooltip'
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import { ActiveSwitch, TableActionButton } from '@/components/ui/table-actions'
-import { KeyRound, PencilLine, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, KeyRound, PencilLine, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Profile, Role } from '@chidental/shared'
 import { createEmployee, updateEmployee, resetPin, setActive, deleteEmployee, listEmployees } from '@/lib/auth/employee-actions'
@@ -77,9 +78,19 @@ export default function EmployeesManager({
     <TooltipProvider delayDuration={200}>
     <div className="w-full max-w-4xl space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-foreground sm:text-2xl">Employees</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Add staff logins, reset PINs, and manage access.</p>
+        <div className="flex items-center gap-3">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/settings">
+                <Button variant="ghost" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>Back to Settings</TooltipContent>
+          </Tooltip>
+          <div>
+            <h1 className="text-xl font-bold text-foreground sm:text-2xl">Employees</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">Add staff logins, reset PINs, and manage access.</p>
+          </div>
         </div>
         <Button className="w-full sm:w-auto" onClick={() => setDialog({ mode: 'create' })}><Plus className="h-4 w-4 mr-2" />Add Employee</Button>
       </div>
@@ -108,7 +119,7 @@ export default function EmployeesManager({
                   <TableCell>
                     <span className={cn(
                       'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
-                      p.roles?.is_system ? 'bg-brand/10 text-brand' : 'bg-neutral-subtle text-neutral-subtle-foreground',
+                      p.roles?.is_system ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-muted-foreground',
                     )}>
                       {p.roles?.name ?? '—'}
                     </span>
@@ -116,7 +127,7 @@ export default function EmployeesManager({
                   <TableCell>
                     <span className={cn(
                       'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
-                      p.active ? 'bg-success-subtle text-success-subtle-foreground' : 'bg-neutral-subtle text-neutral-subtle-foreground',
+                      p.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-muted-foreground',
                     )}>
                       {p.active ? 'Active' : 'Inactive'}
                     </span>
