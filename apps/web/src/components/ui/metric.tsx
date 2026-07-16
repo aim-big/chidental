@@ -28,13 +28,13 @@ export function Metric({ label, value, hint, icon, tone = 'default', hero = fals
   return (
     <div className={cn('flex flex-col', className)}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium text-muted-foreground">{label}</span>
-        {icon && <span className="text-muted-foreground/70">{icon}</span>}
+        <span className="text-[0.8125rem] font-medium text-muted-foreground">{label}</span>
+        {icon && <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-accent text-brand">{icon}</span>}
       </div>
       <span
         className={cn(
           'nums tabular-nums font-semibold leading-tight',
-          hero ? 'mt-1.5 text-3xl sm:text-4xl' : 'mt-1 text-xl sm:text-2xl',
+          hero ? 'mt-1.5 text-3xl sm:text-[2rem]' : 'mt-1 text-xl sm:text-2xl',
           toneText[tone],
         )}
       >

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Moon, Sun } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { THEME_STORAGE_KEY } from '@/lib/theme'
 
 // Light/dark toggle. The pre-paint script in the root layout applies the stored
 // preference before hydration; this button flips it and persists the choice.
@@ -18,7 +19,7 @@ export function ThemeToggle({ collapsed = false, className }: { collapsed?: bool
   const toggle = () => {
     const next = !dark
     document.documentElement.classList.toggle('dark', next)
-    try { localStorage.setItem('chidental-theme', next ? 'dark' : 'light') } catch {}
+    try { localStorage.setItem(THEME_STORAGE_KEY, next ? 'dark' : 'light') } catch {}
     setDark(next)
   }
 
@@ -30,7 +31,7 @@ export function ThemeToggle({ collapsed = false, className }: { collapsed?: bool
       aria-label={label}
       title={label}
       className={cn(
-        'flex h-10 items-center rounded-md text-sm font-medium text-rail-muted transition-colors hover:bg-white/5 hover:text-rail-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60',
+        'flex h-10 items-center rounded-md text-sm font-medium text-rail-muted transition-colors duration-150 hover:bg-rail-hover hover:text-rail-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-rail',
         collapsed ? 'w-full justify-center px-0' : 'w-full gap-3 px-3',
         className,
       )}

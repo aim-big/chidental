@@ -58,17 +58,17 @@ function SidebarContent({
 }) {
   const linkClass = (active: boolean) =>
     cn(
-      'flex h-10 items-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60',
+      'flex h-10 items-center rounded-md text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-rail',
       collapsed ? 'justify-center px-0' : 'gap-3 px-3',
       active
-        ? 'bg-white/10 text-rail-foreground'
-        : 'text-rail-muted hover:bg-white/5 hover:text-rail-foreground',
+        ? 'bg-rail-selected text-brand'
+        : 'text-rail-muted hover:bg-rail-hover hover:text-rail-foreground',
     )
 
   return (
     <TooltipProvider delayDuration={150}>
       <div className="relative flex h-full flex-col">
-        <div className={cn('px-5 pt-5 pb-4', collapsed && 'px-3')}>
+        <div className={cn('border-b border-rail-border px-5 pb-4 pt-5', collapsed && 'px-3')}>
           <div className={cn('flex items-center', collapsed ? 'justify-center' : 'justify-start')}>
             {collapsed ? (
               <Image
@@ -92,16 +92,14 @@ function SidebarContent({
           </div>
         </div>
 
-        <div className="mx-4 border-t border-white/10" />
-
         {/* Search button */}
-        <div className={cn('px-3 pb-2', collapsed && 'px-2')}>
+        <div className={cn('px-3 pb-2 pt-3', collapsed && 'px-2')}>
           <SidebarTooltip label="Search" collapsed={collapsed}>
             <button
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent('command-palette:open'))}
               className={cn(
-                'flex h-10 w-full items-center rounded-md border border-white/10 bg-white/5 text-sm text-rail-muted transition-colors hover:bg-white/10 hover:text-rail-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60',
+                'flex h-10 w-full items-center rounded-md border border-rail-border bg-rail-hover text-sm text-rail-muted transition-colors duration-150 hover:bg-white/15 hover:text-rail-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-rail',
                 collapsed ? 'justify-center px-0' : 'gap-2 px-3',
               )}
             >
@@ -109,7 +107,7 @@ function SidebarContent({
               {!collapsed && (
                 <>
                   <span className="flex-1 text-left">Search…</span>
-                  <kbd className="hidden items-center gap-0.5 rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-sans text-xs text-rail-muted sm:inline-flex">
+                  <kbd className="hidden items-center gap-0.5 rounded border border-rail-border bg-rail-hover px-1.5 py-0.5 font-sans text-xs text-rail-muted sm:inline-flex">
                     ⌘K
                   </kbd>
                 </>
@@ -135,7 +133,7 @@ function SidebarContent({
 
         {/* Settings pinned at the bottom — only when the user can reach a section */}
         {showSettings && (
-          <div className={cn('px-3 pb-1', collapsed && 'px-2')}>
+          <div className={cn('mx-3 border-t border-rail-border pb-2 pt-2', collapsed && 'mx-2')}>
             <SidebarTooltip label="Settings" collapsed={collapsed}>
               <Link href="/settings" onClick={onNavigate} className={linkClass(activeHref === '/settings')} aria-label="Settings" aria-current={activeHref === '/settings' ? 'page' : undefined}>
                 <Settings className={cn('h-4 w-4 flex-shrink-0', activeHref === '/settings' && 'text-brand')} />
@@ -145,27 +143,25 @@ function SidebarContent({
           </div>
         )}
 
-        <div className="mx-4 border-t border-white/10" />
-
         {/* User chip → Profile (click yourself), with Sign out */}
-        <div className={cn('p-3', collapsed && 'px-2')}>
+        <div className={cn('border-t border-rail-border p-3', collapsed && 'px-2')}>
           <SidebarTooltip label={`${username} · ${roleName}`} collapsed={collapsed}>
             <Link
               href="/profile"
               onClick={onNavigate}
               aria-label="My Profile"
               className={cn(
-                'mb-1 rounded-md transition-colors',
+                'mb-1 rounded-md transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-rail',
                 collapsed ? 'flex h-10 items-center justify-center px-0' : 'block px-3 py-2',
-                activeHref === '/profile' ? 'bg-white/10' : 'hover:bg-white/5',
+                activeHref === '/profile' ? 'bg-rail-selected text-brand' : 'text-rail-muted hover:bg-rail-hover hover:text-rail-foreground',
               )}
             >
               {collapsed ? (
                 <UserRound className="h-4 w-4 text-rail-muted" />
               ) : (
                 <>
-                  <p className="text-sm font-medium text-rail-foreground truncate">{username}</p>
-                  <p className="text-xs text-rail-muted capitalize">{roleName}</p>
+                  <p className={cn('truncate text-sm font-medium', activeHref === '/profile' ? 'text-brand' : 'text-rail-foreground')}>{username}</p>
+                  <p className={cn('text-xs capitalize', activeHref === '/profile' ? 'text-brand/80' : 'text-rail-muted')}>{roleName}</p>
                 </>
               )}
             </Link>
@@ -177,7 +173,7 @@ function SidebarContent({
               size={collapsed ? 'icon' : 'sm'}
               aria-label="Sign out"
               className={cn(
-                'text-rail-muted hover:bg-white/5 hover:text-rail-foreground',
+                'text-rail-muted hover:bg-rail-hover hover:text-rail-foreground',
                 collapsed ? 'h-10 w-full' : 'w-full justify-start',
               )}
               onClick={onSignOut}
@@ -195,9 +191,11 @@ function SidebarContent({
                 type="button"
                 onClick={onToggleCollapsed}
                 aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                className="absolute bottom-5 -right-3 z-20 inline-flex h-7 w-7 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-md transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="group absolute -right-5 bottom-3 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border bg-card shadow-sm transition-colors group-hover:bg-accent">
+                  {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+                </span>
               </button>
             </TooltipTrigger>
             <TooltipContent side="right">
@@ -262,9 +260,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-dvh bg-background">
+    <div className="flex h-dvh bg-workspace">
       {/* Desktop sidebar */}
-      <aside className={cn('hidden flex-col bg-rail flex-shrink-0 transition-[width] duration-200 md:flex', sidebarCollapsed ? 'w-20' : 'w-64')}>
+      <aside className={cn('hidden flex-shrink-0 flex-col border-r border-rail-border bg-rail transition-[width] duration-200 md:flex', sidebarCollapsed ? 'w-20' : 'w-64')}>
         <SidebarContent
           items={items}
           activeHref={activeHref}
@@ -314,7 +312,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           />
         </header>
 
-        <main className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5 lg:p-6">
+        <main className="mx-auto w-full max-w-[1600px] flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-8">
           {/* App-wide tooltip context so any page (settings managers, etc.) can use
               Tooltip-based controls without each one re-declaring a provider. */}
           <TooltipProvider delayDuration={200}>

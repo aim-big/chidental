@@ -3,12 +3,10 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
-  Chidental "Console" design system — see /DESIGN.md (repo root) for the full spec.
-  A warm-anchored precision instrument: near-monochrome warm-neutral surfaces, an
-  espresso command rail, hairlines (not stacked cards) for structure, and colour
-  reserved for money/status meaning and the single primary action. First-class dark
-  mode. Values are OKLCH. We keep the shadcn variable names so existing components
-  inherit the new look, and add semantic + layer tokens on top.
+  Chidental "Daylight Ledger" design system — see /DESIGN.md (repo root).
+  Neutral daylight workspace, the original #766254 sidebar, crisp dividers, and
+  restrained colour for financial and production meaning. The shadcn variable names
+  remain so established components inherit the system.
 */
 
 @theme inline {
@@ -20,6 +18,7 @@
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-surface-2: var(--surface-2);
+  --color-workspace: var(--workspace);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
@@ -40,6 +39,9 @@
   --color-rail: var(--rail);
   --color-rail-foreground: var(--rail-foreground);
   --color-rail-muted: var(--rail-muted);
+  --color-rail-hover: var(--rail-hover);
+  --color-rail-selected: var(--rail-selected);
+  --color-rail-border: var(--rail-border);
 
   /* Semantic — money & status (one authority). Each: emphasis tone + subtle chip. */
   --color-success: var(--success);
@@ -74,11 +76,11 @@
   --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
 
-  /* Elevation — warm ink, one job each; content is flat by default */
-  --shadow-xs: 0 1px 2px 0 oklch(0.24 0.01 70 / 0.05);
-  --shadow-sm: 0 1px 2px 0 oklch(0.24 0.01 70 / 0.06), 0 1px 3px 0 oklch(0.24 0.01 70 / 0.04);
-  --shadow-md: 0 4px 12px -2px oklch(0.24 0.01 70 / 0.10), 0 2px 4px -2px oklch(0.24 0.01 70 / 0.06);
-  --shadow-lg: 0 12px 32px -8px oklch(0.22 0.01 70 / 0.18), 0 4px 8px -4px oklch(0.22 0.01 70 / 0.10);
+  /* Elevation — content stays flat; overlays alone receive depth. */
+  --shadow-xs: 0 1px 2px oklch(0.24 0.015 255 / 0.05);
+  --shadow-sm: 0 2px 6px oklch(0.24 0.015 255 / 0.08);
+  --shadow-md: 0 6px 16px -6px oklch(0.22 0.015 255 / 0.18);
+  --shadow-lg: 0 16px 36px -12px oklch(0.20 0.015 255 / 0.24);
 
   /* Motion */
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
@@ -99,34 +101,38 @@
 
 @layer base {
   :root {
-    /* ---- Light ---- warm neutrals, hue ~72 ---- */
-    --background: oklch(0.975 0.004 75);
-    --foreground: oklch(0.24 0.012 70);
+    /* ---- Daylight ---- neutral workspace, warm brand only ---- */
+    --workspace: oklch(0.975 0.004 255);
+    --background: var(--workspace);
+    --foreground: oklch(0.24 0.015 255);
     --card: oklch(1 0 0);
-    --card-foreground: oklch(0.24 0.012 70);
+    --card-foreground: oklch(0.24 0.015 255);
     --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.24 0.012 70);
-    --surface-2: oklch(0.985 0.004 75);
-    --muted: oklch(0.965 0.004 75);
-    --muted-foreground: oklch(0.50 0.012 70);
-    --border: oklch(0.90 0.006 75);
-    --input: oklch(0.86 0.007 75);
-    --ring: oklch(0.55 0.07 62);
+    --popover-foreground: oklch(0.24 0.015 255);
+    --surface-2: oklch(0.955 0.006 255);
+    --muted: oklch(0.945 0.006 255);
+    --muted-foreground: oklch(0.47 0.015 255);
+    --border: oklch(0.885 0.009 255);
+    --input: oklch(0.83 0.012 255);
+    --ring: #766254;
 
-    /* Brand (logo/heritage) + primary action (espresso) */
-    --brand: oklch(0.47 0.05 62);
+    /* Brand and primary action */
+    --brand: #766254;
     --brand-foreground: oklch(0.99 0 0);
-    --primary: oklch(0.30 0.016 62);
+    --primary: #6b5749;
     --primary-foreground: oklch(0.99 0 0);
-    --secondary: oklch(0.965 0.005 72);
-    --secondary-foreground: oklch(0.30 0.012 70);
-    --accent: oklch(0.95 0.008 66);
-    --accent-foreground: oklch(0.28 0.014 62);
+    --secondary: oklch(0.945 0.006 255);
+    --secondary-foreground: oklch(0.28 0.015 255);
+    --accent: oklch(0.95 0.012 58);
+    --accent-foreground: oklch(0.32 0.035 58);
 
-    /* Command rail (espresso) */
-    --rail: oklch(0.28 0.014 62);
-    --rail-foreground: oklch(0.93 0.006 75);
-    --rail-muted: oklch(0.72 0.010 70);
+    /* Original Chi Dental sidebar, restored exactly. */
+    --rail: #766254;
+    --rail-foreground: oklch(0.99 0 0);
+    --rail-muted: oklch(0.91 0.012 65);
+    --rail-hover: oklch(1 0 0 / 0.10);
+    --rail-selected: oklch(0.99 0 0);
+    --rail-border: oklch(1 0 0 / 0.18);
 
     /* Semantic — emphasis tone (AA on white) + subtle chip bg + chip text */
     --success: oklch(0.50 0.12 150);
@@ -156,8 +162,9 @@
   }
 
   .dark {
-    /* ---- Dark ---- warm neutrals ---- */
-    --background: oklch(0.19 0.008 70);
+    /* ---- Optional dim theme ---- */
+    --workspace: oklch(0.245 0.010 255);
+    --background: var(--workspace);
     --foreground: oklch(0.94 0.004 75);
     --card: oklch(0.235 0.010 70);
     --card-foreground: oklch(0.94 0.004 75);
@@ -179,9 +186,12 @@
     --accent: oklch(0.32 0.012 70);
     --accent-foreground: oklch(0.94 0.004 75);
 
-    --rail: oklch(0.155 0.007 70);
-    --rail-foreground: oklch(0.93 0.006 75);
-    --rail-muted: oklch(0.66 0.010 70);
+    --rail: #766254;
+    --rail-foreground: oklch(0.99 0 0);
+    --rail-muted: oklch(0.91 0.012 65);
+    --rail-hover: oklch(1 0 0 / 0.10);
+    --rail-selected: oklch(0.99 0 0);
+    --rail-border: oklch(1 0 0 / 0.18);
 
     --success: oklch(0.72 0.14 150);
     --success-foreground: oklch(0.18 0.02 150);
@@ -225,6 +235,15 @@
   /* Tabular, slashed-zero numerics helper for money/counts/ids */
   .nums {
     font-variant-numeric: tabular-nums slashed-zero;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
