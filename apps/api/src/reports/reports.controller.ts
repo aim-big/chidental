@@ -1,5 +1,17 @@
-import { Controller, Get, Query } from '@nestjs/common'
+import { BadRequestException, Controller, Get, Query } from '@nestjs/common'
+import { dateRangeQuerySchema } from '@chidental/shared'
 import { SupabaseService } from '../supabase/supabase.service'
+
+// Parse the shared date-range contract or throw a 400. Keeps a malformed/missing
+// range from reaching Postgres as an undefined bound (which returns a confusing
+// 500 rather than the clear "bad request" the caller deserves).
+function parseRange(from: string, to: string): { from: string; to: string } {
+  const parsed = dateRangeQuerySchema.safeParse({ from, to })
+  if (!parsed.success) {
+    throw new BadRequestException('`from` and `to` must be YYYY-MM-DD dates')
+  }
+  return parsed.data
+}
 
 // Read endpoints for the Sales Reports page (strangler migration, module 6).
 // Mirror apps/web `src/data/reports.ts` verbatim — the same date-ranged queries
@@ -19,7 +31,8 @@ export class ReportsController {
 
   // Mirrors getReportInvoices(): date-ranged, non-deleted, with clinic + items.
   @Get('invoices')
-  async invoices(@Query('from') from: string, @Query('to') to: string) {
+  async invoices(@Query('from') fromRaw: string, @Query('to') toRaw: string) {
+    const { from, to } = parseRange(fromRaw, toRaw)
     const { data, error } = await this.supabase.admin
       .from('invoices')
       .select('*, customers(clinic_name), invoice_items(*, products(name))')
@@ -33,7 +46,8 @@ export class ReportsController {
   // Mirrors getReportPayments(): payments in range, joined to invoice + clinic,
   // with voided/deleted parents dropped and to-one relations normalized.
   @Get('payments')
-  async payments(@Query('from') from: string, @Query('to') to: string) {
+  async payments(@Query('from') fromRaw: string, @Query('to') toRaw: string) {
+    const { from, to } = parseRange(fromRaw, toRaw)
     const { data, error } = await this.supabase.admin
       .from('payments')
       .select(

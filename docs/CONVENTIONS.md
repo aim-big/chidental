@@ -105,8 +105,12 @@ after "Name" tested as confusing on the New Invoice screen.
 
 Three invoice tiers — keep the boundary consistent:
 
-- `invoices.view` — read invoices + the Work board, **and change work status** (shop-floor
-  staff move jobs without billing rights).
+- `invoices.view` — read invoices + the Work board, **and change work status / add work
+  notes** (shop-floor staff move jobs without billing rights). ⚠️ **`invoices.view` is
+  therefore not a read-only grant** — a role holding only view keys can still mutate work
+  state (and write its audit rows). There is no "view the board but can't touch it" role
+  today; if you need one, add a dedicated `work.edit` key rather than re-gating the work
+  writes (that would strip work access from existing view-only staff).
 - `invoices.edit` — create invoices + edit **draft** invoices.
 - `invoices.manage` — record payments, **void**, and edit **already-sent** invoices.
 

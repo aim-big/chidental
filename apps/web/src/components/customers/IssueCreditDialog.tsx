@@ -100,7 +100,7 @@ export function IssueCreditDialog({
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent description="Issue an account credit (remake, return, or goodwill) that reduces this clinic's balance.">
           <DialogHeader><DialogTitle>Issue Account Credit</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">

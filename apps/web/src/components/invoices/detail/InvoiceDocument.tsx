@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { ServiceStatusSelectItem } from '@/components/invoices/ServiceStatusSelectItem'
@@ -633,9 +633,9 @@ export function InvoiceDocument({
               <Printer className="h-5 w-5 text-primary" />
               {dialogMode === 'delivery' ? 'Print Delivery Order' : 'Print Invoice'}
             </DialogTitle>
-            <p className="text-xs text-gray-500 mt-1">
+            <DialogDescription className="text-xs text-gray-500 mt-1">
               Preview on the left — adjust anything on the right, then print.
-            </p>
+            </DialogDescription>
           </DialogHeader>
 
           <div className="grid flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:overflow-hidden">
@@ -871,7 +871,7 @@ export function InvoiceDocument({
 
       {/* Edit recipient dialog */}
       <Dialog open={recipientOpen} onOpenChange={setRecipientOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl" description="Edit the Bill To and Deliver To details printed on this invoice.">
           <DialogHeader>
             <DialogTitle>Edit recipient</DialogTitle>
           </DialogHeader>

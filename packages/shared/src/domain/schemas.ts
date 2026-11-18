@@ -151,6 +151,17 @@ export const billingSettingsInputSchema = z.object({
   paymentTermsDays: z.number().refine((n) => Number.isFinite(n) && n >= 1, 'Payment terms must be at least 1 day.'),
 })
 
+// Query-param contract for the date-ranged read endpoints (dashboard, reports).
+// `from`/`to` are inclusive YYYY-MM-DD calendar dates. Validating here turns a
+// missing/malformed range into a 400 at the controller boundary instead of a
+// 500 when the date math later hits `new Date(undefined)` (Invalid time value).
+export const dateRangeQuerySchema = z.object({
+  from: z.iso.date(),
+  to: z.iso.date(),
+})
+
+export type DateRangeQuery = z.infer<typeof dateRangeQuerySchema>
+
 export type InvoiceInput = z.infer<typeof invoiceInputSchema>
 export type PaymentInput = z.infer<typeof paymentInputSchema>
 export type CreditInput = z.infer<typeof creditInputSchema>

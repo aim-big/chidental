@@ -303,7 +303,7 @@ export function AdminConsoleClient({
 
       {/* Typed-confirmation purge dialog */}
       <Dialog open={purge !== null} onOpenChange={o => { if (!o) closePurge() }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md" description="Permanently delete this record and its dependent data. This cannot be undone.">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <Trash2 className="h-5 w-5" /> Permanently delete

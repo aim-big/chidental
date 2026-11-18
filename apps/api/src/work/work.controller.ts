@@ -56,6 +56,14 @@ export class WorkController {
   // Both mirror apps/web `src/data/invoice-actions.ts` and gate on invoices.view
   // (same key the UI uses — the status dropdown/note render for any non-void
   // invoice). Return { ok, invoiceId } so the web seam can revalidateInvoice.
+  //
+  // DELIBERATE: these mutations gate on invoices.VIEW, not an edit/manage key.
+  // Updating work progress is the lab's daily operational task, done by whoever
+  // can see the invoice — so a role holding only `invoices.view` CAN change work
+  // status and add work notes. "View invoices" is therefore NOT a read-only role
+  // for the work board. See docs/CONVENTIONS.md → Permissions. If you ever need a
+  // truly read-only role, add a dedicated `work.edit` key rather than re-gating
+  // here (which would silently strip work access from existing view-only roles).
 
   // Mirrors updateWorkStatusAction(). Uses the USER-scoped client so the
   // invoice_item_status_history trigger records the real actor via auth.uid();
